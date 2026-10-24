@@ -37,6 +37,18 @@ public sealed partial class MarkdownDocumentView : UserControl
     private const double LightThemeSemanticMinimumContrast = 4.5;
     private static readonly Windows.UI.Color LightMarkdownWorstCaseSurface =
         Windows.UI.Color.FromArgb(0xFF, 0xB8, 0xB8, 0xB8);
+    // Render-path resources are shared and immutable: code runs appear in
+    // every block, so allocating a FontFamily/Brush per element would put a
+    // per-render allocation storm on long documents.
+    private static readonly FontFamily s_codeFontFamily = new("Cascadia Mono, Consolas");
+    private static readonly Brush s_transparentBrush = new SolidColorBrush(
+        Microsoft.UI.Colors.Transparent);
+    private static readonly Brush s_fallbackBrush = new SolidColorBrush(
+        Microsoft.UI.Colors.Gray);
+    // Cache keyed on the accent color the semantic foreground was blended
+    // from; most renders reuse the previous entry unchanged.
+    private static Windows.UI.Color s_cachedSemanticAccent;
+    private static SolidColorBrush? s_cachedSemanticForeground;
 
     private readonly RichTextBlock _documentText = new()
     {
@@ -575,10 +587,18 @@ public sealed partial class MarkdownDocumentView : UserControl
         Windows.UI.Color accent = Application.Current is App { ThemeService: { } themeService }
             ? themeService.GetEffectiveAccentColor()
             : Windows.UI.Color.FromArgb(0xFF, 0x00, 0x5F, 0xB8);
-        return new SolidColorBrush(EnsureMinimumContrast(
+        if (s_cachedSemanticForeground is not null &&
+            s_cachedSemanticAccent == accent)
+        {
+            return s_cachedSemanticForeground;
+        }
+
+        s_cachedSemanticAccent = accent;
+        s_cachedSemanticForeground = new SolidColorBrush(EnsureMinimumContrast(
             accent,
             LightMarkdownWorstCaseSurface,
             LightThemeSemanticMinimumContrast));
+        return s_cachedSemanticForeground;
     }
 
     private static Windows.UI.Color EnsureMinimumContrast(
@@ -825,7 +845,7 @@ public sealed partial class MarkdownDocumentView : UserControl
         var codeText = new TextBlock
         {
             Text = code.Lines.ToString().TrimEnd('\r', '\n'),
-            FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+            FontFamily = s_codeFontFamily,
             FontSize = Math.Max(11, BaseFontSize - 1),
             Foreground = _semanticForeground,
             IsTextSelectionEnabled = true,
@@ -907,7 +927,7 @@ public sealed partial class MarkdownDocumentView : UserControl
                     Padding = new Thickness(6, 4, 6, 4),
                     Background = row.IsHeader
                         ? BrushResource("SubtleFillColorSecondaryBrush")
-                        : new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                        : s_transparentBrush,
                     BorderBrush = BrushResource("CardStrokeColorDefaultBrush"),
                     BorderThickness = new Thickness(
                         columnIndex == 0 ? 0 : 1,
@@ -1133,7 +1153,7 @@ public sealed partial class MarkdownDocumentView : UserControl
                 destination.Add(new Run
                 {
                     Text = code.Content,
-                    FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+                    FontFamily = s_codeFontFamily,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = _semanticForeground
                 });
@@ -1326,7 +1346,7 @@ public sealed partial class MarkdownDocumentView : UserControl
         // lookup would follow the system theme and invert the resource
         // whenever the widget's theme override disagrees with it.
         return NeutralInteractionBrush.ResolveThemedResource(key, this) ??
-               new SolidColorBrush(Microsoft.UI.Colors.Gray);
+               s_fallbackBrush;
     }
 }
 
