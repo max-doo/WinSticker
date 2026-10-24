@@ -77,15 +77,15 @@ public static class TodoCalendarProjection
         return result;
     }
 
-    public static (IReadOnlyList<TodoItem> visible, int overflow) AssignSlots(
-        IReadOnlyList<TodoItem> items,
+    public static (IReadOnlyList<T> visible, int overflow) AssignSlots<T>(
+        IReadOnlyList<T> items,
         int maxVisible)
     {
         ArgumentNullException.ThrowIfNull(items);
 
         if (maxVisible <= 0)
         {
-            return (Array.Empty<TodoItem>(), items.Count);
+            return (Array.Empty<T>(), items.Count);
         }
 
         if (items.Count <= maxVisible)
