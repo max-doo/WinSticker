@@ -116,8 +116,11 @@ public sealed class QuickCaptureSettingsRuntimeContractTests
             "EditorEnterBehavior=\"{Binding EditorEnterBehavior}\"",
             sharedQuickCapture,
             StringComparison.Ordinal);
+        // The desktop notes editor is the live MarkdownLiveEditor: Enter is a
+        // plain newline and completion is the Done button plus auto-save, so
+        // the Enter-submit preference intentionally does not apply there.
         Assert.Contains(
-            "EditorEnterBehavior=\"{Binding ElementName=RootGrid, Path=DataContext.EditorEnterBehavior}\"",
+            "MarkdownLiveEditor",
             todo,
             StringComparison.Ordinal);
     }
