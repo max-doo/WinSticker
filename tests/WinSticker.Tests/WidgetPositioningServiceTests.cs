@@ -577,4 +577,57 @@ public sealed class WidgetPositioningServiceTests
         Assert.Equal(1320, clamped.X);
         Assert.Equal(832, clamped.Y); // 1032 - 200
     }
+
+    [Fact]
+    public void ResolvePhysicalMinimumSize_ContentFloorAboveGlobal_Wins()
+    {
+        // The Glance clock's floor (210×82.5 logical) is far above the global
+        // 25×25 widget floor, so the content-aware one applies verbatim.
+        var minimum = WidgetPositioningService.ResolvePhysicalMinimumSize(
+            1.0,
+            Services.GlanceWindowDefaults.MinimumWidth,
+            Services.GlanceWindowDefaults.MinimumHeight);
+
+        Assert.Equal(210, minimum.Width);
+        // 110 × 0.75 = 82.5 rounds away from zero to 83 — a hair above the
+        // scale slider's ToEven 82, which is the correct side to err on.
+        Assert.Equal(83, minimum.Height);
+    }
+
+    [Fact]
+    public void ResolvePhysicalMinimumSize_ContentFloorBelowGlobal_GlobalWins()
+    {
+        var minimum = WidgetPositioningService.ResolvePhysicalMinimumSize(
+            1.0,
+            SettingsService.MinWidgetWidth / 2,
+            SettingsService.MinWidgetHeight / 2);
+
+        Assert.Equal((int)SettingsService.MinWidgetWidth, minimum.Width);
+        Assert.Equal((int)SettingsService.MinWidgetHeight, minimum.Height);
+    }
+
+    [Fact]
+    public void ResolvePhysicalMinimumSize_ScalesFloorWithDisplayDpi()
+    {
+        var minimum = WidgetPositioningService.ResolvePhysicalMinimumSize(
+            1.5,
+            Services.GlanceWindowDefaults.MinimumWidth,
+            Services.GlanceWindowDefaults.MinimumHeight);
+
+        Assert.Equal(315, minimum.Width); // 210 × 1.5
+        Assert.Equal(124, minimum.Height); // 82.5 × 1.5 = 123.75 → 124
+    }
+
+    [Fact]
+    public void GlanceWindowDefaults_MinimumsMatchSliderLowerBound()
+    {
+        Assert.Equal(
+            GlanceWindowDefaults.BaseWidth * GlanceWorldClockPolicy.MinimumSizeScale,
+            GlanceWindowDefaults.MinimumWidth,
+            5);
+        Assert.Equal(
+            GlanceWindowDefaults.BaseHeight * GlanceWorldClockPolicy.MinimumSizeScale,
+            GlanceWindowDefaults.MinimumHeight,
+            5);
+    }
 }

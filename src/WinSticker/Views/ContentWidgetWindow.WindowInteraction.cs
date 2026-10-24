@@ -355,6 +355,15 @@ public sealed partial class ContentWidgetWindow
     // Manual resizing is supported for Glance; when SizeScale changes
     // in settings, the window follows it.
 
+    protected override (double Width, double Height) GetMinimumLogicalContentSize()
+    {
+        // The clock layout cannot survive the 25×25 global floor: clamp it to
+        // the smallest size the scale slider can produce instead.
+        return Config.WidgetKind == WidgetKind.Glance
+            ? (Services.GlanceWindowDefaults.MinimumWidth, Services.GlanceWindowDefaults.MinimumHeight)
+            : base.GetMinimumLogicalContentSize();
+    }
+
     private System.ComponentModel.INotifyPropertyChanged? _glanceScaleSource;
 
     private void AttachGlanceScaleEnforcement(Contracts.IWidgetContent? content)

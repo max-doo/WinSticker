@@ -64,17 +64,26 @@
         <Grid
             x:Name="ContentHost"
             Padding="14,8,14,8"
-            HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Visibility="{Binding IsForegroundVisible, Converter={StaticResource BoolToVisibility}}">
-            <Grid ColumnSpacing="18">
+            <!-- Clock and weather keep the whole group centred; surplus width
+                 splits 1:2:1 into the flanking columns and the gap column, so
+                 the weather block drifts away from the clock as the widget
+                 widens instead of huddling at a fixed spacing. -->
+            <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="2*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: main clock, date, world clocks -->
-                <StackPanel x:Name="ClockColumn" Grid.Column="0" Spacing="0" VerticalAlignment="Center">
+                <!-- Left: main clock, date, world clocks. Every line centres
+                     on the column axis; the world-clock rows justify city
+                     left / time right within the centred block so multiple
+                     cities keep their times in one column. -->
+                <StackPanel x:Name="ClockColumn" Grid.Column="1" Spacing="0" VerticalAlignment="Center">
                     <TextBlock
                         x:Name="TimeTextBlock"
                         FontFamily="{Binding TimeFontFamily}"
@@ -83,9 +92,10 @@
                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                         IsTextSelectionEnabled="False"
                         Text="{Binding TimeText}"
+                        TextAlignment="Center"
                         Typography.NumeralAlignment="Tabular"
                         Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}" />
-                    <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="6">
+                    <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                         <TextBlock
                             FontSize="{Binding DateFontSize}"
                             FontWeight="SemiBold"
@@ -99,7 +109,8 @@
                             Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
                     </StackPanel>
                     <ItemsControl
-                        Margin="0,4,0,0"
+                        Margin="0,6,0,0"
+                        HorizontalAlignment="Center"
                         ItemTemplate="{StaticResource WorldClockRowTemplate}"
                         ItemsSource="{Binding WorldClockRows}"
                         Visibility="{Binding HasWorldClocks, Converter={StaticResource BoolToVisibility}}">
@@ -111,12 +122,14 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <!-- Right: modern spacious weather block -->
+                <!-- Right: modern spacious weather block. The left margin is
+                     the minimum gap; extra room comes from the 2* gap column. -->
                 <StackPanel
                     x:Name="WeatherColumn"
-                    Grid.Column="1"
+                    Grid.Column="3"
+                    Margin="18,0,0,0"
                     VerticalAlignment="Center"
-                    Spacing="3"
+                    Spacing="5"
                     Visibility="{Binding ShowWeatherBlock, Converter={StaticResource BoolToVisibility}}">
                     <!-- Row 1: Weather icon + Temperature + Weather description -->
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">

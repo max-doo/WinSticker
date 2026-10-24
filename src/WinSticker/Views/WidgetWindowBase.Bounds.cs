@@ -677,10 +677,21 @@ public abstract partial class WidgetWindowBase
         Config.Y = y;
     }
 
+    /// <summary>
+    /// Logical size floor for this widget's content. The default is the tiny
+    /// global interactive floor; widget kinds whose layout collapses at that
+    /// size override it with a content-aware one (see ContentWidgetWindow).
+    /// </summary>
+    protected virtual (double Width, double Height) GetMinimumLogicalContentSize()
+        => (SettingsService.MinWidgetWidth, SettingsService.MinWidgetHeight);
+
     protected SizeInt32 GetPhysicalMinimumWindowSize(int x, int y, int width, int height)
     {
+        (double minimumWidth, double minimumHeight) = GetMinimumLogicalContentSize();
         return WidgetPositioningService.GetPhysicalMinimumSizeForBounds(
-            new RectInt32(x, y, Math.Max(1, width), Math.Max(1, height)));
+            new RectInt32(x, y, Math.Max(1, width), Math.Max(1, height)),
+            minimumWidth,
+            minimumHeight);
     }
 
     protected void CapturePositionAnchor(

@@ -474,8 +474,41 @@ public static class WidgetPositioningService
 
     public static SizeInt32 GetPhysicalMinimumSizeForBounds(RectInt32 bounds)
     {
+        return GetPhysicalMinimumSizeForBounds(
+            bounds,
+            SettingsService.MinWidgetWidth,
+            SettingsService.MinWidgetHeight);
+    }
+
+    /// <summary>
+    /// Physical floor for a window whose content demands more room than the
+    /// global widget floor: never below the global minimum, otherwise the
+    /// content-aware logical minimum at the display's DPI.
+    /// </summary>
+    public static SizeInt32 GetPhysicalMinimumSizeForBounds(
+        RectInt32 bounds,
+        double minimumLogicalWidth,
+        double minimumLogicalHeight)
+    {
         var workArea = DisplayArea.GetFromRect(bounds, DisplayAreaFallback.Nearest).WorkArea;
-        return GetPhysicalMinimumSize(workArea);
+        return ResolvePhysicalMinimumSize(
+            GetDpiScale(workArea),
+            minimumLogicalWidth,
+            minimumLogicalHeight);
+    }
+
+    internal static SizeInt32 ResolvePhysicalMinimumSize(
+        double scale,
+        double minimumLogicalWidth,
+        double minimumLogicalHeight)
+    {
+        return new SizeInt32(
+            Math.Max(
+                ToPhysicalPixels(SettingsService.MinWidgetWidth, scale),
+                ToPhysicalPixels(minimumLogicalWidth, scale)),
+            Math.Max(
+                ToPhysicalPixels(SettingsService.MinWidgetHeight, scale),
+                ToPhysicalPixels(minimumLogicalHeight, scale)));
     }
 
     public static int ToPhysicalPixels(double logicalPixels, double scale)

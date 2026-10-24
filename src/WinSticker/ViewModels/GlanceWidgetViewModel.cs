@@ -339,8 +339,8 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     }
 
     /// <summary>
-    /// Overall patch scale. The window is sized from this value because the
-    /// Glance patch is not manually resizable.
+    /// Overall patch scale. A change resizes the window unless the user has
+    /// manually resized it to a size the slider would override.
     /// </summary>
     public Task SetSizeScaleAsync(double scale)
     {
