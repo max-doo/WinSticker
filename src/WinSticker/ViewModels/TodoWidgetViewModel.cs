@@ -105,6 +105,9 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
 
     private TodoCalendarViewModel? _calendarViewModel;
     public TodoCalendarViewModel? CalendarViewModel => _calendarViewModel;
+    public TodoWidgetStore Store => _store;
+    public WidgetConfig Config => _config;
+
 
     public TodoCalendarViewModel EnsureCalendarViewModel()
     {

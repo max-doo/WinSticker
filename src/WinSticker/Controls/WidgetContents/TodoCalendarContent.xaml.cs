@@ -244,6 +244,23 @@ public sealed partial class TodoCalendarContent : UserControl
             _cells[i] = new DayCellVisuals(container, contentGrid, dayText, chipPanel, overflowText, inlineInput);
         }
     }
+    public void OpenInlineCreateForSelectedDate()
+    {
+        var targetDate = ViewModel.SelectedDate ?? DateOnly.FromDateTime(DateTime.Today);
+        for (int i = 0; i < ViewModel.Cells.Count; i++)
+        {
+            if (ViewModel.Cells[i].Date == targetDate)
+            {
+                ShowInlineInput(i);
+                return;
+            }
+        }
+
+        if (ViewModel.Cells.Count > 0)
+        {
+            ShowInlineInput(0);
+        }
+    }
 
     private void ShowInlineInput(int index)
     {

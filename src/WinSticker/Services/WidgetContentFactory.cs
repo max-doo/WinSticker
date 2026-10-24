@@ -183,6 +183,22 @@ public sealed class WidgetContentFactory
             settingsService);
     }
 
+    public IWidgetContent CreateCalendarContent(
+        WidgetConfig config,
+        TodoWidgetStore? store = null,
+        SettingsService? settingsService = null)
+    {
+        if (config.WidgetKind != WidgetKind.Calendar)
+        {
+            throw new ArgumentException("Calendar content requires a Calendar widget config.", nameof(config));
+        }
+
+        return CreateDetachedContent(
+            config,
+            todoStoreFactory: store is not null ? _ => store : null,
+            settingsService: settingsService);
+    }
+
     /// <summary>
     /// Creates content that is not yet attached to a production widget window.
     /// This is a hidden pipeline path for validating future widget kinds before
@@ -291,6 +307,7 @@ public sealed class WidgetContentFactory
             new WeatherWidgetContentProvider(),
             new GlanceWidgetContentProvider(),
             new SearchWidgetContentProvider(),
+            new TodoCalendarContentProvider(),
             new PlaceholderWidgetContentProvider(WidgetKind.Tags),
             new PlaceholderWidgetContentProvider(WidgetKind.SystemMonitor)
         ];
