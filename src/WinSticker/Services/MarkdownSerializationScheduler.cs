@@ -52,6 +52,16 @@ public sealed class MarkdownSerializationScheduler : IDisposable
         _publish(_serialize());
     }
 
+    /// <summary>
+    /// Drop pending changes without publishing, e.g. when the host is about
+    /// to load a different document into the editor.
+    /// </summary>
+    public void DiscardPending()
+    {
+        _idleTimer.Stop();
+        _hasPending = false;
+    }
+
     private void IdleTimer_Tick(object? sender, EventArgs args)
     {
         _idleTimer.Stop();

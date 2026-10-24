@@ -248,7 +248,9 @@ public sealed partial class TodoWidgetContent
 
         try
         {
-            return await viewModel.UpdateNotesAsync(itemId, DetailNotesEditor.Text);
+            // FlushAndGetText publishes any debounced typing so the save
+            // never races the editor's 150ms serialization idle window.
+            return await viewModel.UpdateNotesAsync(itemId, DetailNotesEditor.FlushAndGetText());
         }
         catch (Exception ex)
         {

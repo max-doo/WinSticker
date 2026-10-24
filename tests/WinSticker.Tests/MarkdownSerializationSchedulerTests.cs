@@ -142,6 +142,21 @@ public sealed class MarkdownSerializationSchedulerTests
     }
 
     [Fact]
+    public void DiscardPending_DropsChangeWithoutPublishing()
+    {
+        var harness = new Harness();
+        using var scheduler = harness.Create();
+
+        scheduler.NotifyChanged();
+        scheduler.DiscardPending();
+
+        Assert.False(scheduler.HasPending);
+        Assert.False(harness.Timer.IsEnabled);
+        harness.Timer.Fire();
+        Assert.Empty(harness.Published);
+    }
+
+    [Fact]
     public void Dispose_StopsDebounceAndTickNoLongerPublishes()
     {
         var harness = new Harness();
