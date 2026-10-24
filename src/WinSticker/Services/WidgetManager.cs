@@ -619,7 +619,12 @@ public sealed partial class WidgetManager
                 WidgetKind.Glance,
                 CreateOrShowGlanceWidgetsAsync,
                 SetGlanceFeatureWidgetEnabledAsync,
-                () => CloseLoadedFeatureWidgetWindows(WidgetKind.Glance))
+                () => CloseLoadedFeatureWidgetWindows(WidgetKind.Glance)),
+            new(
+                WidgetKind.Calendar,
+                async _ => await CreateSingletonContentFeatureWidgetAsync(WidgetKind.Calendar),
+                SetCalendarFeatureWidgetEnabledAsync,
+                () => HideAndCloseFeatureWidgetAsync(WidgetKind.Calendar))
         ];
 
         return handlers.ToDictionary(handler => handler.WidgetKind);
@@ -679,6 +684,14 @@ public sealed partial class WidgetManager
                     request.CancellationToken)),
             new(
                 WidgetKind.Glance,
+                async request => await CreateContentWidgetFromConfigAsync(
+                    request.Config,
+                    request.KeepPreparedForAnimation,
+                    request.RevealAfterCreate,
+                    request.ShowRaisedWhileInitializing,
+                    request.CancellationToken)),
+            new(
+                WidgetKind.Calendar,
                 async request => await CreateContentWidgetFromConfigAsync(
                     request.Config,
                     request.KeepPreparedForAnimation,
@@ -2084,6 +2097,18 @@ public sealed partial class WidgetManager
                     SetFeatureWidgetEnabledState(WidgetKind.Todo, false);
                 }
             }
+            else if (config.WidgetKind == WidgetKind.Calendar)
+            {
+                // Calendar widgets project Todo data and do not own a store.
+                // Only disable the feature when the last Calendar instance goes away.
+                bool hasRemainingCalendarWidget = _settingsService.Settings.Widgets.Any(widget =>
+                    widget.WidgetKind == WidgetKind.Calendar &&
+                    !IsDeleted(widget.Id));
+                if (!hasRemainingCalendarWidget)
+                {
+                    SetFeatureWidgetEnabledState(WidgetKind.Calendar, false);
+                }
+            }
             else
             {
                 await CommitFeatureWidgetStateAsync(config.WidgetKind, false);
@@ -2719,6 +2744,7 @@ public sealed partial class WidgetManager
             WidgetKind.Music => (380, 190),
             WidgetKind.Weather => (200, 200),
             WidgetKind.Glance => (GlanceWindowDefaults.BaseWidth, GlanceWindowDefaults.BaseHeight),
+            WidgetKind.Calendar => (360, 420),
             _ => (
                 _settingsService.Settings.DefaultWidgetWidth,
                 _settingsService.Settings.DefaultWidgetHeight)
@@ -2728,6 +2754,11 @@ public sealed partial class WidgetManager
     private Task SetContentFeatureWidgetEnabledAsync(bool enabled, bool reveal)
     {
         return SetContentFeatureWidgetEnabledAsync(WidgetKind.Music, enabled, reveal);
+    }
+
+    private Task SetCalendarFeatureWidgetEnabledAsync(bool enabled, bool reveal)
+    {
+        return SetContentFeatureWidgetEnabledAsync(WidgetKind.Calendar, enabled, reveal);
     }
 
     private Task<IDesktopWidgetWindow> CreateWidgetFromConfigAsync(
