@@ -40,6 +40,12 @@ public enum TodoDuePreset
     Clear
 }
 
+public enum TodoContentViewMode
+{
+    List,
+    Calendar
+}
+
 internal sealed record TodoUndoSnapshot(
     IReadOnlyList<TodoItem> Items,
     string Message);
@@ -82,6 +88,37 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
     private bool _isInitialized;
     private bool _isDisposed;
     private readonly HashSet<string> _expandedRecurringHistoryGroupKeys = new(StringComparer.Ordinal);
+    private readonly TodoRepository _repository;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
+    private int _externalReloadGate;
+
+    public const string ViewModeMetadataKey = "Todo.ViewMode";
+
+    [ObservableProperty]
+    private TodoContentViewMode _contentMode = TodoContentViewMode.List;
+
+    partial void OnContentModeChanged(TodoContentViewMode value)
+    {
+        _config.Metadata[ViewModeMetadataKey] = value.ToString();
+        _settingsService?.SaveDebounced();
+    }
+
+    private TodoCalendarViewModel? _calendarViewModel;
+    public TodoCalendarViewModel? CalendarViewModel => _calendarViewModel;
+
+    public TodoCalendarViewModel EnsureCalendarViewModel()
+    {
+        if (_calendarViewModel is null)
+        {
+            _calendarViewModel = new TodoCalendarViewModel(
+                this,
+                _localizationService,
+                _config,
+                _settingsService,
+                ownsTodoViewModel: false);
+        }
+        return _calendarViewModel;
+    }
 
     public TodoWidgetViewModel(
         TodoWidgetStore store,
@@ -93,6 +130,8 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
         _localizationService = localizationService;
         _config = config;
         _settingsService = settingsService;
+        _repository = TodoRepository.ForStore(store);
+        _dispatcherQueue = TryGetDispatcherQueue();
         if (_settingsService is not null)
         {
             _textSize = SettingsService.NormalizeTextSize(
@@ -103,7 +142,76 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
             ApplyTodoSettings(_settingsService.Settings, updateFilter: false);
         }
 
+        if (_config.Metadata.TryGetValue(ViewModeMetadataKey, out var modeStr) &&
+            Enum.TryParse<TodoContentViewMode>(modeStr, true, out var parsedMode))
+        {
+            _contentMode = parsedMode;
+        }
+
         _localizationService.LanguageChanged += OnLanguageChanged;
+        _repository.StoreChanged += OnRepositoryStoreChanged;
+    }
+
+    private static Microsoft.UI.Dispatching.DispatcherQueue? TryGetDispatcherQueue()
+    {
+        try
+        {
+            return Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Another surface (Quick Panel, reminder service, search action) wrote
+    /// this widget's store through the repository. Reload so this view never
+    /// shows a stale snapshot — and never saves one over the newer data.
+    /// </summary>
+    private void OnRepositoryStoreChanged(object? origin)
+    {
+        if (ReferenceEquals(origin, this) || _isDisposed || !_isInitialized)
+        {
+            return;
+        }
+
+        if (_dispatcherQueue is not null && !_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => _ = ReloadFromRepositoryAsync());
+        }
+        else
+        {
+            _ = ReloadFromRepositoryAsync();
+        }
+    }
+
+    private async Task ReloadFromRepositoryAsync()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        // Skip when a reload triggered by an earlier change is still running
+        // so Items is never cleared and rebuilt twice concurrently.
+        if (Interlocked.Exchange(ref _externalReloadGate, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[TodoWidget] External store reload failed: {ex.Message}");
+        }
+        finally
+        {
+            Volatile.Write(ref _externalReloadGate, 0);
+        }
     }
 
     public string DisplayName => _config.IsDefaultTitle
@@ -764,6 +872,9 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
 
         _isDisposed = true;
         _localizationService.LanguageChanged -= OnLanguageChanged;
+        _repository.StoreChanged -= OnRepositoryStoreChanged;
+        _calendarViewModel?.Dispose();
+        _calendarViewModel = null;
     }
 
 }

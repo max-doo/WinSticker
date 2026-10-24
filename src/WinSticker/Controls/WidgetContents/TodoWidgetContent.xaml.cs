@@ -159,6 +159,7 @@ public sealed partial class TodoWidgetContent : UserControl
             ViewModel.VisibleItems.CollectionChanged += VisibleItems_CollectionChanged;
         }
 
+        UpdateViewModePresentation();
         App.Current.LocalizationService.LanguageChanged -= OnLanguageChanged;
         App.Current.LocalizationService.LanguageChanged += OnLanguageChanged;
         ApplyLocalizedText();
@@ -183,6 +184,7 @@ public sealed partial class TodoWidgetContent : UserControl
             ViewModel.VisibleItems.CollectionChanged -= VisibleItems_CollectionChanged;
         }
 
+        UpdateViewModePresentation();
         App.Current.LocalizationService.LanguageChanged -= OnLanguageChanged;
         App.Current.ThemeService.AppearanceChanged -= OnThemeAppearanceChanged;
         _draggedTodoItemId = null;
@@ -427,6 +429,11 @@ public sealed partial class TodoWidgetContent : UserControl
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(TodoWidgetViewModel.ContentMode))
+        {
+            UpdateViewModePresentation();
+        }
+
         if (e.PropertyName == nameof(TodoWidgetViewModel.SelectedFilter))
         {
             ClearCopySelection();
@@ -958,4 +965,48 @@ public sealed partial class TodoWidgetContent : UserControl
         await DeleteItemAsync(item);
     }
 
+
+    private void ViewModeListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            ViewModel.ContentMode = TodoContentViewMode.List;
+            UpdateViewModePresentation();
+        }
+    }
+
+    private void ViewModeCalendarButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            ViewModel.ContentMode = TodoContentViewMode.Calendar;
+            UpdateViewModePresentation();
+        }
+    }
+
+    private void UpdateViewModePresentation()
+    {
+        if (ViewModel is null) return;
+        bool isCalendar = ViewModel.ContentMode == TodoContentViewMode.Calendar;
+
+        if (ListArea is not null)
+        {
+            ListArea.Visibility = isCalendar ? Visibility.Collapsed : Visibility.Visible;
+        }
+        if (ListFooterArea is not null)
+        {
+            ListFooterArea.Visibility = isCalendar ? Visibility.Collapsed : Visibility.Visible;
+        }
+        if (CalendarHost is not null)
+        {
+            CalendarHost.Visibility = isCalendar ? Visibility.Visible : Visibility.Collapsed;
+            if (isCalendar && CalendarHost.Content is null)
+            {
+                var calVm = ViewModel.EnsureCalendarViewModel();
+                CalendarHost.Content = new TodoCalendarContent(calVm);
+            }
+        }
+        if (ViewModeListButton is not null) ViewModeListButton.Opacity = isCalendar ? 0.45 : 1.0;
+        if (ViewModeCalendarButton is not null) ViewModeCalendarButton.Opacity = isCalendar ? 1.0 : 0.45;
+    }
 }

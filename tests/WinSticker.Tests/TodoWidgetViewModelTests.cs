@@ -1299,6 +1299,38 @@ public sealed class TodoWidgetViewModelTests : IDisposable
         return new TodoWidgetStore(_widgetsDataRoot, widgetId);
     }
 
+    [Fact]
+    public void ContentMode_PersistsToWidgetMetadata()
+    {
+        var config = new WidgetConfig { Id = "test-todo", WidgetKind = WidgetKind.Todo };
+        var vm = CreateViewModel(config);
+        Assert.Equal(TodoContentViewMode.List, vm.ContentMode);
+
+        vm.ContentMode = TodoContentViewMode.Calendar;
+        Assert.Equal("Calendar", config.Metadata[TodoWidgetViewModel.ViewModeMetadataKey]);
+        Assert.Equal(TodoContentViewMode.Calendar, vm.ContentMode);
+    }
+
+    [Fact]
+    public void ContentMode_DefaultsToCalendarWhenMetadataSaysSo()
+    {
+        var config = new WidgetConfig { Id = "test-todo", WidgetKind = WidgetKind.Todo };
+        config.Metadata[TodoWidgetViewModel.ViewModeMetadataKey] = "Calendar";
+        var vm = CreateViewModel(config);
+        Assert.Equal(TodoContentViewMode.Calendar, vm.ContentMode);
+    }
+
+    private TodoWidgetViewModel CreateViewModel(WidgetConfig config, SettingsService? settingsService = null)
+    {
+        return new TodoWidgetViewModel(
+            CreateStore(config.Id),
+            settingsService is null
+                ? TestServices.CreateLocalizationService()
+                : new LocalizationService(settingsService),
+            config,
+            settingsService);
+    }
+
     private TodoWidgetViewModel CreateViewModel(string widgetId, SettingsService? settingsService = null)
     {
         var config = new WidgetConfig

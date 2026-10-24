@@ -151,7 +151,12 @@
             Grid.Row="0"
             Grid.Column="0"
             Spacing="6">
-            <toolkit:Segmented
+            <Grid x:Name="TodoFilterBar">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <toolkit:Segmented
                 x:Name="TodoFilterSegmented"
                 MinHeight="{Binding SegmentHeight}"
                 MinWidth="96"
@@ -184,6 +189,23 @@
                     <TextBlock FontSize="{Binding SegmentTextSize}" MaxLines="1" Text="{Binding CompletedFilterText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </toolkit:SegmentedItem>
             </toolkit:Segmented>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="4,0,0,0" VerticalAlignment="Center">
+                    <Button x:Name="ViewModeListButton"
+                            Click="ViewModeListButton_Click"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            Width="26" Height="26" Padding="0" CornerRadius="4"
+                            ToolTipService.ToolTip="列表视图">
+                        <FontIcon FontSize="11" Glyph="&#xE8FD;" />
+                    </Button>
+                    <Button x:Name="ViewModeCalendarButton"
+                            Click="ViewModeCalendarButton_Click"
+                            Style="{StaticResource SubtleButtonStyle}"
+                            Width="26" Height="26" Padding="0" CornerRadius="4"
+                            ToolTipService.ToolTip="月历视图">
+                        <FontIcon FontSize="11" Glyph="&#xE787;" />
+                    </Button>
+                </StackPanel>
+            </Grid>
 
             <!-- 色点拖拽只走 PointerMoved 里的手工 StartDragAsync（见 DragDrop.cs）。
                  CanDrag 必须保持关闭：native 手势初始化与手工启动叠加会在拖拽管线
@@ -491,6 +513,13 @@
                     Text="{Binding EmptyStateText}" />
             </StackPanel>
         </Grid>
+
+        <ContentPresenter
+            x:Name="CalendarHost"
+            Grid.Row="1"
+            Grid.RowSpan="2"
+            Grid.Column="0"
+            Visibility="Collapsed" />
 
         <Grid x:Name="ListFooterArea" Grid.Row="2" Grid.Column="0" ColumnSpacing="8">
             <Grid.ColumnDefinitions>

@@ -18,4 +18,14 @@ public partial class TodoItemViewModel
 public partial class TodoStepViewModel
 {
 }
+
+[WinRT.GeneratedBindableCustomProperty]
+public partial class TodoCalendarViewModel
+{
+}
+
+[WinRT.GeneratedBindableCustomProperty]
+public partial class TodoCalendarDayCell
+{
+}
 #endif
