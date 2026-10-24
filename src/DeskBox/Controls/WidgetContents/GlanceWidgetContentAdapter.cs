@@ -10,7 +10,8 @@ namespace DeskBox.Controls.WidgetContents;
 
 public sealed class GlanceWidgetContentAdapter :
     WidgetContentAdapterBase,
-    IWidgetResponsiveLayoutContent
+    IWidgetResponsiveLayoutContent,
+    IWidgetSurfaceAppearanceSource
 {
     private string? _compactBackgroundPath;
     private int _compactBackgroundDecodeWidth;
@@ -75,6 +76,24 @@ public sealed class GlanceWidgetContentAdapter :
 
     public void CancelResponsiveLayoutTransition()
     {
+    }
+
+    // ── IWidgetSurfaceAppearanceSource ─────────────────────────
+    // The Glance clock is the only widget kind allowed to leave the global
+    // material: its transparent style would be meaningless as a global setting
+    // (every other surface needs its readable plate). The view model owns the
+    // decision, this adapter only forwards it to the host window.
+
+    public string? SurfaceMaterialTypeOverride => ViewModel.SurfaceMaterialTypeOverride;
+
+    public double? SurfaceOpacityOverride => ViewModel.SurfaceOpacityOverride;
+
+    public bool SuppressSurfaceChrome => ViewModel.SuppressSurfaceChrome;
+
+    public event EventHandler? SurfaceAppearanceChanged
+    {
+        add => ViewModel.SurfaceAppearanceChanged += value;
+        remove => ViewModel.SurfaceAppearanceChanged -= value;
     }
 
     public ImageSource? GetCompactBackgroundImage(int decodePixelWidth)

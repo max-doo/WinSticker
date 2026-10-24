@@ -14,6 +14,15 @@ public static class WidgetMaterialKinds
     public const string MicaAlt = "MicaAlt";
     public const string Solid = "Solid";
 
+    /// <summary>
+    /// No material at all: the window keeps its transparent XAML surface and
+    /// draws no backdrop, no border and no divider. Only per-widget overrides
+    /// may select this value; the global appearance setting stays limited to
+    /// the five real materials so other widget kinds cannot lose their
+    /// readable surface by accident.
+    /// </summary>
+    public const string None = "None";
+
     public static bool SupportsOpacity(string? materialType) =>
         materialType is Acrylic or AcrylicBase or Solid;
 

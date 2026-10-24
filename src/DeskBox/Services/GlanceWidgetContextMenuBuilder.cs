@@ -12,7 +12,8 @@ internal static class GlanceWidgetContextMenuBuilder
         GlanceDisplayElement.Date,
         GlanceDisplayElement.Year,
         GlanceDisplayElement.Weekday,
-        GlanceDisplayElement.Calendar
+        GlanceDisplayElement.Calendar,
+        GlanceDisplayElement.Weather
     ];
 
     private static readonly GlanceLayoutMode[] Layouts =
@@ -21,6 +22,13 @@ internal static class GlanceWidgetContextMenuBuilder
         GlanceLayoutMode.Centered,
         GlanceLayoutMode.Editorial,
         GlanceLayoutMode.Calendar
+    ];
+
+    private static readonly GlanceSurfaceMaterialMode[] SurfaceMaterials =
+    [
+        GlanceSurfaceMaterialMode.FollowSystem,
+        GlanceSurfaceMaterialMode.Transparent,
+        GlanceSurfaceMaterialMode.Glass
     ];
 
     public static void Append(
@@ -34,6 +42,7 @@ internal static class GlanceWidgetContextMenuBuilder
 
         flyout.Items.Add(CreateDisplayMenu(viewModel, localizationService));
         flyout.Items.Add(CreateLayoutMenu(viewModel, localizationService));
+        flyout.Items.Add(CreateSurfaceMaterialMenu(viewModel, localizationService));
         flyout.Items.Add(new MenuFlyoutSeparator());
     }
 
@@ -92,6 +101,40 @@ internal static class GlanceWidgetContextMenuBuilder
         return menu;
     }
 
+    private static MenuFlyoutSubItem CreateSurfaceMaterialMenu(
+        GlanceWidgetViewModel viewModel,
+        LocalizationService localizationService)
+    {
+        var menu = new MenuFlyoutSubItem
+        {
+            Text = localizationService.T("Glance.Surface.Title"),
+            Icon = new FontIcon { Glyph = "\uE790" }
+        };
+
+        foreach (GlanceSurfaceMaterialMode mode in SurfaceMaterials)
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = localizationService.T(GetSurfaceMaterialTextKey(mode)),
+                GroupName = "GlanceSurfaceMaterial",
+                IsChecked = viewModel.SurfaceMaterial == mode
+            };
+            item.Click += (_, _) =>
+                _ = RunAsync(() => viewModel.SetSurfaceMaterialAsync(mode));
+            menu.Items.Add(item);
+        }
+
+        return menu;
+    }
+
+    private static string GetSurfaceMaterialTextKey(GlanceSurfaceMaterialMode mode) =>
+        mode switch
+        {
+            GlanceSurfaceMaterialMode.Transparent => "Glance.Surface.Transparent",
+            GlanceSurfaceMaterialMode.Glass => "Glance.Surface.Glass",
+            _ => "Glance.Surface.FollowSystem"
+        };
+
     private static string GetDisplayTextKey(GlanceDisplayElement element) =>
         element switch
         {
@@ -100,6 +143,7 @@ internal static class GlanceWidgetContextMenuBuilder
             GlanceDisplayElement.Year => "Glance.Display.Year",
             GlanceDisplayElement.Weekday => "Glance.Display.Weekday",
             GlanceDisplayElement.Calendar => "Glance.Display.Calendar",
+            GlanceDisplayElement.Weather => "Glance.Display.Weather",
             _ => "Glance.Display.Title"
         };
 

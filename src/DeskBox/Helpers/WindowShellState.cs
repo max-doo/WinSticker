@@ -50,4 +50,25 @@ internal static class WindowShellState
             App.Log($"[Window] Borderless presenter not applied: {ex.Message}");
         }
     }
+    /// <summary>
+    /// Applies a borderless, resizable overlapped presenter.
+    /// </summary>
+    public static void TryApplyBorderlessResizableOverlappedPresenter(AppWindow appWindow)
+    {
+        try
+        {
+            appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
+            if (appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.IsResizable = true;
+                presenter.IsMaximizable = false;
+                presenter.IsMinimizable = false;
+                presenter.SetBorderAndTitleBar(false, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[Window] Borderless resizable presenter not applied: {ex.Message}");
+        }
+    }
 }

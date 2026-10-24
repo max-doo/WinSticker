@@ -95,6 +95,25 @@ public sealed class CoreSettingsSlice
     /// <summary>Global hotkey virtual key code.</summary>
     public int GlobalHotkeyKey { get; set; } = (int)Windows.System.VirtualKey.F7;
 
+    /// <summary>Whether the quick panel global hotkey is enabled.</summary>
+    public bool QuickPanelHotkeyEnabled { get; set; }
+
+    /// <summary>The activation shape used by the quick panel shortcut.</summary>
+    public HotkeyActivationKind QuickPanelHotkeyActivationKind { get; set; } =
+        HotkeyActivationKind.Chord;
+
+    /// <summary>Quick panel hotkey modifier bit flags.</summary>
+    public int QuickPanelHotkeyModifiers { get; set; } = (int)HotkeyModifierKeys.Alt;
+
+    /// <summary>Quick panel hotkey virtual key code. Default: Space (0x20).</summary>
+    public int QuickPanelHotkeyKey { get; set; } = (int)Windows.System.VirtualKey.Space;
+
+    /// <summary>Default active tab when opening the quick panel.</summary>
+    public QuickPanelTab QuickPanelDefaultTab { get; set; } = QuickPanelTab.Clipboard;
+
+    /// <summary>Whether selecting a clipboard item automatically pastes it into the previously active window.</summary>
+    public bool QuickPanelAutoPaste { get; set; } = true;
+
     /// <summary>Whether double-clicking blank desktop space toggles all widgets.</summary>
     public bool DesktopDoubleClickEnabled { get; set; }
 

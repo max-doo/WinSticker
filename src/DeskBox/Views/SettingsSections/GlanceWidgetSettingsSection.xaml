@@ -224,6 +224,61 @@
                 <ComboBox svc:Localized.AutomationNameKey="Glance.Layout.Title" x:Name="LayoutComboBox" Width="220" SelectionChanged="LayoutComboBox_SelectionChanged" />
             </toolkit:SettingsCard>
 
+            <toolkit:SettingsExpander
+                IsExpanded="False"
+                svc:Localized.DescriptionKey="Glance.SurfaceGroup.Description"
+                svc:Localized.HeaderKey="Glance.SurfaceGroup.Title">
+                <toolkit:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE790;" />
+                </toolkit:SettingsExpander.HeaderIcon>
+                <ComboBox svc:Localized.AutomationNameKey="Glance.Surface.Title"
+                    x:Name="SurfaceMaterialComboBox"
+                    Width="220"
+                    SelectionChanged="SurfaceMaterialComboBox_SelectionChanged" />
+                <toolkit:SettingsExpander.Items>
+                    <toolkit:SettingsCard
+                        x:Name="SurfaceOpacityCard"
+                        HorizontalContentAlignment="Right"
+                        Visibility="Collapsed"
+                        svc:Localized.DescriptionKey="Glance.Surface.TransparencyDescription"
+                        svc:Localized.HeaderKey="Glance.Surface.Transparency">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock
+                                x:Name="SurfaceOpacityValue"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource SettingValueTextStyle}" />
+                            <Slider svc:Localized.AutomationNameKey="Glance.Surface.Transparency"
+                                x:Name="SurfaceOpacitySlider"
+                                Width="190"
+                                Minimum="0.05"
+                                Maximum="1"
+                                StepFrequency="0.01"
+                                ValueChanged="SurfaceOpacitySlider_ValueChanged" />
+                        </StackPanel>
+                    </toolkit:SettingsCard>
+                    <toolkit:SettingsCard
+                        HorizontalContentAlignment="Right"
+                        svc:Localized.DescriptionKey="Glance.Contrast.Description"
+                        svc:Localized.HeaderKey="Glance.Contrast.Title">
+                        <ComboBox svc:Localized.AutomationNameKey="Glance.Contrast.Title"
+                            x:Name="TextContrastComboBox"
+                            Width="220"
+                            SelectionChanged="TextContrastComboBox_SelectionChanged" />
+                    </toolkit:SettingsCard>
+                    <toolkit:SettingsCard
+                        HorizontalContentAlignment="Right"
+                        svc:Localized.DescriptionKey="Glance.Contrast.PlateDescription"
+                        svc:Localized.HeaderKey="Glance.Contrast.Plate">
+                        <ToggleSwitch svc:Localized.AutomationNameKey="Glance.Contrast.Plate"
+                            x:Name="TextPlateToggle"
+                            MinWidth="0"
+                            OffContent=""
+                            OnContent=""
+                            Toggled="TextPlateToggle_Toggled" />
+                    </toolkit:SettingsCard>
+                </toolkit:SettingsExpander.Items>
+            </toolkit:SettingsExpander>
+
             <toolkit:SettingsCard
                 x:Name="CalendarMaterialCard"
                 HorizontalContentAlignment="Right"

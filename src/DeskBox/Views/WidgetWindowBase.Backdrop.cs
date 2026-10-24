@@ -29,6 +29,38 @@ public abstract partial class WidgetWindowBase
         Windows.UI.Color TintColor,
         double MaterialIntensity);
 
+    /// <summary>
+    /// Per-widget material override. <see langword="null"/> follows the global
+    /// appearance setting; content that owns its surface (the Glance clock's
+    /// transparent style) returns its own value instead.
+    /// </summary>
+    protected virtual string? MaterialTypeOverride => null;
+
+    /// <summary>
+    /// Per-widget surface opacity override. <see langword="null"/> follows the
+    /// global <c>WidgetOpacity</c>.
+    /// </summary>
+    protected virtual double? SurfaceOpacityOverride => null;
+
+    /// <summary>
+    /// True when the surface is fully transparent and any border or divider
+    /// would betray it.
+    /// </summary>
+    protected virtual bool SuppressSurfaceChrome => false;
+
+    /// <summary>
+    /// The opacity every surface path must use: the per-widget override when
+    /// one exists, otherwise the global setting.
+    /// </summary>
+    protected double ResolveSurfaceOpacity() =>
+        Math.Clamp(SurfaceOpacityOverride ?? WidgetOpacity, 0.0, 1.0);
+
+    /// <summary>
+    /// The material every surface path must use, before platform resolution.
+    /// </summary>
+    protected string ResolveRequestedMaterialType() =>
+        MaterialTypeOverride ?? SettingsService.Settings.WidgetMaterialType;
+
     protected void ApplyBackdropPreference()
     {
         if (HWnd == IntPtr.Zero || IsClosing)
@@ -37,8 +69,8 @@ public abstract partial class WidgetWindowBase
         }
 
         bool isDark = RootElement.ActualTheme == ElementTheme.Dark;
-        double surfaceOpacity = Math.Clamp(WidgetOpacity, 0.0, 1.0);
-        string requestedMaterialType = SettingsService.Settings.WidgetMaterialType;
+        double surfaceOpacity = ResolveSurfaceOpacity();
+        string requestedMaterialType = ResolveRequestedMaterialType();
         string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
             requestedMaterialType);
         var tintColor = materialType == SettingsService.WidgetMaterialTypeSolid
@@ -76,12 +108,31 @@ public abstract partial class WidgetWindowBase
             int backdropType;
             bool controllerApplied = false;
 
-            if (materialType == SettingsService.WidgetMaterialTypeSolid)
+            if (materialType == SettingsService.WidgetMaterialTypeNone)
             {
+                // Transparent surface: tear every material down instead of
+                // replacing it — no blur, no tint, no frame.
+                // A backdrop target still has to exist: with no backdrop at
+                // all the content island paints the theme's window fill, which
+                // reads as a solid black tile in dark theme even though every
+                // XAML layer above it is transparent. A zero-alpha tint brush
+                // is the whole backdrop, so the desktop shows through.
+                DisposeAcrylicController();
+                DisposeMicaController();
+                ApplyTransparentTintBackdrop();
+                // Reuse the "no DWM backdrop" branch below: it stamps
+                // DWMSBT_NONE, disables the legacy accent policy and clears the
+                // legacy-flag bookkeeping in one place.
+                controllerApplied = true;
+            }
+            else if (materialType == SettingsService.WidgetMaterialTypeSolid)
+            {
+                ClearTransparentBackdrop();
                 controllerApplied = ApplySolidColorBackdrop(tintColor);
             }
             else
             {
+                ClearTransparentBackdrop();
                 ClearSolidColorBackdrop();
 
                 if (SettingsService.IsMicaMaterial(materialType))
@@ -154,6 +205,7 @@ public abstract partial class WidgetWindowBase
                     $"[Backdrop.Win10] hwnd=0x{HWnd.ToInt64():X} requested={requestedMaterialType} " +
                     $"resolved={materialType} desktopAcrylicSupported={WindowsCompatibilityService.SupportsDesktopAcrylic} " +
                     $"controllerApplied={controllerApplied} legacyAccent={LegacyAccentBackdropActive} " +
+                    $"tintBackdropActive={_solidColorBackdrop is not null && ReferenceEquals(SystemBackdrop, _solidColorBackdrop)} " +
                     $"opacity={surfaceOpacity:F3} intensity={SettingsService.Settings.WidgetMaterialIntensity:F3}");
             }
 
@@ -173,6 +225,23 @@ public abstract partial class WidgetWindowBase
                 Win32Helper.TrySetDwmWindowAttribute(HWnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
                 Win32Helper.DisableAccentPolicy(HWnd);
                 LegacyAccentBackdropActive = false;
+            }
+            else if (materialType == SettingsService.WidgetMaterialTypeNone)
+            {
+                // Even the failure path must not leave the theme's window fill
+                // showing: a black tile is worse than a plain transparent one.
+                try
+                {
+                    ApplyTransparentTintBackdrop();
+                    int backdropType = Win32Helper.DWMSBT_NONE;
+                    Win32Helper.TrySetDwmWindowAttribute(HWnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
+                    Win32Helper.DisableAccentPolicy(HWnd);
+                    LegacyAccentBackdropActive = false;
+                }
+                catch (Exception fallbackEx)
+                {
+                    App.Log($"[Backdrop] Transparent fallback failed: {fallbackEx.Message}");
+                }
             }
             else
             {
@@ -280,10 +349,17 @@ public abstract partial class WidgetWindowBase
             : SettingsService.IsAcrylicMaterial(signature.MaterialType)
                 ? (AcrylicController is { IsClosed: false } && AcrylicControllerAttached) ||
                   LegacyAccentBackdropActive
-                : signature.MaterialType == SettingsService.WidgetMaterialTypeSolid &&
-                  IsSolidColorBackdropActive &&
-                  _solidColorBackdrop is not null &&
-                  ReferenceEquals(SystemBackdrop, _solidColorBackdrop);
+                : signature.MaterialType == SettingsService.WidgetMaterialTypeNone
+                    ? !IsSolidColorBackdropActive &&
+                      _solidColorBackdrop is not null &&
+                      ReferenceEquals(SystemBackdrop, _solidColorBackdrop) &&
+                      AcrylicController is null &&
+                      MicaController is null &&
+                      !LegacyAccentBackdropActive
+                    : signature.MaterialType == SettingsService.WidgetMaterialTypeSolid &&
+                      IsSolidColorBackdropActive &&
+                      _solidColorBackdrop is not null &&
+                      ReferenceEquals(SystemBackdrop, _solidColorBackdrop);
     }
 
     protected virtual Windows.UI.Color BuildSolidColorBackdropTintColor(
@@ -337,6 +413,49 @@ public abstract partial class WidgetWindowBase
         _solidColorBackdrop = null;
     }
 
+    /// <summary>
+    /// Backdrop for the fully transparent surface.
+    ///
+    /// Clearing <c>SystemBackdrop</c> is not "nothing": the content island then
+    /// falls back to the theme's window fill and the widget turns into a solid
+    /// black tile (the exact field report for the transparent clock on Win10).
+    /// A tint backdrop whose colour has zero alpha is what actually renders as
+    /// "the desktop, untouched" at the composition layer.
+    /// </summary>
+    private void ApplyTransparentTintBackdrop()
+    {
+        IsSolidColorBackdropActive = false;
+        if (_solidColorBackdrop is null)
+        {
+            _solidColorBackdrop = new WinUIEx.TransparentTintBackdrop(Colors.Transparent);
+            SystemBackdrop = _solidColorBackdrop;
+            return;
+        }
+
+        // Same instance as the Solid material: switching between them only
+        // re-tints one brush instead of re-attaching a backdrop target.
+        _solidColorBackdrop.TintColor = Colors.Transparent;
+        if (!ReferenceEquals(SystemBackdrop, _solidColorBackdrop))
+        {
+            SystemBackdrop = _solidColorBackdrop;
+        }
+    }
+
+    /// <summary>
+    /// Drops the shared tint backdrop before a material that brings its own
+    /// controller takes over. The Solid path re-tints the same instance itself,
+    /// so only the transparent owner detaches it here.
+    /// </summary>
+    private void ClearTransparentBackdrop()
+    {
+        if (IsSolidColorBackdropActive)
+        {
+            return;
+        }
+
+        ClearSolidColorBackdrop();
+    }
+
     protected static SolidColorBrush GetOrUpdateSolidColorBrush(Brush? current, Windows.UI.Color color)
     {
         if (current is SolidColorBrush brush && MutableBrushes.TryGetValue(brush, out _))
@@ -380,6 +499,14 @@ public abstract partial class WidgetWindowBase
             colorMode,
             isDark,
             accentColor);
+        if (SuppressSurfaceChrome && !WindowsCompatibilityService.IsHighContrast)
+        {
+            // A transparent surface carries no frame and no divider — either one
+            // would draw a rectangle around nothing. High contrast is exempt so
+            // the window boundary stays findable for accessibility tooling.
+            return (0, visuals.BorderColor, Windows.UI.Color.FromArgb(0, 0, 0, 0));
+        }
+
         return (
             visuals.Thickness,
             visuals.BorderColor,

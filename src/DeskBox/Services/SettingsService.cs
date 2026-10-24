@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -73,6 +73,13 @@ public sealed class SettingsService
     public const string WidgetMaterialTypeAcrylic = Contracts.WidgetMaterialKinds.Acrylic;
     public const string WidgetMaterialTypeAcrylicBase = Contracts.WidgetMaterialKinds.AcrylicBase;
     public const string WidgetMaterialTypeSolid = Contracts.WidgetMaterialKinds.Solid;
+
+    /// <summary>
+    /// Transparent surface. Never persisted as the global material — it is only
+    /// reachable through a per-widget override (see
+    /// <see cref="Contracts.IWidgetSurfaceAppearanceSource"/>).
+    /// </summary>
+    public const string WidgetMaterialTypeNone = Contracts.WidgetMaterialKinds.None;
     public const string WidgetBorderColorModeNeutral = Contracts.WidgetBorderKinds.ColorNeutral;
     public const string WidgetBorderColorModeAccent = Contracts.WidgetBorderKinds.ColorAccent;
     public const string WidgetBorderColorModeNone = Contracts.WidgetBorderKinds.ColorNone;
@@ -705,6 +712,12 @@ settings.WeatherRefreshIntervalMinutes = 60;
         settings.GlobalHotkeyActivationKind = DefaultGlobalHotkeyActivationKind;
         settings.GlobalHotkeyModifiers = DefaultGlobalHotkeyModifiers;
         settings.GlobalHotkeyKey = DefaultGlobalHotkeyKey;
+        settings.Core.QuickPanelHotkeyEnabled = false;
+        settings.Core.QuickPanelHotkeyActivationKind = Models.HotkeyActivationKind.Chord;
+        settings.Core.QuickPanelHotkeyModifiers = (int)Models.HotkeyModifierKeys.Alt;
+        settings.Core.QuickPanelHotkeyKey = 0x20;
+        settings.Core.QuickPanelDefaultTab = Models.QuickPanelTab.Clipboard;
+        settings.Core.QuickPanelAutoPaste = true;
         settings.DesktopDoubleClickEnabled = false;
         settings.DoubleClickToOpen = true;
         settings.FileWidgetFolderOpenBehavior = FileWidgetFolderOpenBehaviorNames.Explorer;
@@ -3095,6 +3108,32 @@ settings.FocusClickedWidgetOnRaise = false;
         {
             settings.SearchHotkeyModifiers = (int)Models.HotkeyModifierKeys.Alt;
             settings.SearchHotkeyKey = 0x44; // D
+            changed = true;
+        }
+
+        if (!Enum.IsDefined(settings.Core.QuickPanelHotkeyActivationKind))
+        {
+            settings.Core.QuickPanelHotkeyActivationKind = Models.HotkeyActivationKind.Chord;
+            changed = true;
+        }
+
+        int quickPanelNormalizedModifiers = (int)((Models.HotkeyModifierKeys)settings.Core.QuickPanelHotkeyModifiers &
+            (Models.HotkeyModifierKeys.Alt | Models.HotkeyModifierKeys.Control | Models.HotkeyModifierKeys.Shift | Models.HotkeyModifierKeys.Windows));
+        if (settings.Core.QuickPanelHotkeyModifiers != quickPanelNormalizedModifiers)
+        {
+            settings.Core.QuickPanelHotkeyModifiers = quickPanelNormalizedModifiers;
+            changed = true;
+        }
+
+        if (settings.Core.QuickPanelHotkeyKey <= 0)
+        {
+            settings.Core.QuickPanelHotkeyKey = 0x20;
+            changed = true;
+        }
+
+        if (!Enum.IsDefined(settings.Core.QuickPanelDefaultTab))
+        {
+            settings.Core.QuickPanelDefaultTab = Models.QuickPanelTab.Clipboard;
             changed = true;
         }
 

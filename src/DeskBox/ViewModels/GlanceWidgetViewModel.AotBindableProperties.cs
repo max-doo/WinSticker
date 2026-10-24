@@ -13,6 +13,7 @@ namespace DeskBox.ViewModels;
     nameof(CompactTimeFontSize),
     nameof(DateText),
     nameof(HasPhotoInfo),
+    nameof(HasWeatherSummary),
     nameof(IsCalendarLayout),
     nameof(IsCenteredLayout),
     nameof(IsCompactCalendarPresentation),
@@ -26,16 +27,20 @@ namespace DeskBox.ViewModels;
     nameof(PhotoInfoText),
     nameof(ReadabilityOpacity),
     nameof(ShowCalendarImageReadability),
+    nameof(ShowContrastPlate),
     nameof(ShowDate),
     nameof(ShowExpandedCalendarImageReadability),
     nameof(ShowNonCalendarImageReadability),
     nameof(ShowPhotoControls),
     nameof(ShowTime),
+    nameof(ShowWeatherRow),
     nameof(ShowWeekday),
     nameof(TimeFontFamily),
     nameof(TimeFontSize),
     nameof(TimeText),
     nameof(TraditionalCalendarTitle),
+    nameof(WeatherIcon),
+    nameof(WeatherText),
     nameof(WeekdayText)
 ], [])]
 public sealed partial class GlanceWidgetViewModel

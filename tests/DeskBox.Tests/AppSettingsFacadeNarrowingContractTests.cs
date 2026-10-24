@@ -67,7 +67,7 @@ public sealed class AppSettingsFacadeNarrowingContractTests
         // +2 = autoDownloadUpdates + showUpdateToastNotification (background
         // auto-download and update toasts; additive — both deserialize to
         // the enabled default true).
-        Assert.Equal(243, Passthroughs.Length);
+        Assert.Equal(249, Passthroughs.Length);
         Assert.Equal(13, SliceAccessors.Length);
     }
 
@@ -85,8 +85,8 @@ public sealed class AppSettingsFacadeNarrowingContractTests
         expected.Add("schemaVersion");
         Assert.True(
             SerializedMemberNames.SetEquals(expected),
-            "Serialized member set must equal schemaVersion + the 243 passthrough wire names.");
-        Assert.Equal(244, SerializedMemberNames.Count);
+            "Serialized member set must equal schemaVersion + the 249 passthrough wire names.");
+        Assert.Equal(250, SerializedMemberNames.Count);
     }
 
     [Fact]

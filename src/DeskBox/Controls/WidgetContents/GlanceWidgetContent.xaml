@@ -167,56 +167,107 @@
             x:Name="ImageForegroundThemeScope"
             Padding="20,22,20,18"
             Visibility="{Binding IsForegroundVisible, Converter={StaticResource BoolToVisibility}}">
-            <StackPanel
-                x:Name="ImmersiveLayoutRoot"
+            <Grid
+                x:Name="ImmersiveLayoutHost"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Bottom"
-                Spacing="-2"
                 Visibility="{Binding IsImmersiveLayout, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock
-                    FontFamily="{Binding TimeFontFamily}"
-                    FontSize="{Binding TimeFontSize}"
-                    FontWeight="SemiBold"
-                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                    IsTextSelectionEnabled="False"
-                    Text="{Binding TimeText}"
-                    Typography.NumeralAlignment="Tabular"
-                    Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <!-- Contrast plate: only the transparent surface shows it, and
+                     only when the sampled wallpaper cannot carry the text on its
+                     own (see DesktopWallpaperContrastProbe). It bleeds past the
+                     text bounds so the plate never crops the numerals. -->
+                <Border
+                    x:Name="ImmersiveContrastPlate"
+                    Margin="-16,-12,-16,-10"
+                    CornerRadius="16"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding ShowContrastPlate, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel x:Name="ImmersiveLayoutRoot" Spacing="-2">
                     <TextBlock
-                        FontSize="14"
+                        FontFamily="{Binding TimeFontFamily}"
+                        FontSize="{Binding TimeFontSize}"
                         FontWeight="SemiBold"
                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                        Text="{Binding DateText}"
-                        Visibility="{Binding ShowDate, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock
-                        FontSize="14"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="{Binding WeekdayText}"
-                        Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
+                        IsTextSelectionEnabled="False"
+                        Text="{Binding TimeText}"
+                        Typography.NumeralAlignment="Tabular"
+                        Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                            Text="{Binding DateText}"
+                            Visibility="{Binding ShowDate, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock
+                            FontSize="14"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{Binding WeekdayText}"
+                            Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <StackPanel
+                        Margin="0,4,0,0"
+                        Orientation="Horizontal"
+                        Spacing="6"
+                        Visibility="{Binding ShowWeatherRow, Converter={StaticResource BoolToVisibility}}">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Source="{Binding WeatherIcon}" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{Binding WeatherText}" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
+            </Grid>
 
-            <StackPanel
-                x:Name="CenteredLayoutRoot"
+            <Grid
+                x:Name="CenteredLayoutHost"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Spacing="2"
                 Visibility="{Binding IsCenteredLayout, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontFamily="{Binding TimeFontFamily}"
-                    FontSize="{Binding TimeFontSize}"
-                    FontWeight="SemiBold"
-                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                    Text="{Binding TimeText}"
-                    Typography.NumeralAlignment="Tabular"
-                    Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}" />
-                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding DateText}" Visibility="{Binding ShowDate, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding WeekdayText}" Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
+                <Border
+                    x:Name="CenteredContrastPlate"
+                    Margin="-16,-12,-16,-10"
+                    CornerRadius="16"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding ShowContrastPlate, Converter={StaticResource BoolToVisibility}}" />
+                <StackPanel x:Name="CenteredLayoutRoot" Spacing="2">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontFamily="{Binding TimeFontFamily}"
+                        FontSize="{Binding TimeFontSize}"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                        Text="{Binding TimeText}"
+                        Typography.NumeralAlignment="Tabular"
+                        Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}" />
+                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                        <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding DateText}" Visibility="{Binding ShowDate, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding WeekdayText}" Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <StackPanel
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="6"
+                        Visibility="{Binding ShowWeatherRow, Converter={StaticResource BoolToVisibility}}">
+                        <Image
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Source="{Binding WeatherIcon}" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{Binding WeatherText}" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
+            </Grid>
 
             <Grid
                 x:Name="EditorialLayoutRoot"

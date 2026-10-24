@@ -1,4 +1,4 @@
-﻿#if DESKBOX_NATIVE_AOT
+#if DESKBOX_NATIVE_AOT
 namespace DeskBox.ViewModels;
 
 [WinRT.GeneratedBindableCustomProperty([
@@ -22,6 +22,7 @@ namespace DeskBox.ViewModels;
     nameof(MicrosoftStoreLink),
     nameof(OfficialWebsiteLink),
     nameof(OneClickActionButtonText),
+
     nameof(SelectedLanguage),
     nameof(ShowUpdateToastNotification),
     nameof(StoreSupportCardVisibility),

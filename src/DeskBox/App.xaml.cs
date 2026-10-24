@@ -1,4 +1,4 @@
-﻿// Copyright (c) DeskBox. All rights reserved.
+// Copyright (c) DeskBox. All rights reserved.
 
 using CommunityToolkit.Mvvm.Input;
 using DeskBox.Controls.WidgetContents;
@@ -186,6 +186,8 @@ public partial class App : Application
     private FileMetaService? _fileMetaService;
     private SearchHotkeyService? _searchHotkeyService;
     private SearchPopupWindow? _searchPopupWindow;
+    private QuickPanelHotkeyService? _quickPanelHotkeyService;
+    private QuickPanelWindow? _quickPanelWindow;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _visibleIdleMemoryMaintenanceTimer;
     private int _visibleIdleMemoryMaintenanceRunning;
     private readonly VisibleIdleMemoryTracker _visibleIdleMemoryTracker = new(
@@ -271,6 +273,8 @@ public partial class App : Application
     public AppDiagnosticsService? DiagnosticsService => _diagnosticsService;
     internal SearchHistoryService? SearchHistoryService => _searchHistoryService;
     public SearchResultActionService? SearchActionService => _searchActionService;
+    public QuickPanelHotkeyService? QuickPanelHotkeyService => _quickPanelHotkeyService;
+    public bool IsQuickPanelVisible => _quickPanelWindow?.IsPanelVisible == true;
     internal bool IsSearchPopupCreated => _searchPopupWindow is not null;
     internal bool IsSearchPopupVisible => _searchPopupWindow?.IsPopupVisible == true;
     internal bool IsEverythingSearchConnected =>
@@ -1356,8 +1360,9 @@ public partial class App : Application
             _quickCaptureClipboardRuntime = _featureRuntimes.Register(QuickCaptureFeatureRuntimeId,
                 new QuickCaptureClipboardRuntime(
                     () => !IsShuttingDown &&
-                        FeatureWidgetSettings.IsEnabled(SettingsService.Settings, WidgetKind.QuickCapture) &&
-                        SettingsService.Settings.QuickCapture.QuickCaptureClipboardEnabled,
+                        ((FeatureWidgetSettings.IsEnabled(SettingsService.Settings, WidgetKind.QuickCapture) &&
+                          SettingsService.Settings.QuickCapture.QuickCaptureClipboardEnabled) ||
+                         SettingsService.Settings.Core.QuickPanelHotkeyEnabled),
                     () => new QuickCaptureClipboardService(SettingsService, QuickCaptureService),
                     ex => Log($"[QuickCaptureClipboard] Stop failed: {ex}")));
             _quickCaptureSettings = new QuickCaptureSettingsCoordinator(
@@ -1537,6 +1542,7 @@ public partial class App : Application
             }
 
             RunOptionalStartupStep("global-hotkey-service", () => InitializeGlobalHotkeyService(localizationService));
+            RunOptionalStartupStep("quick-panel-services", EnsureQuickPanelServices);
             RunOptionalStartupStep("shell-context-menu-prewarm", ScheduleShellContextMenuPrewarm);
 
             RunOptionalStartupStep("todo-reminders", () => RefreshTodoReminderService());
@@ -6495,6 +6501,7 @@ public partial class App : Application
                 shutdownGrace),
             // Hooks must be removed while their owning tray window still exists.
             ShutdownStep.Sync("global-hotkey", () => { GlobalHotkeyService?.Dispose(); GlobalHotkeyService = null; }),
+            ShutdownStep.Sync("quick-panel-hotkey", () => { _quickPanelHotkeyService?.Dispose(); _quickPanelHotkeyService = null; }),
             ShutdownStep.Sync("widgets", () => WidgetManager?.CloseAll()),
             ShutdownStep.Sync("desktop-organization-window", () => { _desktopOrganizationWindow?.CloseForShutdown(); _desktopOrganizationWindow = null; }),
             ShutdownStep.Sync("settings-window", () => { _settingsWindow?.CloseForShutdown(); _settingsWindow = null; }),
@@ -6577,6 +6584,7 @@ public partial class App : Application
                     {
                         _searchHotkeyService.Attach(trayHwnd);
                         Log("[Search] Hotkey service attached");
+                        EnsureQuickPanelServices();
                     }
                 }
             }
@@ -6725,6 +6733,75 @@ public partial class App : Application
     /// Unlike the global hotkey, this is intentionally idempotent: queued repeat clicks
     /// can only focus the popup and can never hide the window that the first click opened.
     /// </summary>
+    public void OpenQuickPanel()
+    {
+        if (!UiDispatcherQueue.HasThreadAccess)
+        {
+            UiDispatcherQueue.TryEnqueue(OpenQuickPanel);
+            return;
+        }
+
+        EnsureQuickPanelWindow();
+        _quickPanelWindow?.ShowPanel();
+    }
+
+    public void ToggleQuickPanel()
+    {
+        if (!UiDispatcherQueue.HasThreadAccess)
+        {
+            UiDispatcherQueue.TryEnqueue(ToggleQuickPanel);
+            return;
+        }
+
+        EnsureQuickPanelWindow();
+        _quickPanelWindow?.TogglePanel();
+    }
+
+    private Task ToggleQuickPanelAsync()
+    {
+        ToggleQuickPanel();
+        return Task.CompletedTask;
+    }
+
+    private void EnsureQuickPanelWindow()
+    {
+        if (_quickPanelWindow is not null) return;
+
+        var viewModel = new ViewModels.QuickPanelViewModel(
+            QuickCaptureService,
+            SettingsService,
+            LocalizationService,
+            QuickCaptureClipboardService,
+            id => new TodoWidgetStore(id),
+            UiDispatcherQueue);
+
+        _quickPanelWindow = new Views.QuickPanelWindow(viewModel, SettingsService);
+        _quickPanelWindow.SettingsRequested += (_, _) =>
+        {
+            ShowSettings();
+        };
+    }
+
+    public void EnsureQuickPanelServices()
+    {
+        if (_quickPanelHotkeyService is null)
+        {
+            _quickPanelHotkeyService = new Services.QuickPanelHotkeyService(
+                SettingsService,
+                ToggleQuickPanelAsync);
+
+            if (_trayWindow is not null)
+            {
+                var trayHwnd = WindowNative.GetWindowHandle(_trayWindow);
+                if (trayHwnd != IntPtr.Zero)
+                {
+                    _quickPanelHotkeyService.Attach(trayHwnd);
+                    Log("[QuickPanel] Hotkey service attached");
+                }
+            }
+        }
+    }
+
     public void OpenSearchPopup()
     {
         if (!UiDispatcherQueue.HasThreadAccess)

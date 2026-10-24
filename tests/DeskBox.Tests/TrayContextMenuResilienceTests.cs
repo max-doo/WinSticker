@@ -151,7 +151,7 @@ public sealed class TrayContextMenuResilienceTests
         Assert.DoesNotContain(".Click +=", create, StringComparison.Ordinal);
         // Seven fixed items: organize, map folder, feature widgets, settings,
         // managed storage, update, exit.
-        Assert.Equal(7, CountOccurrences(create, "AttachTrayMenuItemInteraction("));
+        Assert.Equal(8, CountOccurrences(create, "AttachTrayMenuItemInteraction("));
 
         string createWidget = Slice(
             tray,

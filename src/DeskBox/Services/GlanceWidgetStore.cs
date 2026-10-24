@@ -283,6 +283,15 @@ public sealed class GlanceWidgetStore
             : GlanceTraditionalCalendarMode.None;
         data.ImageFit = Enum.IsDefined(data.ImageFit) ? data.ImageFit : GlanceImageFitMode.Fill;
         data.ImageFocus = Enum.IsDefined(data.ImageFocus) ? data.ImageFocus : GlanceImageFocus.Center;
+        data.SurfaceMaterial = Enum.IsDefined(data.SurfaceMaterial)
+            ? data.SurfaceMaterial
+            : GlanceSurfaceMaterialMode.FollowSystem;
+        data.TextContrast = Enum.IsDefined(data.TextContrast)
+            ? data.TextContrast
+            : GlanceTextContrastMode.Auto;
+        data.SurfaceMaterialOpacity = double.IsFinite(data.SurfaceMaterialOpacity)
+            ? Math.Clamp(data.SurfaceMaterialOpacity, 0.0, 1.0)
+            : 0.45;
         return data;
     }
 

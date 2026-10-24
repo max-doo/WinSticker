@@ -131,4 +131,32 @@ public partial class SettingsViewModel
     {
         ManagedStorageQuickAccessPinState = state;
     }
+
+    public bool QuickPanelHotkeyEnabled
+    {
+        get => _settingsService.Settings.Core.QuickPanelHotkeyEnabled;
+        set
+        {
+            if (_settingsService.Settings.Core.QuickPanelHotkeyEnabled != value)
+            {
+                _settingsService.Settings.Core.QuickPanelHotkeyEnabled = value;
+                OnPropertyChanged();
+                _settingsService.SaveDebounced();
+            }
+        }
+    }
+
+    public bool QuickPanelAutoPaste
+    {
+        get => _settingsService.Settings.Core.QuickPanelAutoPaste;
+        set
+        {
+            if (_settingsService.Settings.Core.QuickPanelAutoPaste != value)
+            {
+                _settingsService.Settings.Core.QuickPanelAutoPaste = value;
+                OnPropertyChanged();
+                _settingsService.SaveDebounced();
+            }
+        }
+    }
 }

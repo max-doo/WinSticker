@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Window
     x:Class="DeskBox.Views.SettingsWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -1682,6 +1682,34 @@ Text="DeskBox" />
                             Severity="Informational"
                             svc:Localized.DescriptionKey="Settings.GlobalHotkey.ElevatedNotice.Description"
                             svc:Localized.HeaderKey="Settings.GlobalHotkey.ElevatedNotice.Title" />
+
+                        <!-- Quick Panel Settings -->
+                        <toolkit:SettingsExpander
+                            x:Name="QuickPanelSettingsExpander"
+                            HorizontalContentAlignment="Stretch"
+                            svc:Localized.HeaderKey="Settings.QuickPanel.Title"
+                            svc:Localized.DescriptionKey="Settings.QuickPanel.Description">
+                            <toolkit:SettingsExpander.HeaderIcon>
+                                <FontIcon Glyph="&#xE762;" />
+                            </toolkit:SettingsExpander.HeaderIcon>
+                            <ToggleSwitch svc:Localized.AutomationNameKey="Settings.QuickPanel.Title"
+                                x:Name="QuickPanelHotkeyToggle"
+                                MinWidth="0"
+                                OffContent=""
+                                OnContent=""
+                                IsOn="{x:Bind QuickPanelHotkeyEnabled, Mode=TwoWay}" />
+                            <toolkit:SettingsExpander.Items>
+                                <toolkit:SettingsCard
+                                    svc:Localized.HeaderKey="Settings.QuickPanel.AutoPaste.Title"
+                                    svc:Localized.DescriptionKey="Settings.QuickPanel.AutoPaste.Description">
+                                    <ToggleSwitch svc:Localized.AutomationNameKey="Settings.QuickPanel.AutoPaste.Title"
+                                        MinWidth="0"
+                                        OffContent=""
+                                        OnContent=""
+                                        IsOn="{x:Bind QuickPanelAutoPaste, Mode=TwoWay}" />
+                                </toolkit:SettingsCard>
+                            </toolkit:SettingsExpander.Items>
+                        </toolkit:SettingsExpander>
 
                         <toolkit:SettingsCard HorizontalContentAlignment="Right" svc:Localized.DescriptionKey="Settings.ShowDesktopBehavior.Description" svc:Localized.HeaderKey="Settings.ShowDesktopBehavior.Title">
                             <toolkit:SettingsCard.HeaderIcon><FontIcon Glyph="&#xE7F4;" /></toolkit:SettingsCard.HeaderIcon>

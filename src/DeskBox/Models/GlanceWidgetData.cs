@@ -42,7 +42,8 @@ public enum GlanceDisplayElement
     Date,
     Year,
     Weekday,
-    Calendar
+    Calendar,
+    Weather
 }
 
 public enum GlanceTimeFormatMode
@@ -112,12 +113,49 @@ public enum GlanceImageFocus
 }
 
 /// <summary>
+/// How the widget window's material relates to the global appearance setting.
+/// Only the Glance clock owns this choice — every other widget kind keeps
+/// following the global material.
+/// </summary>
+public enum GlanceSurfaceMaterialMode
+{
+    /// <summary>Use the global widget material and opacity.</summary>
+    FollowSystem,
+
+    /// <summary>No material, no border, no divider — text floats on the desktop.</summary>
+    Transparent,
+
+    /// <summary>Faint acrylic glass with its own opacity.</summary>
+    Glass
+}
+
+/// <summary>
+/// Text colour strategy for the transparent surface. The desktop wallpaper is
+/// arbitrary, so the default resolves against the sampled wallpaper luminance
+/// and the other values let the user pin the outcome.
+/// </summary>
+public enum GlanceTextContrastMode
+{
+    /// <summary>Sample the wallpaper and pick the readable side, adding a plate when it is not enough.</summary>
+    Auto,
+
+    /// <summary>Always light text (for dark wallpapers).</summary>
+    White,
+
+    /// <summary>Always dark text (for bright wallpapers).</summary>
+    Black,
+
+    /// <summary>Follow the window theme and draw no contrast plate.</summary>
+    Off
+}
+
+/// <summary>
 /// Versioned, portable preferences for one Glance widget. Downloaded images
 /// and their catalog deliberately live outside this document.
 /// </summary>
 public sealed class GlanceWidgetData
 {
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     public int Version { get; set; } = CurrentVersion;
     public bool ShowTime { get; set; } = true;
@@ -125,6 +163,13 @@ public sealed class GlanceWidgetData
     public bool ShowYear { get; set; }
     public bool ShowWeekday { get; set; } = true;
     public bool ShowCalendar { get; set; }
+
+    /// <summary>
+    /// One-line weather summary under the clock (icon + temperature + range).
+    /// On by default: the phone-style clock this widget mirrors always carries
+    /// the weather line.
+    /// </summary>
+    public bool ShowWeather { get; set; } = true;
     public GlanceTimeFormatMode TimeFormat { get; set; } = GlanceTimeFormatMode.FollowSystem;
     public GlanceLayoutMode Layout { get; set; } = GlanceLayoutMode.Centered;
     public GlanceBackgroundSource BackgroundSource { get; set; } = GlanceBackgroundSource.Bing;
@@ -153,6 +198,28 @@ public sealed class GlanceWidgetData
     public GlanceImageFocus ImageFocus { get; set; } = GlanceImageFocus.Center;
     public string? TimeFontFamily { get; set; }
     public double TimeScale { get; set; } = 1;
+
+    // ─── Surface (transparent clock) ───────────────────────────────
+    /// <summary>
+    /// Material override for this widget's window. Defaults to
+    /// <see cref="GlanceSurfaceMaterialMode.FollowSystem"/>, which reproduces
+    /// the pre-v11 behaviour exactly.
+    /// </summary>
+    public GlanceSurfaceMaterialMode SurfaceMaterial { get; set; } =
+        GlanceSurfaceMaterialMode.FollowSystem;
+
+    /// <summary>Opacity used by <see cref="GlanceSurfaceMaterialMode.Glass"/>.</summary>
+    public double SurfaceMaterialOpacity { get; set; } = 0.45;
+
+    /// <summary>Text colour strategy for the transparent surface.</summary>
+    public GlanceTextContrastMode TextContrast { get; set; } =
+        GlanceTextContrastMode.Auto;
+
+    /// <summary>
+    /// Whether the faint contrast plate behind the text is allowed. Auto
+    /// contrast still decides per wallpaper; this only lets the user veto it.
+    /// </summary>
+    public bool ShowTextPlate { get; set; } = true;
 }
 
 public sealed class GlanceImageInfo

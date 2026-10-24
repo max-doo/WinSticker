@@ -106,19 +106,21 @@ public sealed class QuickCaptureClipboardService : IQuickCaptureClipboardSession
 
     private bool ShouldCaptureClipboard()
     {
-        return !_stopping && !_disposed &&
-               _settingsService.Settings.QuickCaptureEnabled &&
-               _settingsService.Settings.QuickCaptureClipboardEnabled;
+        if (_stopping || _disposed) return false;
+        bool quickCaptureAllowed = _settingsService.Settings.QuickCaptureEnabled &&
+                                   _settingsService.Settings.QuickCaptureClipboardEnabled;
+        bool quickPanelAllowed = _settingsService.Settings.Core.QuickPanelHotkeyEnabled;
+        return quickCaptureAllowed || quickPanelAllowed;
     }
 
     private string BuildDisabledReason()
     {
-        if (!_settingsService.Settings.QuickCaptureEnabled)
+        if (!_settingsService.Settings.QuickCaptureEnabled && !_settingsService.Settings.Core.QuickPanelHotkeyEnabled)
         {
             return "disabled:quick-capture-off";
         }
 
-        if (!_settingsService.Settings.QuickCaptureClipboardEnabled)
+        if (!_settingsService.Settings.QuickCaptureClipboardEnabled && !_settingsService.Settings.Core.QuickPanelHotkeyEnabled)
         {
             return "disabled:clipboard-off";
         }
@@ -258,7 +260,7 @@ public sealed class QuickCaptureClipboardService : IQuickCaptureClipboardSession
                 QuickCaptureItem? item;
                 if (content.HasImage)
                 {
-                    if (!_settingsService.Settings.QuickCaptureImageClipboardEnabled)
+                    if (!_settingsService.Settings.QuickCaptureImageClipboardEnabled && !_settingsService.Settings.Core.QuickPanelHotkeyEnabled)
                     {
                         SetReason("ignored:image-recording-off");
                         continue;

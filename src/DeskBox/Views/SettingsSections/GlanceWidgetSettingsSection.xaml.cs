@@ -11,7 +11,7 @@ namespace DeskBox.Views.SettingsSections;
 
 public sealed partial class GlanceWidgetSettingsSection : UserControl
 {
-    private static readonly string[] DisplayOptions = ["Time", "Date", "Year", "Weekday", "Calendar"];
+    private static readonly string[] DisplayOptions = ["Time", "Date", "Year", "Weekday", "Calendar", "Weather"];
     private sealed partial class SelectionItem : ComboBoxItem
     {
         public SelectionItem(string label, object value)
@@ -29,6 +29,7 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
     private readonly DispatcherTimer _scaleSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
     private readonly DispatcherTimer _imageTransparencySaveTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
     private readonly DispatcherTimer _calendarTransparencySaveTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
+    private readonly DispatcherTimer _surfaceOpacitySaveTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
     private readonly SemaphoreSlim _instanceSelectionGate = new(1, 1);
     private GlanceWidgetData _settings = new();
     private string? _selectedWidgetId;
@@ -48,6 +49,7 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
         _scaleSaveTimer.Tick += ScaleSaveTimer_Tick;
         _imageTransparencySaveTimer.Tick += ImageTransparencySaveTimer_Tick;
         _calendarTransparencySaveTimer.Tick += CalendarTransparencySaveTimer_Tick;
+        _surfaceOpacitySaveTimer.Tick += SurfaceOpacitySaveTimer_Tick;
         WidgetDangerActionStyle.Apply(DeleteInstanceMenuItem);
     }
 
@@ -322,6 +324,17 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
             (Localization.T("Glance.Typography.FollowSystem"), GlanceTimeFormatMode.FollowSystem),
             (Localization.T("Glance.Typography.Hour24"), GlanceTimeFormatMode.Hour24),
             (Localization.T("Glance.Typography.Hour12"), GlanceTimeFormatMode.Hour12));
+        SetOptions(
+            SurfaceMaterialComboBox,
+            (Localization.T("Glance.Surface.FollowSystem"), GlanceSurfaceMaterialMode.FollowSystem),
+            (Localization.T("Glance.Surface.Transparent"), GlanceSurfaceMaterialMode.Transparent),
+            (Localization.T("Glance.Surface.Glass"), GlanceSurfaceMaterialMode.Glass));
+        SetOptions(
+            TextContrastComboBox,
+            (Localization.T("Glance.Contrast.Auto"), GlanceTextContrastMode.Auto),
+            (Localization.T("Glance.Contrast.White"), GlanceTextContrastMode.White),
+            (Localization.T("Glance.Contrast.Black"), GlanceTextContrastMode.Black),
+            (Localization.T("Glance.Contrast.Off"), GlanceTextContrastMode.Off));
     }
 
     private void EnsureOptionsPopulated()
@@ -339,7 +352,9 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
             CalendarMaterialComboBox.Items.Count > 0 &&
             TraditionalCalendarComboBox.Items.Count > 0 &&
             FontComboBox.Items.Count > 0 &&
-            TimeFormatComboBox.Items.Count > 0;
+            TimeFormatComboBox.Items.Count > 0 &&
+            SurfaceMaterialComboBox.Items.Count > 0 &&
+            TextContrastComboBox.Items.Count > 0;
         if (optionsArePopulated &&
             string.Equals(
                 _optionsLocalizationSignature,
@@ -482,16 +497,21 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
             SelectOption(TraditionalCalendarComboBox, _settings.TraditionalCalendarMode);
             SelectOption(FontComboBox, _settings.TimeFontFamily ?? string.Empty);
             SelectOption(TimeFormatComboBox, _settings.TimeFormat);
+            SelectOption(SurfaceMaterialComboBox, _settings.SurfaceMaterial);
+            SelectOption(TextContrastComboBox, _settings.TextContrast);
             RandomOrderToggle.IsOn = _settings.RandomOrder;
             TimeScaleSlider.Value = _settings.TimeScale;
             BackgroundImageTransparencySlider.Value = _settings.BackgroundImageTransparency;
             CalendarImageTransparencySlider.Value = _settings.CalendarImageMaterialTransparency;
             ShowChineseFestivalsToggle.IsOn = _settings.ShowChineseFestivals;
             ShowPhotoControlsToggle.IsOn = _settings.ShowPhotoControls;
+            SurfaceOpacitySlider.Value = _settings.SurfaceMaterialOpacity;
+            TextPlateToggle.IsOn = _settings.ShowTextPlate;
             UpdateDisplaySelectionSummary();
             UpdateLocalSourceState();
             UpdateBackgroundImageTransparencyState();
             UpdateCalendarMaterialState();
+            UpdateSurfaceMaterialState();
         }
         finally
         {
@@ -522,10 +542,12 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
     {
         bool hasPendingSave = _scaleSaveTimer.IsEnabled ||
             _imageTransparencySaveTimer.IsEnabled ||
-            _calendarTransparencySaveTimer.IsEnabled;
+            _calendarTransparencySaveTimer.IsEnabled ||
+            _surfaceOpacitySaveTimer.IsEnabled;
         _scaleSaveTimer.Stop();
         _imageTransparencySaveTimer.Stop();
         _calendarTransparencySaveTimer.Stop();
+        _surfaceOpacitySaveTimer.Stop();
         if (hasPendingSave && _store is { } store)
         {
             await store.SaveAsync(_settings);
@@ -729,6 +751,7 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
             "Year" => GlanceDisplayElement.Year,
             "Weekday" => GlanceDisplayElement.Weekday,
             "Calendar" => GlanceDisplayElement.Calendar,
+            "Weather" => GlanceDisplayElement.Weather,
             _ => null
         };
         if (element is null)
@@ -923,6 +946,62 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
     private async void ShowPhotoControlsToggle_Toggled(object sender, RoutedEventArgs e)
         => await SaveAsync(settings => settings.ShowPhotoControls = ShowPhotoControlsToggle.IsOn);
 
+    private async void SurfaceMaterialComboBox_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (SurfaceMaterialComboBox.SelectedItem is SelectionItem
+            {
+                Value: GlanceSurfaceMaterialMode mode
+            })
+        {
+            await SaveAsync(settings =>
+                GlanceWidgetSettingsPolicy.SetSurfaceMaterial(settings, mode));
+            UpdateSurfaceMaterialState();
+        }
+    }
+
+    private void SurfaceOpacitySlider_ValueChanged(
+        object sender,
+        RangeBaseValueChangedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        _settings.SurfaceMaterialOpacity = Math.Clamp(e.NewValue, 0.05, 1.0);
+        UpdateSurfaceMaterialState();
+        _surfaceOpacitySaveTimer.Stop();
+        _surfaceOpacitySaveTimer.Start();
+    }
+
+    private async void SurfaceOpacitySaveTimer_Tick(object? sender, object e)
+    {
+        _surfaceOpacitySaveTimer.Stop();
+        if (_store is { } store)
+        {
+            await store.SaveAsync(_settings);
+        }
+    }
+
+    private async void TextContrastComboBox_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (TextContrastComboBox.SelectedItem is SelectionItem
+            {
+                Value: GlanceTextContrastMode mode
+            })
+        {
+            await SaveAsync(settings =>
+                GlanceWidgetSettingsPolicy.SetTextContrast(settings, mode));
+        }
+    }
+
+    private async void TextPlateToggle_Toggled(object sender, RoutedEventArgs e)
+        => await SaveAsync(settings => settings.ShowTextPlate = TextPlateToggle.IsOn);
+
     private void TimeScaleSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (_isLoading)
@@ -1037,6 +1116,18 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
         };
     }
 
+    /// <summary>
+    /// The opacity slider and the contrast controls only mean something for
+    /// their own material; hiding them keeps the section honest about what the
+    /// widget is actually drawing.
+    /// </summary>
+    private void UpdateSurfaceMaterialState()
+    {
+        bool isGlass = _settings.SurfaceMaterial == GlanceSurfaceMaterialMode.Glass;
+        SurfaceOpacityCard.Visibility = isGlass ? Visibility.Visible : Visibility.Collapsed;
+        SurfaceOpacityValue.Text = $"{Math.Round(_settings.SurfaceMaterialOpacity * 100):0}%";
+    }
+
     private void UpdateCalendarMaterialState()
     {
         bool calendarVisible = _settings.Layout == GlanceLayoutMode.Calendar && _settings.ShowCalendar;
@@ -1081,6 +1172,7 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
         "Year" => Localization.T("Glance.Display.Year"),
         "Weekday" => Localization.T("Glance.Display.Weekday"),
         "Calendar" => Localization.T("Glance.Display.Calendar"),
+        "Weather" => Localization.T("Glance.Display.Weather"),
         _ => option
     };
 

@@ -144,7 +144,11 @@ public static class WindowsCompatibilityService
             SettingsService.WidgetMaterialTypeMicaAlt or
             SettingsService.WidgetMaterialTypeAcrylic or
             SettingsService.WidgetMaterialTypeAcrylicBase or
-            SettingsService.WidgetMaterialTypeSolid
+            SettingsService.WidgetMaterialTypeSolid or
+            // Transparent is a per-widget override only; it must survive this
+            // fallback chain or a transparent surface would silently become
+            // acrylic on the compatibility floor.
+            SettingsService.WidgetMaterialTypeNone
                 ? requestedMaterialType
                 : SettingsService.WidgetMaterialTypeAcrylic;
 

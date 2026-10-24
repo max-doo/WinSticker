@@ -82,6 +82,20 @@ public partial class App
             settingsItem,
             () => RunTraySettingsActionAsync(contextMenu, OpenSettingsFromTray));
 
+        var openQuickPanelItem = new MenuFlyoutItem
+        {
+            Text = localization.T("Tray.QuickPanel"),
+            Width = TrayMenuItemWidth,
+            Icon = new FontIcon { Glyph = "\uE762" }
+        };
+        AttachTrayMenuItemInteraction(
+            openQuickPanelItem,
+            () => RunTrayMenuActionAsync(contextMenu, () =>
+            {
+                OpenQuickPanel();
+                return Task.CompletedTask;
+            }));
+
         var openManagedStorageItem = new MenuFlyoutItem
         {
             Text = localization.T("Tray.OpenManagedStorage"),
@@ -126,6 +140,7 @@ public partial class App
         contextMenu.Items.Add(mapFolderItem);
         contextMenu.Items.Add(addFeatureWidgetItem);
         contextMenu.Items.Add(new MenuFlyoutSeparator());
+        contextMenu.Items.Add(openQuickPanelItem);
         contextMenu.Items.Add(openManagedStorageItem);
         contextMenu.Items.Add(new MenuFlyoutSeparator());
         contextMenu.Items.Add(updateItem);
@@ -520,10 +535,15 @@ public partial class App
 
     private Style CreateTrayMenuPresenterStyle()
     {
-        var style = new Style(typeof(MenuFlyoutPresenter))
+        var style = new Style(typeof(MenuFlyoutPresenter));
+        if (Resources.TryGetValue(typeof(MenuFlyoutPresenter), out object? baseStyle) && baseStyle is Style baseStyleTyped)
         {
-            BasedOn = (Style)Resources[typeof(MenuFlyoutPresenter)]
-        };
+            style.BasedOn = baseStyleTyped;
+        }
+        else if (Resources.TryGetValue("DefaultMenuFlyoutPresenterStyle", out object? namedStyle) && namedStyle is Style namedStyleTyped)
+        {
+            style.BasedOn = namedStyleTyped;
+        }
         style.Setters.Add(new Setter(ScrollViewer.VerticalScrollModeProperty, ScrollMode.Disabled));
         style.Setters.Add(new Setter(
             ScrollViewer.VerticalScrollBarVisibilityProperty,

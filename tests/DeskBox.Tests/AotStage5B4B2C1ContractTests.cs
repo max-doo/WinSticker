@@ -62,7 +62,7 @@ public sealed class AotStage5B4B2C1ContractTests
 
         Assert.Contains("#if DESKBOX_NATIVE_AOT", bindable, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(bindable, "[WinRT.GeneratedBindableCustomProperty"));
-        Assert.Equal(33, CountOccurrences(bindable, "nameof("));
+        Assert.Equal(38, CountOccurrences(bindable, "nameof("));
         Assert.Contains("nameof(IsEditorialLayout)", bindable, StringComparison.Ordinal);
         Assert.Contains("nameof(ReadabilityOpacity)", bindable, StringComparison.Ordinal);
         Assert.Contains("nameof(ShowPhotoControls)", bindable, StringComparison.Ordinal);

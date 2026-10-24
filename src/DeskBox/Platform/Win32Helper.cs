@@ -370,6 +370,32 @@ public static partial class Win32Helper
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWindow(IntPtr hWnd);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsIconic(IntPtr hWnd);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool BringWindowToTop(IntPtr hWnd);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool AttachThreadInput(
+        uint idAttach,
+        uint idAttachTo,
+        [MarshalAs(UnmanagedType.Bool)] bool fAttach);
+
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ReleaseCapture();
+
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW", SetLastError = true)]
+    public static partial IntPtr SendMessage(
+        IntPtr hWnd,
+        uint message,
+        IntPtr wParam,
+        IntPtr lParam);
+
     /// <summary>True when the window still exists AND belongs to this
     /// process — the landing guard for deferred window work. A bare
     /// IsWindow check accepts a recycled HWND that now belongs to another
@@ -671,6 +697,31 @@ public static partial class Win32Helper
         }
 
         return false;
+    }
+
+    public const ushort VK_CONTROL = 0x11;
+
+    /// <summary>
+    /// Sends a synthetic key chord (modifier down, key down, key up, modifier up) via SendInput.
+    /// Fails safely if input delivery fails, releasing any partially pressed keys.
+    /// </summary>
+    public static unsafe bool TrySendKeyChord(ushort modifierVirtualKey, ushort keyVirtualKey)
+    {
+        INPUT* inputs = stackalloc INPUT[4];
+        inputs[0] = CreateKeyboardInput(modifierVirtualKey, 0, UIntPtr.Zero);
+        inputs[1] = CreateKeyboardInput(keyVirtualKey, 0, UIntPtr.Zero);
+        inputs[2] = CreateKeyboardInput(keyVirtualKey, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        inputs[3] = CreateKeyboardInput(modifierVirtualKey, KEYEVENTF_KEYUP, UIntPtr.Zero);
+
+        uint sent = SendInput(4, inputs, sizeof(INPUT));
+        if (sent != 4)
+        {
+            _ = TrySendKeyboardEvent(keyVirtualKey, KEYEVENTF_KEYUP, UIntPtr.Zero, out _);
+            _ = TrySendKeyboardEvent(modifierVirtualKey, KEYEVENTF_KEYUP, UIntPtr.Zero, out _);
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -1113,6 +1164,45 @@ public static partial class Win32Helper
         {
             return false;
         }
+    }
+
+    private const uint SpiGetDeskWallpaper = 0x0073;
+
+    /// <summary>
+    /// Reads the current desktop wallpaper file path via SystemParametersInfo, falling back
+    /// to the cached TranscodedWallpaper path if present.
+    /// </summary>
+    public static string? TryGetDesktopWallpaperPath()
+    {
+        try
+        {
+            unsafe
+            {
+                char* buffer = stackalloc char[512];
+                if (SystemParametersInfo(SpiGetDeskWallpaper, 512, (IntPtr)buffer, 0))
+                {
+                    string path = new(buffer);
+                    if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                    {
+                        return path;
+                    }
+                }
+            }
+
+            string transcoded = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                @"Microsoft\Windows\Themes\TranscodedWallpaper");
+            if (File.Exists(transcoded))
+            {
+                return transcoded;
+            }
+        }
+        catch
+        {
+            // best-effort probe
+        }
+
+        return null;
     }
 
     /// <summary>

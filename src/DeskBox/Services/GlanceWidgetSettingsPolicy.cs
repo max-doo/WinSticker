@@ -44,6 +44,7 @@ internal static class GlanceWidgetSettingsPolicy
             GlanceDisplayElement.Year => settings.ShowYear,
             GlanceDisplayElement.Weekday => settings.ShowWeekday,
             GlanceDisplayElement.Calendar => settings.ShowCalendar,
+            GlanceDisplayElement.Weather => settings.ShowWeather,
             _ => false
         };
     }
@@ -87,6 +88,9 @@ internal static class GlanceWidgetSettingsPolicy
                     settings.Layout = GlanceLayoutMode.Centered;
                 }
                 break;
+            case GlanceDisplayElement.Weather:
+                settings.ShowWeather = isVisible;
+                break;
         }
     }
 
@@ -115,5 +119,39 @@ internal static class GlanceWidgetSettingsPolicy
         settings.TransitionSpeed = transitionSpeed;
         settings.Readability = readability;
         settings.ShowPhotoControls = showPhotoControls;
+    }
+
+    /// <summary>
+    /// Sets this widget's window material. Transparent intentionally clears the
+    /// surface opacity: with no material there is nothing left to tint.
+    /// </summary>
+    public static void SetSurfaceMaterial(
+        GlanceWidgetData settings,
+        GlanceSurfaceMaterialMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.SurfaceMaterial = Enum.IsDefined(mode)
+            ? mode
+            : GlanceSurfaceMaterialMode.FollowSystem;
+    }
+
+    public static void SetSurfaceMaterialOpacity(
+        GlanceWidgetData settings,
+        double opacity)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.SurfaceMaterialOpacity = double.IsFinite(opacity)
+            ? Math.Clamp(opacity, 0.05, 1.0)
+            : 0.45;
+    }
+
+    public static void SetTextContrast(
+        GlanceWidgetData settings,
+        GlanceTextContrastMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.TextContrast = Enum.IsDefined(mode)
+            ? mode
+            : GlanceTextContrastMode.Auto;
     }
 }

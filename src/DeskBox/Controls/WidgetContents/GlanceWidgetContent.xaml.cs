@@ -27,6 +27,8 @@ public sealed partial class GlanceWidgetContent : UserControl
     private readonly DispatcherTimer _calendarWheelGestureTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
     private readonly Dictionary<CalendarViewDayItem, DateOnly> _realizedCalendarDays = [];
     private readonly SolidColorBrush _calendarSolidMaterialBrush = new();
+    private SolidColorBrush? _contrastPlateBrush;
+    private ElementTheme _contrastPlateTheme;
     private readonly LinearGradientBrush _calendarImageGradientBrush = new()
     {
         StartPoint = new Windows.Foundation.Point(0, 0),
@@ -183,6 +185,13 @@ public sealed partial class GlanceWidgetContent : UserControl
         {
             ApplyImageAwareTheme();
         }
+        else if (e.PropertyName is nameof(GlanceWidgetViewModel.ForegroundTheme) or
+                 nameof(GlanceWidgetViewModel.ShowContrastPlate))
+        {
+            // Transparent-surface contrast is resolved asynchronously against
+            // the sampled wallpaper, so the text scope follows after the fact.
+            ApplyImageAwareTheme();
+        }
         else if (e.PropertyName == nameof(GlanceWidgetViewModel.IsLoading))
         {
             UpdateLoadingIndicator();
@@ -237,10 +246,30 @@ public sealed partial class GlanceWidgetContent : UserControl
 
     private void ApplyImageAwareTheme()
     {
-        ImageForegroundThemeScope.RequestedTheme = _viewModel.HasVisibleCurrentImage
-            ? ElementTheme.Dark
-            : ElementTheme.Default;
+        ElementTheme foregroundTheme = _viewModel.ForegroundTheme;
+        ImageForegroundThemeScope.RequestedTheme = foregroundTheme;
         CalendarGlassSurface.RequestedTheme = RootGrid.ActualTheme;
+        ApplyContrastPlateBrush(foregroundTheme);
+    }
+
+    /// <summary>
+    /// The plate always pushes contrast away from the text: light text gets a
+    /// dark plate, dark text a light one. It never stands in for the surface,
+    /// it only separates the glyphs from a wallpaper that cannot do it alone.
+    /// </summary>
+    private void ApplyContrastPlateBrush(ElementTheme foregroundTheme)
+    {
+        if (_contrastPlateBrush is not null && _contrastPlateTheme == foregroundTheme)
+        {
+            return;
+        }
+
+        _contrastPlateTheme = foregroundTheme;
+        _contrastPlateBrush = foregroundTheme == ElementTheme.Light
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(0x2E, 0x00, 0x00, 0x00));
+        ImmersiveContrastPlate.Background = _contrastPlateBrush;
+        CenteredContrastPlate.Background = _contrastPlateBrush;
     }
 
     private void ApplyBackgroundImageOpacity()

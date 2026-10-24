@@ -322,6 +322,24 @@ public class AppSettings
     /// <inheritdoc cref="CoreSettingsSlice.GlobalHotkeyKey"/>
     public int GlobalHotkeyKey { get => Core.GlobalHotkeyKey; set => Core.GlobalHotkeyKey = value; }
 
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelHotkeyEnabled"/>
+    public bool QuickPanelHotkeyEnabled { get => Core.QuickPanelHotkeyEnabled; set => Core.QuickPanelHotkeyEnabled = value; }
+
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelHotkeyActivationKind"/>
+    public HotkeyActivationKind QuickPanelHotkeyActivationKind { get => Core.QuickPanelHotkeyActivationKind; set => Core.QuickPanelHotkeyActivationKind = value; }
+
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelHotkeyModifiers"/>
+    public int QuickPanelHotkeyModifiers { get => Core.QuickPanelHotkeyModifiers; set => Core.QuickPanelHotkeyModifiers = value; }
+
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelHotkeyKey"/>
+    public int QuickPanelHotkeyKey { get => Core.QuickPanelHotkeyKey; set => Core.QuickPanelHotkeyKey = value; }
+
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelDefaultTab"/>
+    public QuickPanelTab QuickPanelDefaultTab { get => Core.QuickPanelDefaultTab; set => Core.QuickPanelDefaultTab = value; }
+
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelAutoPaste"/>
+    public bool QuickPanelAutoPaste { get => Core.QuickPanelAutoPaste; set => Core.QuickPanelAutoPaste = value; }
+
     /// <inheritdoc cref="CoreSettingsSlice.DesktopDoubleClickEnabled"/>
     public bool DesktopDoubleClickEnabled { get => Core.DesktopDoubleClickEnabled; set => Core.DesktopDoubleClickEnabled = value; }
 

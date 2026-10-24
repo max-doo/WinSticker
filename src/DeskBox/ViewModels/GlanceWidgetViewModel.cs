@@ -25,6 +25,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private readonly ICalendarPresentationSource _calendarSource;
     private readonly GlanceTraditionalCalendarService _traditionalCalendarService = new();
     private readonly GlanceFestivalService _festivalService = new();
+    private readonly GlanceWeatherSummaryService _weatherSummaryService;
     private readonly LocalizationService _localizationService;
     private readonly SettingsService? _settingsService;
     private readonly DispatcherQueue _dispatcherQueue;
@@ -32,6 +33,13 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private readonly DispatcherQueueTimer _rotationTimer;
     private readonly CancellationTokenSource _lifetimeCts = new();
     private GlanceWidgetData _settings = new();
+    private GlanceTextContrastDecision _contrastDecision = GlanceTextContrastDecision.Unknown;
+    private string _appliedSurfaceSignature = string.Empty;
+    private bool _isContrastRefreshRunning;
+    private GlanceWeatherSummary? _weatherSummary;
+    private DateTimeOffset _weatherFetchedUtc = DateTimeOffset.MinValue;
+    private bool _isWeatherRefreshRunning;
+    private bool _isDisposedWeather;
     private IReadOnlyList<GlanceImageInfo> _images = [];
     private GlanceImageInfo? _currentImage;
     private string _timeText = string.Empty;
@@ -79,6 +87,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         _settingsService = settingsService;
         _dispatcherQueue = dispatcherQueue ?? DispatcherQueue.GetForCurrentThread()
             ?? throw new InvalidOperationException("Glance content must be created on a UI thread.");
+        _weatherSummaryService = new GlanceWeatherSummaryService(localizationService, settingsService);
 
         _clockTimer = _dispatcherQueue.CreateTimer();
         _clockTimer.IsRepeating = false;
@@ -149,6 +158,8 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
                 OnPropertyChanged(nameof(IsCurrentImageOnline));
                 OnPropertyChanged(nameof(HasCurrentImage));
                 OnPropertyChanged(nameof(HasVisibleCurrentImage));
+                OnPropertyChanged(nameof(ForegroundTheme));
+                OnPropertyChanged(nameof(ShowContrastPlate));
                 OnPropertyChanged(nameof(ShowPhotoControls));
                 OnPropertyChanged(nameof(ShowNonCalendarImageReadability));
                 OnPropertyChanged(nameof(ShowCalendarImageReadability));
@@ -166,7 +177,13 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public bool HasCurrentImage => CurrentImage is not null;
     public double BackgroundImageTransparency =>
         Math.Clamp(_settings.BackgroundImageTransparency, 0.0, 1.0);
-    public double BackgroundImageOpacity => 1.0 - BackgroundImageTransparency;
+    /// <summary>
+    /// The widget's own photo is suppressed on a transparent surface: the point
+    /// of that material is the desktop wallpaper showing through, and a Bing
+    /// frame behind it would just look like a borderless picture card.
+    /// </summary>
+    public double BackgroundImageOpacity =>
+        IsTransparentSurface ? 0.0 : 1.0 - BackgroundImageTransparency;
     public bool HasVisibleCurrentImage => HasCurrentImage && BackgroundImageOpacity > 0.001;
     public bool HasCurrentImageContextAction => IsCurrentImageOnline ||
         (!string.IsNullOrWhiteSpace(CurrentImagePath) && File.Exists(CurrentImagePath));
@@ -176,8 +193,133 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public bool ShowYear => _settings.ShowYear;
     public bool ShowWeekday => _settings.ShowWeekday;
     public bool ShowCalendar => _settings.ShowCalendar && _availableWidth >= 300 && _availableHeight >= 280;
-    public bool ShowPhotoControls => _settings.ShowPhotoControls && HasCurrentImage;
-    public bool IsForegroundVisible => ShowTime || ShowDate || ShowWeekday || ShowCalendar;
+    public bool ShowPhotoControls => _settings.ShowPhotoControls && HasCurrentImage && !IsTransparentSurface;
+
+    // ─── Weather summary line ──────────────────────────────────────
+    public bool ShowWeather => _settings.ShowWeather;
+    public bool HasWeatherSummary => _weatherSummary is not null;
+    public bool ShowWeatherRow => ShowWeather && HasWeatherSummary && _availableWidth >= 140;
+    public ImageSource? WeatherIcon => _weatherSummary?.Icon;
+
+    /// <summary>
+    /// Progressively trimmed with the available width: a narrow tile keeps only
+    /// the temperature, the standard tile adds the condition, and a wide one
+    /// adds today's range — the same three-step compression phone clock widgets
+    /// use, so the line never wraps.
+    /// </summary>
+    public string WeatherText
+    {
+        get
+        {
+            if (_weatherSummary is not { } summary)
+            {
+                return string.Empty;
+            }
+
+            var text = new StringBuilder(summary.TemperatureText);
+            if (_availableWidth >= 200 && !string.IsNullOrEmpty(summary.Description))
+            {
+                text.Append(' ').Append(summary.Description);
+            }
+
+            if (_availableWidth >= 280 && summary.HasRange)
+            {
+                text.Append(' ').Append(summary.RangeText);
+            }
+
+            return text.ToString();
+        }
+    }
+
+
+    // ─── Surface material (per-widget transparency) ────────────────
+    // The host window chrome is global by design; these members are what the
+    // Glance adapter hands to it through IWidgetSurfaceAppearanceSource, so a
+    // transparent clock never changes what the file or weather widgets look
+    // like.
+    public event EventHandler? SurfaceAppearanceChanged;
+
+    public GlanceSurfaceMaterialMode SurfaceMaterial => _settings.SurfaceMaterial;
+    public bool IsTransparentSurface =>
+        _settings.SurfaceMaterial == GlanceSurfaceMaterialMode.Transparent;
+    public bool IsGlassSurface => _settings.SurfaceMaterial == GlanceSurfaceMaterialMode.Glass;
+    public GlanceTextContrastMode TextContrast => _settings.TextContrast;
+    public bool IsTextPlateEnabled => _settings.ShowTextPlate;
+
+    /// <summary>Material the host window must use; null follows the global setting.</summary>
+    public string? SurfaceMaterialTypeOverride => _settings.SurfaceMaterial switch
+    {
+        GlanceSurfaceMaterialMode.Transparent => SettingsService.WidgetMaterialTypeNone,
+        GlanceSurfaceMaterialMode.Glass => SettingsService.WidgetMaterialTypeAcrylic,
+        _ => null
+    };
+
+    /// <summary>Surface opacity the host window must use; null follows the global setting.</summary>
+    public double? SurfaceOpacityOverride => _settings.SurfaceMaterial switch
+    {
+        GlanceSurfaceMaterialMode.Transparent => 0.0,
+        GlanceSurfaceMaterialMode.Glass => Math.Clamp(_settings.SurfaceMaterialOpacity, 0.0, 1.0),
+        _ => null
+    };
+
+    /// <summary>True when the window must draw no border and no divider.</summary>
+    public bool SuppressSurfaceChrome => IsTransparentSurface;
+
+    /// <summary>
+    /// Theme the text scope adopts. A visible photo keeps the existing
+    /// light-text-over-image rule; a transparent surface resolves against the
+    /// sampled wallpaper instead.
+    /// </summary>
+    public ElementTheme ForegroundTheme
+    {
+        get
+        {
+            if (HasVisibleCurrentImage)
+            {
+                return ElementTheme.Dark;
+            }
+
+            if (!IsTransparentSurface)
+            {
+                return ElementTheme.Default;
+            }
+
+            return _settings.TextContrast switch
+            {
+                GlanceTextContrastMode.White => ElementTheme.Dark,
+                GlanceTextContrastMode.Black => ElementTheme.Light,
+                GlanceTextContrastMode.Off => ElementTheme.Default,
+                _ => _contrastDecision.Foreground
+            };
+        }
+    }
+
+    /// <summary>
+    /// Whether the faint plate behind the text is needed right now. Only the
+    /// transparent surface without a photo uses it — a photo already carries the
+    /// widget's readability layer.
+    /// </summary>
+    public bool ShowContrastPlate =>
+        IsTransparentSurface &&
+        !HasVisibleCurrentImage &&
+        _settings.TextContrast != GlanceTextContrastMode.Off &&
+        _settings.ShowTextPlate &&
+        // High contrast owns the palette: the system colours already guarantee
+        // the contrast, and a themed plate would fight them.
+        !WindowsCompatibilityService.IsHighContrast &&
+        _contrastDecision.ShowPlate;
+
+    /// <summary>
+    /// Identity of everything that feeds the native backdrop. Reloading
+    /// settings compares it so the host is only asked to re-apply DWM state
+    /// when the surface actually changed.
+    /// </summary>
+    internal string SurfaceSignature => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{_settings.SurfaceMaterial}|{_settings.SurfaceMaterialOpacity:F3}");
+
+    public bool IsForegroundVisible =>
+        ShowTime || ShowDate || ShowWeekday || ShowCalendar || ShowWeather;
     public bool IsImmersiveLayout => _settings.Layout == GlanceLayoutMode.Immersive ||
         (_settings.Layout == GlanceLayoutMode.Calendar && !ShowCalendar);
     public bool IsCenteredLayout => _settings.Layout == GlanceLayoutMode.Centered;
@@ -264,6 +406,11 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         await UpdateCalendarAsync();
         await ReloadImagesAsync(refreshOnline: false);
         UpdateTimers();
+        _appliedSurfaceSignature = SurfaceSignature;
+        await RefreshContrastAsync();
+        // The weather line must not delay widget construction — it reads the
+        // shared weather cache and only reaches the network when that is cold.
+        _ = RefreshWeatherAsync();
 
         if (IsOnlineSource(_settings.BackgroundSource))
         {
@@ -287,6 +434,11 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public void OnActivated()
     {
         UpdateDateAndTime();
+        if (IsTransparentSurface)
+        {
+            // The wallpaper may have changed while the widget was inactive.
+            _ = RefreshContrastAsync();
+        }
     }
 
     public void OnDeactivated()
@@ -365,8 +517,19 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         double oldPanelWidth = CalendarPanelWidth;
         double oldDayItemHeight = CalendarDayItemMinimumHeight;
         bool oldShowTraditionalDetails = ShowCalendarTraditionalDetails;
+        string oldWeatherText = WeatherText;
+        bool oldShowWeatherRow = ShowWeatherRow;
         _availableWidth = width;
         _availableHeight = height;
+        if (!string.Equals(oldWeatherText, WeatherText, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(WeatherText));
+        }
+        if (oldShowWeatherRow != ShowWeatherRow)
+        {
+            OnPropertyChanged(nameof(ShowWeatherRow));
+            OnPropertyChanged(nameof(IsForegroundVisible));
+        }
         if (oldTimeFontSize != TimeFontSize)
         {
             OnPropertyChanged(nameof(TimeFontSize));
@@ -493,6 +656,34 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             GlanceWidgetSettingsPolicy.SetLayout(settings, layout));
     }
 
+    /// <summary>
+    /// Switches this widget's window material between the global appearance,
+    /// a fully transparent surface, and faint glass. Store.UpdateAsync raises
+    /// the change notification, which re-applies the host backdrop.
+    /// </summary>
+    public Task SetSurfaceMaterialAsync(GlanceSurfaceMaterialMode mode)
+    {
+        return _store.UpdateAsync(settings =>
+            GlanceWidgetSettingsPolicy.SetSurfaceMaterial(settings, mode));
+    }
+
+    public Task SetSurfaceMaterialOpacityAsync(double opacity)
+    {
+        return _store.UpdateAsync(settings =>
+            GlanceWidgetSettingsPolicy.SetSurfaceMaterialOpacity(settings, opacity));
+    }
+
+    public Task SetTextContrastAsync(GlanceTextContrastMode mode)
+    {
+        return _store.UpdateAsync(settings =>
+            GlanceWidgetSettingsPolicy.SetTextContrast(settings, mode));
+    }
+
+    public Task SetTextPlateEnabledAsync(bool enabled)
+    {
+        return _store.UpdateAsync(settings => settings.ShowTextPlate = enabled);
+    }
+
     public Task SetLocalImageFilesAsync(IEnumerable<string> imagePaths)
     {
         return _store.UpdateAsync(settings =>
@@ -540,10 +731,77 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         await UpdateCalendarAsync();
         await ReloadImagesAsync(refreshOnline: false);
         UpdateTimers();
+        await RefreshContrastAsync();
+        if (_settings.ShowWeather && _weatherSummary is null)
+        {
+            _ = RefreshWeatherAsync();
+        }
+        else
+        {
+            RaiseWeatherProperties();
+        }
+        string signature = SurfaceSignature;
+        if (!string.Equals(signature, _appliedSurfaceSignature, StringComparison.Ordinal))
+        {
+            _appliedSurfaceSignature = signature;
+            // The host owns the backdrop; it re-applies it only when this fires.
+            SurfaceAppearanceChanged?.Invoke(this, EventArgs.Empty);
+        }
         if (IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
         {
             _ = RefreshOnlineInBackgroundAsync();
         }
+    }
+
+    /// <summary>
+    /// Re-resolves the transparent surface's text colour against the current
+    /// desktop wallpaper. Cheap to call: the probe caches per wallpaper file
+    /// path and last-write time, so repeated calls only cost a file stat.
+    /// </summary>
+    public async Task RefreshContrastAsync()
+    {
+        if (_isDisposed || _isContrastRefreshRunning)
+        {
+            return;
+        }
+
+        _isContrastRefreshRunning = true;
+        try
+        {
+            GlanceTextContrastDecision decision = await DesktopWallpaperContrastProbe
+                .ResolveAsync(_settings.TextContrast, _settings.ShowTextPlate);
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            if (decision == _contrastDecision)
+            {
+                return;
+            }
+
+            _contrastDecision = decision;
+            // The probe decodes off-thread; property changes must land on the
+            // dispatcher so binding updates stay on the UI thread.
+            if (_dispatcherQueue.HasThreadAccess)
+            {
+                RaiseContrastProperties();
+            }
+            else
+            {
+                _dispatcherQueue.TryEnqueue(RaiseContrastProperties);
+            }
+        }
+        finally
+        {
+            _isContrastRefreshRunning = false;
+        }
+    }
+
+    private void RaiseContrastProperties()
+    {
+        OnPropertyChanged(nameof(ForegroundTheme));
+        OnPropertyChanged(nameof(ShowContrastPlate));
     }
 
     private async Task ReloadImagesAsync(bool refreshOnline)
@@ -735,6 +993,20 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(TraditionalCalendarMode));
         OnPropertyChanged(nameof(ShowChineseFestivals));
         OnPropertyChanged(nameof(CanPauseRotation));
+        OnPropertyChanged(nameof(ShowWeather));
+        OnPropertyChanged(nameof(HasWeatherSummary));
+        OnPropertyChanged(nameof(ShowWeatherRow));
+        OnPropertyChanged(nameof(WeatherIcon));
+        OnPropertyChanged(nameof(WeatherText));
+        OnPropertyChanged(nameof(IsForegroundVisible));
+        OnPropertyChanged(nameof(SurfaceMaterial));
+        OnPropertyChanged(nameof(IsTransparentSurface));
+        OnPropertyChanged(nameof(IsGlassSurface));
+        OnPropertyChanged(nameof(TextContrast));
+        OnPropertyChanged(nameof(IsTextPlateEnabled));
+        OnPropertyChanged(nameof(SuppressSurfaceChrome));
+        OnPropertyChanged(nameof(ForegroundTheme));
+        OnPropertyChanged(nameof(ShowContrastPlate));
         RaiseLayoutProperties();
     }
 
@@ -992,6 +1264,75 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         UpdateDateAndTime();
         RefreshIfObservedDateChanged(currentDate);
         UpdateClockTimer();
+        EnsureWeatherFresh();
+    }
+
+    /// <summary>
+    /// Piggybacks on the minute tick instead of owning a second timer: the
+    /// summary only needs refreshing every few minutes, so a cheap age check on
+    /// a tick that already runs is the whole schedule.
+    /// </summary>
+    private void EnsureWeatherFresh()
+    {
+        if (!_settings.ShowWeather || _isWeatherRefreshRunning)
+        {
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow - _weatherFetchedUtc < TimeSpan.FromMinutes(15))
+        {
+            return;
+        }
+
+        _ = RefreshWeatherAsync();
+    }
+
+    /// <summary>
+    /// Loads or refreshes the one-line weather summary. Failures are silent by
+    /// design: the row simply disappears rather than showing a placeholder that
+    /// claims a temperature nobody measured.
+    /// </summary>
+    public async Task RefreshWeatherAsync(bool forceRefresh = false)
+    {
+        if (_isDisposedWeather || _isDisposed || _isWeatherRefreshRunning || !_settings.ShowWeather)
+        {
+            return;
+        }
+
+        _isWeatherRefreshRunning = true;
+        try
+        {
+            GlanceWeatherSummary? summary = await _weatherSummaryService.GetAsync(
+                forceRefresh,
+                _lifetimeCts.Token);
+            if (_isDisposedWeather)
+            {
+                return;
+            }
+
+            _weatherSummary = summary;
+            _weatherFetchedUtc = DateTimeOffset.UtcNow;
+            RaiseWeatherProperties();
+        }
+        finally
+        {
+            _isWeatherRefreshRunning = false;
+        }
+    }
+
+    private void RaiseWeatherProperties()
+    {
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(RaiseWeatherProperties);
+            return;
+        }
+
+        OnPropertyChanged(nameof(HasWeatherSummary));
+        OnPropertyChanged(nameof(ShowWeatherRow));
+        OnPropertyChanged(nameof(WeatherIcon));
+        OnPropertyChanged(nameof(WeatherText));
+        OnPropertyChanged(nameof(IsForegroundVisible));
     }
 
     /// <summary>
@@ -1130,6 +1471,8 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         CancelOnlineRefresh();
         _lifetimeCts.Cancel();
         _lifetimeCts.Dispose();
+        _isDisposedWeather = true;
+        _weatherSummaryService.Dispose();
     }
 
     private void CancelOnlineRefresh()

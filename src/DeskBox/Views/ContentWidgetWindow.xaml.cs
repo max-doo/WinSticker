@@ -49,6 +49,7 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     private INotifyPropertyChanged? _compactPresentationSource;
     private IWidgetFeedbackSource? _feedbackSource;
     private IWidgetHostContextMenuSource? _hostContextMenuSource;
+    private IWidgetSurfaceAppearanceSource? _surfaceAppearanceSource;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _autoRestoreTimer;
 
     private bool _isVisibleOnDesktop;
@@ -107,6 +108,12 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
 
     public override WidgetConfig Config => _config;
     protected override double WidgetOpacity => SettingsService.Settings.WidgetOpacity;
+    protected override string? MaterialTypeOverride =>
+        _surfaceAppearanceSource?.SurfaceMaterialTypeOverride;
+    protected override double? SurfaceOpacityOverride =>
+        _surfaceAppearanceSource?.SurfaceOpacityOverride;
+    protected override bool SuppressSurfaceChrome =>
+        _surfaceAppearanceSource?.SuppressSurfaceChrome == true;
     protected override FrameworkElement RootElement => RootGrid;
     protected override WidgetShell WidgetShellControl => ContentWidgetShell;
     protected override string LogPrefix => "Content";
@@ -638,11 +645,11 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     protected override void ApplySurfaceStyle()
     {
         bool isDark = RootGrid.ActualTheme == ElementTheme.Dark;
-        double surfaceOpacity = Math.Clamp(SettingsService.Settings.WidgetOpacity, 0.0, 1.0);
+        double surfaceOpacity = ResolveSurfaceOpacity();
         var accentColor = App.Current.ThemeService?.GetEffectiveAccentColor()
             ?? AccentColorHelper.DefaultAccentColor;
         string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
-            SettingsService.Settings.WidgetMaterialType);
+            ResolveRequestedMaterialType());
 
         // Simplified layering: only apply surface color overlay for Solid mode.
         if (materialType is SettingsService.WidgetMaterialTypeSolid && !IsSolidColorBackdropActive)
@@ -1091,8 +1098,62 @@ IsHideAnimationRunning = true;
         AttachCompactPresentationSource(content);
         AttachFeedbackSource(content);
         AttachHostContextMenuSource(content);
+        AttachSurfaceAppearanceSource(content);
         RefreshCompactPresentation();
         ApplyTitleActionButtonConfiguration();
+    }
+
+    /// <summary>
+    /// The surface contract is opt-in per content kind. A content that owns its
+    /// window material re-applies the backdrop itself when its settings change,
+    /// so the host window never has to poll it.
+    /// </summary>
+    private void AttachSurfaceAppearanceSource(IWidgetContent content)
+    {
+        IWidgetSurfaceAppearanceSource? previous = _surfaceAppearanceSource;
+        if (previous is not null)
+        {
+            previous.SurfaceAppearanceChanged -=
+                SurfaceAppearanceSource_SurfaceAppearanceChanged;
+        }
+
+        _surfaceAppearanceSource = content as IWidgetSurfaceAppearanceSource;
+        if (_surfaceAppearanceSource is not null)
+        {
+            _surfaceAppearanceSource.SurfaceAppearanceChanged +=
+                SurfaceAppearanceSource_SurfaceAppearanceChanged;
+        }
+
+        if (!ReferenceEquals(previous, _surfaceAppearanceSource))
+        {
+            // The content was set before this hook ran, so the surface was
+            // applied against the previous override (or none). One re-apply
+            // brings the window in line; the signature check inside makes an
+            // unchanged surface free.
+            ApplyBackdropPreference();
+        }
+    }
+
+    private void SurfaceAppearanceSource_SurfaceAppearanceChanged(object? sender, EventArgs e)
+    {
+        if (!ReferenceEquals(sender, _surfaceAppearanceSource) ||
+            !ReferenceEquals(_surfaceAppearanceSource, CurrentContent))
+        {
+            return;
+        }
+
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+                SurfaceAppearanceSource_SurfaceAppearanceChanged(sender, e));
+            return;
+        }
+
+        // The material override feeds both the native backdrop and the XAML
+        // surface, and the signature check inside ApplyBackdropPreference keeps
+        // an unchanged surface from churning DWM state.
+        ApplyBackdropPreference();
+        ApplySurfaceStyle();
     }
 
     private void AttachFeedbackSource(IWidgetContent content)

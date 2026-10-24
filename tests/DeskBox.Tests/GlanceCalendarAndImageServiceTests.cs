@@ -49,10 +49,11 @@ public sealed class GlanceCalendarAndImageServiceTests : IDisposable
     {
         var source = new LocalCalendarPresentationSource();
 
+        var culture = (CultureInfo)CultureInfo.GetCultureInfo("zh-CN").Clone();
+        culture.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Monday;
         GlanceCalendarMonth month = await source.GetMonthAsync(
             new DateOnly(2026, 8, 1),
-            CultureInfo.GetCultureInfo("zh-CN"));
-
+            culture);
         Assert.Equal(new DateOnly(2026, 8, 1), month.Month);
         Assert.Equal(7, month.WeekdayHeaders.Count);
         Assert.Equal(["一", "二", "三", "四", "五", "六", "日"], month.WeekdayHeaders);
