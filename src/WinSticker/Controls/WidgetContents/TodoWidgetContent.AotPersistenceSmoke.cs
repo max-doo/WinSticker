@@ -26,8 +26,8 @@ public sealed partial class TodoWidgetContent
             detailItem?.Notes ?? string.Empty,
             ViewModel?.IsCreatingDetailItem == true,
             _notesEditingItemId,
-            _notesAutosaveTimer.IsEnabled,
-            _notesSaveGate.CurrentCount,
+            _notesSession?.IsAutoSaveScheduled == true,
+            _notesSession?.IsSaving == false,
             stepUi.ItemCount,
             stepUi.ContainerRealized,
             stepUi.DataContextId,
@@ -98,11 +98,10 @@ public sealed partial class TodoWidgetContent
         {
             throw new InvalidOperationException(
                 "The real Todo 600 ms notes auto-save did not complete. " +
-                $"TimerEnabled={_notesAutosaveTimer.IsEnabled}; " +
-                $"SaveGateCount={_notesSaveGate.CurrentCount}; " +
+                $"TimerEnabled={_notesSession?.IsAutoSaveScheduled}; " +
+                $"SaveIdle={_notesSession?.IsSaving == false}; " +
                 $"EditingItemId={_notesEditingItemId ?? "<null>"}; " +
                 $"EditorMatches={string.Equals(DetailNotesEditor.Text, autoSaveNotes, StringComparison.Ordinal)}; " +
-                $"OriginalMatches={string.Equals(_notesOriginalText, autoSaveNotes, StringComparison.Ordinal)}; " +
                 $"ItemMatches={string.Equals(item.Notes, autoSaveNotes, StringComparison.Ordinal)}.");
         }
 
@@ -142,9 +141,9 @@ public sealed partial class TodoWidgetContent
             await SaveActiveNotesAsync(keepEditing: false) &&
             string.Equals(item.Notes, explicitNotes, StringComparison.Ordinal) &&
             string.Equals(DetailNotesEditor.Text, explicitNotes, StringComparison.Ordinal) &&
-            !_notesAutosaveTimer.IsEnabled &&
+            !_notesSession!.IsAutoSaveScheduled &&
             _notesEditingItemId is null &&
-            _notesSaveGate.CurrentCount == 1;
+            !_notesSession.IsSaving;
         if (!explicitNotesSaved)
         {
             throw new InvalidOperationException(
@@ -220,10 +219,9 @@ public sealed partial class TodoWidgetContent
         DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(8);
         while (DateTimeOffset.UtcNow < deadline)
         {
-            if (!_notesAutosaveTimer.IsEnabled &&
-                _notesSaveGate.CurrentCount == 1 &&
+            if (!_notesSession!.IsAutoSaveScheduled &&
+                !_notesSession.IsSaving &&
                 string.Equals(_notesEditingItemId, item.Id, StringComparison.Ordinal) &&
-                string.Equals(_notesOriginalText, expectedNotes, StringComparison.Ordinal) &&
                 string.Equals(DetailNotesEditor.Text, expectedNotes, StringComparison.Ordinal) &&
                 string.Equals(item.Notes, expectedNotes, StringComparison.Ordinal))
             {

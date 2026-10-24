@@ -9,19 +9,25 @@ namespace WinSticker.Controls.WidgetContents;
 
 public sealed partial class TodoWidgetContent
 {
-    private readonly DispatcherTimer _notesAutosaveTimer = new()
-    {
-        Interval = TimeSpan.FromMilliseconds(600)
-    };
     private readonly MarkdownDocumentService _markdownDocumentService = new();
-    private readonly SemaphoreSlim _notesSaveGate = new(1, 1);
+    private MarkdownEditingSession? _notesSession;
     private string? _notesEditingItemId;
-    private string _notesOriginalText = string.Empty;
     private bool _notesExitRequested;
 
     private void InitializeDetailNotesAndSteps()
     {
-        _notesAutosaveTimer.Tick += NotesAutosaveTimer_Tick;
+        _notesSession = new MarkdownEditingSession(
+            new DispatcherQueueSessionTimer(
+                DispatcherQueue,
+                TimeSpan.FromMilliseconds(600)));
+        _notesSession.SaveCore = PersistActiveNotesAsync;
+        _notesSession.SaveFailed += (_, _) =>
+        {
+            if (_notesEditingItemId is not null)
+            {
+                DetailNotesSaveFailure.Visibility = Visibility.Visible;
+            }
+        };
         DetailNotesView.AttachmentResolver = ResolveSelectedTodoAttachment;
         DetailNotesView.AttachmentOpenRequested += DetailNotesView_AttachmentOpenRequested;
         DetailNotesReaderHost.AddHandler(
@@ -204,57 +210,63 @@ public sealed partial class TodoWidgetContent
         }
 
         _notesEditingItemId = item.Id;
-        _notesOriginalText = item.Notes;
         _notesExitRequested = false;
+        _notesSession?.Reset();
         DetailNotesEditor.Text = item.Notes;
         DetailNotesSaveFailure.Visibility = Visibility.Collapsed;
         ApplyNotesEditingVisualState(isEditing: true);
-        DetailNotesEditor.FocusEditor(moveCaretToEnd: true);
+        DetailNotesEditor.FocusEditor();
     }
 
-    private void DetailNotesEditor_EditorTextChanged(object? sender, EventArgs e)
-    {
+    private void DetailNotesEditor_EditorTextChanged(object? sender, EventArgs e) =>
         ScheduleNotesAutoSave();
-    }
 
     private void ScheduleNotesAutoSave()
     {
-        if (_notesEditingItemId is null)
+        if (_notesEditingItemId is null || _notesSession is null)
         {
             return;
         }
 
         _notesExitRequested = false;
         DetailNotesSaveFailure.Visibility = Visibility.Collapsed;
-        _notesAutosaveTimer.Stop();
-        _notesAutosaveTimer.Start();
+        _notesSession.NotifyChanged();
     }
 
-    private async void NotesAutosaveTimer_Tick(object? sender, object e)
+    /// <summary>Session save callback: persist the live editor's text.</summary>
+    private async Task<bool> PersistActiveNotesAsync()
     {
-        _notesAutosaveTimer.Stop();
-        await SaveActiveNotesAsync(keepEditing: true);
-    }
+        if (_notesEditingItemId is not { } itemId || ViewModel is not { } viewModel)
+        {
+            return true;
+        }
 
-    private async void DetailNotesEditor_CommitRequested(object? sender, EventArgs e) =>
-        await SaveActiveNotesAsync(keepEditing: false);
+        if (await EnsureDetailItemPersistedAsync() is null)
+        {
+            return false;
+        }
 
-    private void DetailNotesEditor_CancelRequested(object? sender, EventArgs e)
-    {
-        _notesAutosaveTimer.Stop();
-        DetailNotesEditor.Text = _notesOriginalText;
-        EndNotesEditing();
+        try
+        {
+            return await viewModel.UpdateNotesAsync(itemId, DetailNotesEditor.Text);
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[Todo] Failed to save notes for {itemId}: {ex}");
+            return false;
+        }
     }
 
     private async Task<bool> SaveActiveNotesAsync(bool keepEditing)
     {
-        _notesAutosaveTimer.Stop();
         if (!keepEditing)
         {
             _notesExitRequested = true;
         }
 
-        if (_notesEditingItemId is not { } itemId || ViewModel is null)
+        if (_notesEditingItemId is not { } itemId ||
+            ViewModel is null ||
+            _notesSession is null)
         {
             if (!keepEditing)
             {
@@ -264,23 +276,7 @@ public sealed partial class TodoWidgetContent
             return true;
         }
 
-        string source = DetailNotesEditor.Text;
-        TodoWidgetViewModel viewModel = ViewModel;
-        bool saved = false;
-        await _notesSaveGate.WaitAsync();
-        try
-        {
-            saved = await viewModel.UpdateNotesAsync(itemId, source);
-        }
-        catch (Exception ex)
-        {
-            App.Log($"[Todo] Failed to save notes for {itemId}: {ex}");
-        }
-        finally
-        {
-            _notesSaveGate.Release();
-        }
-
+        bool saved = await _notesSession.SaveAsync(completeEditing: !keepEditing);
         if (!string.Equals(_notesEditingItemId, itemId, StringComparison.Ordinal))
         {
             return saved;
@@ -293,13 +289,8 @@ public sealed partial class TodoWidgetContent
             return false;
         }
 
-        _notesOriginalText = source;
         DetailNotesSaveFailure.Visibility = Visibility.Collapsed;
-        bool sourceIsCurrent = string.Equals(
-            DetailNotesEditor.Text,
-            source,
-            StringComparison.Ordinal);
-        if (_notesExitRequested && sourceIsCurrent)
+        if (_notesExitRequested && !_notesSession.HasUnsavedChanges)
         {
             EndNotesEditing();
         }
@@ -309,7 +300,7 @@ public sealed partial class TodoWidgetContent
 
     private void EndNotesEditing()
     {
-        _notesAutosaveTimer.Stop();
+        _notesSession?.Reset();
         _notesEditingItemId = null;
         _notesExitRequested = false;
         DetailNotesSaveFailure.Visibility = Visibility.Collapsed;
@@ -360,7 +351,7 @@ public sealed partial class TodoWidgetContent
             _ = SaveActiveNotesAsync(keepEditing: false);
         }
 
-        _notesAutosaveTimer.Stop();
+        _notesSession?.Reset();
         _notesEditingItemId = null;
         _notesExitRequested = false;
         DetailNotesSaveFailure.Visibility = Visibility.Collapsed;

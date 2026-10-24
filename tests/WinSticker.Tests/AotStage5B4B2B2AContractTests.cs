@@ -93,18 +93,22 @@ public sealed class AotStage5B4B2B2AContractTests
         string product = ReadRepositoryFile(
             "src/WinSticker/Controls/WidgetContents/TodoWidgetContent.DetailNotesAndSteps.cs");
 
-        Assert.Contains("Interval = TimeSpan.FromMilliseconds(600)", product, StringComparison.Ordinal);
+        Assert.Contains("TimeSpan.FromMilliseconds(600)", product, StringComparison.Ordinal);
         Assert.Contains("BeginNotesEditingAsync", surface, StringComparison.Ordinal);
         Assert.Contains("DetailNotesEditor.Text", surface, StringComparison.Ordinal);
         Assert.Contains("ScheduleNotesAutoSave", surface, StringComparison.Ordinal);
         Assert.Contains("private void ScheduleNotesAutoSave()", product, StringComparison.Ordinal);
-        Assert.Contains("_notesAutosaveTimer.IsEnabled", surface, StringComparison.Ordinal);
-        Assert.Contains("_notesOriginalText", surface, StringComparison.Ordinal);
-        Assert.Contains("_notesSaveGate.CurrentCount", surface, StringComparison.Ordinal);
+        Assert.Contains("_notesSession", surface, StringComparison.Ordinal);
+        Assert.Contains("IsAutoSaveScheduled", surface, StringComparison.Ordinal);
+        Assert.Contains("IsSaving", surface, StringComparison.Ordinal);
+        Assert.Contains("MarkdownEditingSession", product, StringComparison.Ordinal);
         Assert.Contains("WaitForAotTodoAutoSaveAsync", surface, StringComparison.Ordinal);
         Assert.Contains("AutoSaveObserved", surface, StringComparison.Ordinal);
         Assert.DoesNotContain("DetailNotesEditor.SourceTextBox.Text", surface, StringComparison.Ordinal);
         Assert.DoesNotContain("NotesAutosaveTimer_Tick(", surface, StringComparison.Ordinal);
+        Assert.DoesNotContain("_notesOriginalText", surface, StringComparison.Ordinal);
+        Assert.DoesNotContain("_notesAutosaveTimer", surface, StringComparison.Ordinal);
+        Assert.DoesNotContain("_notesSaveGate", surface, StringComparison.Ordinal);
     }
 
     [Fact]

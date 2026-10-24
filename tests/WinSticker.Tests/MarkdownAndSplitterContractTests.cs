@@ -381,7 +381,7 @@ public sealed class MarkdownAndSplitterContractTests
         Assert.Contains("TextChanged=\"DetailTitleTextBox_TextChanged\"", xaml, StringComparison.Ordinal);
         Assert.Contains("WidgetMasterDetailSplitterStyle", xaml, StringComparison.Ordinal);
         Assert.Contains("MarkdownDocumentView", xaml, StringComparison.Ordinal);
-        Assert.Contains("MarkdownSourceEditor", xaml, StringComparison.Ordinal);
+        Assert.Contains("MarkdownLiveEditor", xaml, StringComparison.Ordinal);
         Assert.Contains("EnsureWideDetailSelection", layout, StringComparison.Ordinal);
         Assert.Contains("ViewModel?.LayoutPreference", layout, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"DetailMetadataGrid\"", xaml, StringComparison.Ordinal);

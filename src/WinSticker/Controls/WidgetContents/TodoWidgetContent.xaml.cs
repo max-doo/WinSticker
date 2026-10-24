@@ -126,7 +126,7 @@ public sealed partial class TodoWidgetContent : UserControl
             if (DataContext is TodoWidgetViewModel oldViewModel)
             {
                 _ = SaveActiveNotesAsync(keepEditing: false);
-                _notesAutosaveTimer.Stop();
+                _notesSession?.Reset();
                 _notesEditingItemId = null;
                 oldViewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 oldViewModel.VisibleItems.CollectionChanged -= VisibleItems_CollectionChanged;
@@ -190,7 +190,6 @@ public sealed partial class TodoWidgetContent : UserControl
         ResetTodoReorderVisualState();
         _copyTapGeneration++;
         _detailTransitionGeneration++;
-        _notesAutosaveTimer.Stop();
         _ = SaveActiveNotesAsync(keepEditing: false);
         DetailPageTransitionHelper.Reset(DetailPage);
         CloseTodoEdit();
@@ -543,7 +542,6 @@ public sealed partial class TodoWidgetContent : UserControl
         }
 
         var localization = App.Current.LocalizationService;
-        DetailNotesEditor.TextResolver = localization.T;
         TodoInlineEditor.Title = localization.T("Todo.Menu.Edit");
         TodoInlineEditor.CancelText = localization.T("Common.Cancel");
         TodoInlineEditor.SaveText = localization.T("Common.Save");
