@@ -25,12 +25,16 @@ public sealed partial class MarkdownLiveEditor : UserControl
 {
     private const int SerializationIdleMilliseconds = 150;
 
+    // XamlReader.Load 走运行时文本解析，命名空间必须写全称
+    // http://schemas.microsoft.com/winfx/2006/xaml/presentation（复数
+    // schemas）；拼错成 schema 会在控件构造时抛 XamlParseException，
+    // 连带所有宿主 XAML（如 TodoWidgetContent）实例化失败。
     private const string RenderedTemplateXaml =
-        "<DataTemplate xmlns=\"http://schema.microsoft.com/winfx/2006/xaml/presentation\"" +
+        "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"" +
         " xmlns:controls=\"using:WinSticker.Controls\">" +
         "<controls:MarkdownDocumentView/></DataTemplate>";
     private const string ActiveTemplateXaml =
-        "<DataTemplate xmlns=\"http://schema.microsoft.com/winfx/2006/xaml/presentation\">" +
+        "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">" +
         "<TextBox/></DataTemplate>";
 
     private readonly MarkdownLiveDocumentModel _model = new();
