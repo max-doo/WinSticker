@@ -12,8 +12,25 @@ public sealed class MarkdownLiveEditorContractTests
 
         Assert.Contains("MarkdownSerializationScheduler", code, StringComparison.Ordinal);
         Assert.Contains("MarkdownBlockReconciler.Plan", code, StringComparison.Ordinal);
-        Assert.Contains("_renderedViews", code, StringComparison.Ordinal);
         Assert.Contains("_committedBlocks", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Editor_BlockListIsVirtualized()
+    {
+        string code = ReadEditor();
+
+        Assert.Contains("ItemsRepeater", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("StackPanel", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Editor_RecycledElementsAreRewiredThroughPrepareAndClearing()
+    {
+        string code = ReadEditor();
+
+        Assert.Contains("ElementPrepared", code, StringComparison.Ordinal);
+        Assert.Contains("ElementClearing", code, StringComparison.Ordinal);
     }
 
     [Fact]

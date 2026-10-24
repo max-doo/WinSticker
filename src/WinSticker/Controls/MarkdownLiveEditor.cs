@@ -1,9 +1,11 @@
+using System.Collections.ObjectModel;
 using Microsoft.UI.Dispatching;
 using WinSticker.Models;
 using WinSticker.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Markup;
 
 namespace WinSticker.Controls;
 
@@ -11,25 +13,41 @@ namespace WinSticker.Controls;
 /// Hybrid live Markdown editor: the block holding the caret is shown as
 /// editable source while every other block is rendered live. Keystrokes
 /// only update the model string — serialization is debounced through
-/// <see cref="MarkdownSerializationScheduler"/> and visual updates go
-/// through <see cref="MarkdownBlockReconciler"/> so blocks whose source
-/// did not change keep their rendered view instances. Task checkboxes
-/// toggle the underlying Markdown source directly.
+/// <see cref="MarkdownSerializationScheduler"/> and block-list updates go
+/// through <see cref="MarkdownBlockReconciler"/> so only blocks whose
+/// source changed are re-rendered. Blocks are presented in an
+/// <see cref="ItemsRepeater"/> so only the viewport is realized; recycled
+/// views re-receive the same Markdown string and hit the
+/// <see cref="MarkdownDocumentView"/> render-state gate for free. Task
+/// checkboxes toggle the underlying Markdown source directly.
 /// </summary>
 public sealed partial class MarkdownLiveEditor : UserControl
 {
     private const int SerializationIdleMilliseconds = 150;
 
+    private const string RenderedTemplateXaml =
+        "<DataTemplate xmlns=\"http://schema.microsoft.com/winfx/2006/xaml/presentation\"" +
+        " xmlns:controls=\"using:WinSticker.Controls\">" +
+        "<controls:MarkdownDocumentView/></DataTemplate>";
+    private const string ActiveTemplateXaml =
+        "<DataTemplate xmlns=\"http://schema.microsoft.com/winfx/2006/xaml/presentation\">" +
+        "<TextBox/></DataTemplate>";
+
     private readonly MarkdownLiveDocumentModel _model = new();
     private readonly ScrollViewer _scroller = new();
-    private readonly StackPanel _blockList = new();
     private readonly TextBlock _placeholder = new();
     private readonly MarkdownSerializationScheduler _serializationScheduler;
-    // Rendered view per committed block (null slot = active/never built);
-    // indices stay aligned with _committedBlocks.
-    private readonly List<MarkdownDocumentView?> _renderedViews = [];
+    private readonly ObservableCollection<MarkdownBlockItem> _itemSource = [];
+    // Realized element -> block index, maintained in ElementPrepared/Clearing
+    // so recycled views resolve their block at event time.
+    private readonly Dictionary<UIElement, int> _elementBlockIndices = new();
+    private ItemsRepeater _blockRepeater = null!;
     private List<string> _committedBlocks = [];
+    private int _lastCommittedActiveIndex = -2;
+    private TextBox? _activeEditor;
+    private int? _pendingActiveCaretOffset;
     private bool _isSynchronizing;
+    private bool _isSynchronizingItems;
 
     public MarkdownLiveEditor()
         : this(new DispatcherQueueSessionTimer(
@@ -49,7 +67,19 @@ public sealed partial class MarkdownLiveEditor : UserControl
 
     private void Initialize()
     {
-        _scroller.Content = _blockList;
+        _blockRepeater = new ItemsRepeater
+        {
+            Layout = new StackLayout { Orientation = Orientation.Vertical },
+            ItemTemplate = new MarkdownBlockTemplateSelector
+            {
+                RenderedTemplate = (DataTemplate)XamlReader.Load(RenderedTemplateXaml),
+                ActiveTemplate = (DataTemplate)XamlReader.Load(ActiveTemplateXaml)
+            },
+            ItemsSource = _itemSource
+        };
+        _blockRepeater.ElementPrepared += (_, args) => PrepareBlockElement(args.Index, args.Element);
+        _blockRepeater.ElementClearing += (_, args) => ClearBlockElement(args.Element);
+        _scroller.Content = _blockRepeater;
         var root = new Grid();
         root.Children.Add(_scroller);
         _placeholder.IsHitTestVisible = false;
@@ -60,7 +90,7 @@ public sealed partial class MarkdownLiveEditor : UserControl
         root.Children.Add(_placeholder);
         Content = root;
         _model.DocumentChanged += Model_DocumentChanged;
-        SynchronizeBlocksToModel();
+        SynchronizeItemsToModel();
         Loaded += (_, _) => ApplyPlaceholder();
         // Unload can arrive without a host flush (surface teardown); publish
         // any pending typing so the autosave session still sees it.
@@ -158,7 +188,7 @@ public sealed partial class MarkdownLiveEditor : UserControl
             // flushes before switching, so anything left here is superseded.
             editor._serializationScheduler.DiscardPending();
             editor._model.Load(value);
-            editor.SynchronizeBlocksToModel();
+            editor.SynchronizeItemsToModel();
         }
         finally
         {
@@ -203,144 +233,201 @@ public sealed partial class MarkdownLiveEditor : UserControl
 
     private void RebuildAllViews()
     {
-        _renderedViews.Clear();
+        _itemSource.Clear();
         // An empty snapshot forces a full-replace plan so every view is
         // recreated with the new appearance options.
         _committedBlocks = [];
-        SynchronizeBlocksToModel();
+        _lastCommittedActiveIndex = -2;
+        SynchronizeItemsToModel();
     }
 
     /// <summary>
-    /// Reconcile the visual block list with the model: reuse rendered views
-    /// whose source is unchanged (by instance), rebuild only changed blocks,
-    /// and swap the active block in or out as a source TextBox.
+    /// Reconcile the item source with the model: blocks whose source (and
+    /// active state) are unchanged keep their item object, so the repeater
+    /// never touches their realized elements; changed positions get fresh
+    /// items and are the only elements recycled and re-rendered.
     /// </summary>
-    private void SynchronizeBlocksToModel()
+    private void SynchronizeItemsToModel()
     {
         MarkdownBlockPlan plan = MarkdownBlockReconciler.Plan(
             _committedBlocks,
             _model.Blocks);
-        if (!plan.Unchanged)
-        {
-            var newViews = new MarkdownDocumentView?[_model.Blocks.Count];
-            foreach (MarkdownBlockReuse reuse in plan.Reuses)
-            {
-                newViews[reuse.NewIndex] = _renderedViews[reuse.OldIndex];
-            }
-
-            _renderedViews.Clear();
-            _renderedViews.AddRange(newViews);
-            _committedBlocks = _model.Blocks.ToList();
-        }
-
-        RefreshBlockListChildren();
-        ApplyPlaceholder();
-    }
-
-    private void RefreshBlockListChildren()
-    {
-        int blockCount = _model.Blocks.Count;
-        while (_blockList.Children.Count > blockCount)
-        {
-            _blockList.Children.RemoveAt(_blockList.Children.Count - 1);
-        }
-
-        for (int index = 0; index < blockCount; index++)
-        {
-            FrameworkElement desired = BuildChildForBlock(index);
-            if (index < _blockList.Children.Count)
-            {
-                if (!ReferenceEquals(_blockList.Children[index], desired))
-                {
-                    _blockList.Children[index] = desired;
-                }
-            }
-            else
-            {
-                _blockList.Children.Add(desired);
-            }
-        }
-    }
-
-    private FrameworkElement BuildChildForBlock(int index) =>
-        index == _model.ActiveIndex
-            ? CreateActiveEditor(index)
-            : _renderedViews[index] ??= CreateRenderedBlock(index);
-
-    private MarkdownDocumentView CreateRenderedBlock(int index)
-    {
-        var view = new MarkdownDocumentView
-        {
-            Markdown = _model.Blocks[index],
-            ContentFormat = TextContentFormat.Markdown,
-            FontSize = double.IsFinite(FontSize) && FontSize > 0 ? FontSize : 14,
-            UseInternalScrollViewer = false,
-            AllowRemoteImages = AllowRemoteImages,
-            AreTaskListsInteractive = !IsReadOnly
-        };
-        // Index is resolved at event time from _renderedViews so a view that
-        // moves after a reconcile never fires a stale block index.
-        if (!IsReadOnly)
-        {
-            view.Tapped += OnRenderedBlockTapped;
-        }
-
-        view.TaskToggleRequested += OnRenderedBlockTaskToggleRequested;
-        return view;
-    }
-
-    private void OnRenderedBlockTapped(object sender, TappedRoutedEventArgs args)
-    {
-        if (IsReadOnly || sender is not MarkdownDocumentView view)
+        int activeIndex = _model.ActiveIndex;
+        if (plan.Unchanged &&
+            activeIndex == _lastCommittedActiveIndex &&
+            _itemSource.Count == _model.Blocks.Count)
         {
             return;
         }
 
-        int index = _renderedViews.IndexOf(view);
-        if (index >= 0)
+        _isSynchronizingItems = true;
+        try
         {
-            ActivateBlock(index);
+            int count = _model.Blocks.Count;
+            var desired = new MarkdownBlockItem?[count];
+            if (!plan.Unchanged)
+            {
+                foreach (MarkdownBlockReuse reuse in plan.Reuses)
+                {
+                    int newIndex = reuse.NewIndex;
+                    if (newIndex < _itemSource.Count &&
+                        _itemSource[newIndex].IsActive == (newIndex == activeIndex) &&
+                        string.Equals(
+                            _itemSource[newIndex].Source,
+                            _model.Blocks[newIndex],
+                            StringComparison.Ordinal))
+                    {
+                        desired[newIndex] = _itemSource[newIndex];
+                    }
+                }
+            }
+
+            for (int index = 0; index < count; index++)
+            {
+                MarkdownBlockItem item = desired[index] ?? new MarkdownBlockItem
+                {
+                    Source = _model.Blocks[index],
+                    IsActive = index == activeIndex
+                };
+                if (index < _itemSource.Count)
+                {
+                    if (!ReferenceEquals(_itemSource[index], item))
+                    {
+                        _itemSource[index] = item;
+                    }
+                }
+                else
+                {
+                    _itemSource.Add(item);
+                }
+            }
+
+            while (_itemSource.Count > count)
+            {
+                _itemSource.RemoveAt(_itemSource.Count - 1);
+            }
+
+            _committedBlocks = _model.Blocks.ToList();
+            _lastCommittedActiveIndex = activeIndex;
         }
+        finally
+        {
+            _isSynchronizingItems = false;
+        }
+
+        ApplyPlaceholder();
+    }
+
+    private void PrepareBlockElement(int index, UIElement element)
+    {
+        if (index < 0 || index >= _itemSource.Count)
+        {
+            return;
+        }
+
+        bool wasSynchronizing = _isSynchronizingItems;
+        _isSynchronizingItems = true;
+        try
+        {
+            _elementBlockIndices[element] = index;
+            double fontSize = double.IsFinite(FontSize) && FontSize > 0 ? FontSize : 14;
+            if (element is MarkdownDocumentView view)
+            {
+                view.ContentFormat = TextContentFormat.Markdown;
+                view.FontSize = fontSize;
+                view.UseInternalScrollViewer = false;
+                view.AllowRemoteImages = AllowRemoteImages;
+                view.AreTaskListsInteractive = !IsReadOnly;
+                // Same-string assignments hit the view's render-state gate,
+                // so recycling without a content change costs no re-parse.
+                view.Markdown = _itemSource[index].Source;
+                view.Tapped += OnRenderedBlockTapped;
+                view.TaskToggleRequested += OnRenderedBlockTaskToggleRequested;
+            }
+            else if (element is TextBox editor)
+            {
+                editor.Text = _itemSource[index].Source;
+                editor.AcceptsReturn = true;
+                editor.TextWrapping = TextWrapping.Wrap;
+                editor.FontSize = fontSize;
+                editor.PlaceholderText = PlaceholderText;
+                editor.Margin = new Thickness(0, 2, 0, 2);
+                editor.IsReadOnly = IsReadOnly;
+                editor.TextChanged += OnActiveEditorTextChanged;
+                editor.KeyDown += OnActiveEditorKeyDown;
+                editor.LostFocus += OnActiveEditorLostFocus;
+                _activeEditor = editor;
+                editor.Focus(FocusState.Programmatic);
+                int offset = _pendingActiveCaretOffset ?? editor.Text.Length;
+                _pendingActiveCaretOffset = null;
+                editor.Select(Math.Clamp(offset, 0, editor.Text.Length), 0);
+            }
+        }
+        finally
+        {
+            _isSynchronizingItems = wasSynchronizing;
+        }
+    }
+
+    private void ClearBlockElement(UIElement element)
+    {
+        _elementBlockIndices.Remove(element);
+        if (element is MarkdownDocumentView view)
+        {
+            view.Tapped -= OnRenderedBlockTapped;
+            view.TaskToggleRequested -= OnRenderedBlockTaskToggleRequested;
+        }
+        else if (element is TextBox editor)
+        {
+            editor.TextChanged -= OnActiveEditorTextChanged;
+            editor.KeyDown -= OnActiveEditorKeyDown;
+            editor.LostFocus -= OnActiveEditorLostFocus;
+            if (ReferenceEquals(_activeEditor, editor))
+            {
+                // The active editor is being recycled (scroll-out or
+                // deactivation); remember the caret for when it comes back.
+                _pendingActiveCaretOffset = editor.SelectionStart;
+                _activeEditor = null;
+            }
+        }
+    }
+
+    private void OnRenderedBlockTapped(object sender, TappedRoutedEventArgs args)
+    {
+        if (IsReadOnly ||
+            sender is not MarkdownDocumentView view ||
+            !_elementBlockIndices.TryGetValue(view, out int index))
+        {
+            return;
+        }
+
+        ActivateBlock(index);
     }
 
     private void OnRenderedBlockTaskToggleRequested(
         object sender,
         MarkdownTaskToggleRequestedEventArgs args)
     {
-        if (IsReadOnly || sender is not MarkdownDocumentView view)
+        if (IsReadOnly ||
+            sender is not MarkdownDocumentView view ||
+            !_elementBlockIndices.TryGetValue(view, out int index))
         {
             return;
         }
 
-        int index = _renderedViews.IndexOf(view);
-        if (index >= 0 && _model.TryToggleTask(index, args.TaskIndex))
+        if (_model.TryToggleTask(index, args.TaskIndex))
         {
             _serializationScheduler.Flush();
-            SynchronizeBlocksToModel();
+            SynchronizeItemsToModel();
         }
-    }
-
-    private TextBox CreateActiveEditor(int index)
-    {
-        var editor = new TextBox
-        {
-            Text = _model.Blocks[index],
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = double.IsFinite(FontSize) && FontSize > 0 ? FontSize : 14,
-            PlaceholderText = PlaceholderText,
-            Margin = new Thickness(0, 2, 0, 2),
-            IsReadOnly = IsReadOnly
-        };
-        editor.TextChanged += OnActiveEditorTextChanged;
-        editor.KeyDown += OnActiveEditorKeyDown;
-        editor.LostFocus += OnActiveEditorLostFocus;
-        return editor;
     }
 
     private void OnActiveEditorTextChanged(object sender, TextChangedEventArgs args)
     {
-        if (_isSynchronizing || sender is not TextBox editor)
+        if (_isSynchronizing ||
+            _isSynchronizingItems ||
+            sender is not TextBox editor ||
+            !ReferenceEquals(_activeEditor, editor))
         {
             return;
         }
@@ -361,15 +448,16 @@ public sealed partial class MarkdownLiveEditor : UserControl
 
     private void OnActiveEditorLostFocus(object sender, RoutedEventArgs args)
     {
-        // Only the editor currently occupying the active slot may commit;
-        // a stale TextBox displaced by activation must not deactivate the
-        // new active block.
-        if (_model.ActiveIndex >= 0 &&
-            _model.ActiveIndex < _blockList.Children.Count &&
-            ReferenceEquals(_blockList.Children[_model.ActiveIndex], sender))
+        // A sync-displaced editor losing focus must not deactivate the new
+        // active block; only a genuine user focus move commits.
+        if (_isSynchronizingItems ||
+            sender is not TextBox editor ||
+            !ReferenceEquals(_activeEditor, editor))
         {
-            Deactivate();
+            return;
         }
+
+        Deactivate();
     }
 
     private void ActivateBlock(int index)
@@ -379,19 +467,18 @@ public sealed partial class MarkdownLiveEditor : UserControl
             return;
         }
 
-        if (_model.ActiveIndex == index)
+        if (_model.ActiveIndex == index && _activeEditor is not null)
         {
             return;
         }
 
         _serializationScheduler.Flush();
+        // Fresh activations place the caret at the end; only recycling
+        // restores a remembered offset.
+        _pendingActiveCaretOffset = null;
         _model.SetActive(index);
-        SynchronizeBlocksToModel();
-        if (_blockList.Children[index] is TextBox editor)
-        {
-            editor.Focus(FocusState.Programmatic);
-            editor.Select(editor.Text.Length, 0);
-        }
+        SynchronizeItemsToModel();
+        ApplyPlaceholder();
     }
 
     private void Deactivate()
@@ -403,7 +490,7 @@ public sealed partial class MarkdownLiveEditor : UserControl
 
         _serializationScheduler.Flush();
         _model.Deactivate();
-        SynchronizeBlocksToModel();
+        SynchronizeItemsToModel();
     }
 
     private void ApplyPlaceholder()
@@ -415,5 +502,23 @@ public sealed partial class MarkdownLiveEditor : UserControl
         _placeholder.Visibility = showPlaceholder
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    /// <summary>Immutable block presentation record fed to the repeater.</summary>
+    private sealed class MarkdownBlockItem
+    {
+        public required string Source { get; init; }
+
+        public required bool IsActive { get; init; }
+    }
+
+    private sealed class MarkdownBlockTemplateSelector : DataTemplateSelector
+    {
+        public required DataTemplate RenderedTemplate { get; init; }
+
+        public required DataTemplate ActiveTemplate { get; init; }
+
+        protected override DataTemplate SelectTemplateCore(object item) =>
+            item is MarkdownBlockItem { IsActive: true } ? ActiveTemplate : RenderedTemplate;
     }
 }
