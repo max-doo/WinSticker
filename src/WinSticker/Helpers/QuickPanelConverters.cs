@@ -250,39 +250,61 @@ public sealed partial class QuickPanelStarForegroundConverter : IValueConverter
     }
 }
 
-public sealed partial class QuickPanelItemIsImageConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, string language)
+    public sealed partial class QuickPanelItemIsImageConverter : IValueConverter
     {
-        if (value is QuickCaptureItem item)
+        public object Convert(object value, Type targetType, object parameter, string language)
         {
-            return item.Type == QuickCaptureItemType.Image &&
-                   (!string.IsNullOrWhiteSpace(item.ImagePath) || item.Attachments.Count > 0)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            if (value is QuickCaptureItem item &&
+                TryResolveExistingImagePath(item) is not null)
+            {
+                return Visibility.Visible;
+            }
+            return Visibility.Collapsed;
         }
-        return Visibility.Collapsed;
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotSupportedException();
+        }
+
+        // Mirrors QuickPanelImageSourceConverter's path resolution so an image
+        // record whose file went missing degrades to the text card instead of
+        // rendering an empty image card.
+        internal static string? TryResolveExistingImagePath(QuickCaptureItem item)
+        {
+            string? path = item.ImagePath;
+            if (string.IsNullOrWhiteSpace(path) && item.Attachments.Count > 0)
+            {
+                path = item.Attachments[0].FilePath;
+            }
+
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            try
+            {
+                return File.Exists(path) ? path : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    public sealed partial class QuickPanelItemIsNotImageConverter : IValueConverter
     {
-        throw new NotSupportedException();
-    }
-}
-
-public sealed partial class QuickPanelItemIsNotImageConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, string language)
-    {
-        if (value is QuickCaptureItem item)
+        public object Convert(object value, Type targetType, object parameter, string language)
         {
-            return item.Type != QuickCaptureItemType.Image ||
-                   (string.IsNullOrWhiteSpace(item.ImagePath) && item.Attachments.Count == 0)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            if (value is QuickCaptureItem item &&
+                QuickPanelItemIsImageConverter.TryResolveExistingImagePath(item) is not null)
+            {
+                return Visibility.Collapsed;
+            }
+            return Visibility.Visible;
         }
-        return Visibility.Visible;
-    }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
     {

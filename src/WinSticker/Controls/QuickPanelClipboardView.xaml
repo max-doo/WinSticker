@@ -11,75 +11,116 @@
     mc:Ignorable="d">
 
     <UserControl.Resources>
-        <helpers:QuickPanelBoolToVisibilityConverter x:Key="BoolToVis"/>
-        <helpers:QuickPanelInverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
         <helpers:QuickPanelCountToVisibilityConverter x:Key="CountToVis"/>
         <helpers:QuickPanelZeroCountToVisibilityConverter x:Key="ZeroCountToVis"/>
         <helpers:QuickPanelClipboardDisplayTextConverter x:Key="ClipboardDisplayText"/>
-        <helpers:QuickPanelClipboardTypeBadgeConverter x:Key="ClipboardTypeBadge"/>
-        <helpers:QuickPanelDateTimeConverter x:Key="DateTimeFormat"/>
         <helpers:QuickPanelStarGlyphConverter x:Key="StarGlyph"/>
         <helpers:QuickPanelStarForegroundConverter x:Key="StarForeground"/>
-        <helpers:QuickPanelItemTypeGlyphConverter x:Key="ItemTypeGlyph"/>
         <helpers:QuickPanelItemIsImageConverter x:Key="ItemIsImage"/>
         <helpers:QuickPanelItemIsNotImageConverter x:Key="ItemIsNotImage"/>
         <helpers:QuickPanelImageSourceConverter x:Key="ImageSourceConverter"/>
-
-        <Style x:Key="ClipboardItemActionButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="28"/>
-            <Setter Property="Height" Value="28"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="CornerRadius" Value="4"/>
-        </Style>
     </UserControl.Resources>
 
-    <Grid RowSpacing="8">
+    <!-- Mirrors the Windows clipboard history (Win+V): bare content cards
+         with hover-revealed action buttons, plus filter tabs, an on-demand
+         search entry, and a header clear-all. -->
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Category Filter Bar -->
-        <toolkit:Segmented
-            x:Name="FilterSegmented"
-            Grid.Row="0"
-            HorizontalAlignment="Stretch"
-            SelectionChanged="FilterSegmented_SelectionChanged"
-            SelectedIndex="0">
-            <toolkit:SegmentedItem Content="全部" Tag="All"/>
-            <toolkit:SegmentedItem Content="文本" Tag="Text"/>
-            <toolkit:SegmentedItem Content="图片" Tag="Image"/>
-            <toolkit:SegmentedItem Content="链接" Tag="Link"/>
-            <toolkit:SegmentedItem Content="收藏" Tag="Favorites"/>
-        </toolkit:Segmented>
-
-        <!-- Search Box & Count Bar -->
-        <Grid Grid.Row="1" ColumnSpacing="8">
+        <!-- Toolbar: category filters + search entry + clear all -->
+        <Grid Grid.Row="0" Margin="0,0,0,6" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBox
-                x:Name="SearchBox"
-                Grid.Column="0"
-                PlaceholderText="搜索剪贴板历史..."
-                Text="{Binding ClipboardSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                <TextBox.Resources>
-                    <SolidColorBrush x:Key="TextControlBackground" Color="Transparent"/>
-                </TextBox.Resources>
-            </TextBox>
+            <toolkit:Segmented
+                x:Name="FilterSegmented"
+                HorizontalAlignment="Left"
+                SelectedIndex="0"
+                SelectionChanged="FilterSegmented_SelectionChanged">
+                <toolkit:SegmentedItem Content="全部" Tag="All"/>
+                <toolkit:SegmentedItem Content="文本" Tag="Text"/>
+                <toolkit:SegmentedItem Content="图片" Tag="Image"/>
+                <toolkit:SegmentedItem Content="收藏" Tag="Favorites"/>
+            </toolkit:Segmented>
 
-            <TextBlock
-                Grid.Column="1"
-                VerticalAlignment="Center"
-                FontSize="12"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="{Binding TotalCountText}"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button
+                    x:Name="SearchToggleButton"
+                    Width="28"
+                    Height="28"
+                    Padding="0"
+                    AutomationProperties.Name="搜索"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Click="SearchToggleButton_Click"
+                    ToolTipService.ToolTip="搜索">
+                    <FontIcon FontSize="14" Glyph="&#xE721;"/>
+                </Button>
+
+                <!-- Clear all (unpinned), like Windows clipboard history -->
+                <Button
+                    x:Name="ClearAllButton"
+                    Padding="8,4"
+                    AutomationProperties.Name="全部清除"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Visibility="{Binding FilteredClipboardItems.Count, Converter={StaticResource CountToVis}}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="12" Glyph="&#xE74D;"/>
+                        <TextBlock Text="全部清除"/>
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout x:Name="ClearAllFlyout" Placement="Bottom">
+                            <StackPanel Width="240" Spacing="12">
+                                <TextBlock
+                                    FontSize="13"
+                                    Text="将清除全部未固定的剪贴板记录"
+                                    TextWrapping="Wrap"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Stretch"
+                                        Click="ClearAllCancel_Click"
+                                        Content="取消"/>
+                                    <Button
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Stretch"
+                                        Click="ClearAllConfirm_Click"
+                                        Content="全部清除"/>
+                                </Grid>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
         </Grid>
+
+        <!-- Search entry: expands on demand, Esc or toggle collapses it and
+             clears the live filter so it never stays applied invisibly. -->
+        <TextBox
+            x:Name="ClipboardSearchBox"
+            Grid.Row="1"
+            Margin="0,0,0,6"
+            PlaceholderText="搜索剪贴板历史..."
+            Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            Visibility="Collapsed"
+            KeyDown="ClipboardSearchBox_KeyDown">
+            <TextBox.Resources>
+                <SolidColorBrush x:Key="TextControlBackground" Color="Transparent"/>
+            </TextBox.Resources>
+        </TextBox>
 
         <!-- Clipboard History List -->
         <Grid Grid.Row="2">
@@ -94,7 +135,7 @@
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="Padding" Value="0"/>
-                        <Setter Property="Margin" Value="0,2"/>
+                        <Setter Property="Margin" Value="0"/>
                         <Setter Property="MinHeight" Value="0"/>
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                     </Style>
@@ -103,11 +144,13 @@
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:QuickCaptureItem">
                         <Border
+                            x:Name="ItemRoot"
+                            Margin="0,3"
+                            Padding="12,10"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
-                            Padding="10,8"
                             PointerEntered="ItemRoot_PointerEntered"
                             PointerExited="ItemRoot_PointerExited">
                             <Border.ContextFlyout>
@@ -136,94 +179,86 @@
                                 </MenuFlyout>
                             </Border.ContextFlyout>
 
-                            <Grid ColumnSpacing="10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Type Icon or Image Thumbnail -->
+                            <Grid>
                                 <Border
-                                    Grid.Column="0"
-                                    Width="36"
-                                    Height="36"
+                                    x:Name="ClipboardItemHoverBackground"
+                                    Margin="-12,-10"
                                     Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                    CornerRadius="6"
+                                    CornerRadius="8"
+                                    IsHitTestVisible="False"
+                                    Opacity="0"/>
+
+                                <!-- Windows clipboard cards show bare content:
+                                     wrapped text, or the image preview itself. -->
+                                <TextBlock
+                                    helpers:WidgetTextShadow.Cast="False"
+                                    FontSize="13"
+                                    MaxLines="5"
+                                    Text="{Binding Converter={StaticResource ClipboardDisplayText}}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="Wrap"
+                                    Visibility="{Binding Converter={StaticResource ItemIsNotImage}}"/>
+
+                                <Image
+                                    MaxHeight="150"
                                     HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                                    <Grid>
-                                        <FontIcon
-                                            FontSize="16"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Glyph="{Binding Converter={StaticResource ItemTypeGlyph}}"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Visibility="{Binding Converter={StaticResource ItemIsNotImage}}"/>
-                                        <Image
-                                            Source="{Binding Converter={StaticResource ImageSourceConverter}}"
-                                            Stretch="UniformToFill"
-                                            Visibility="{Binding Converter={StaticResource ItemIsImage}}"/>
-                                    </Grid>
-                                </Border>
+                                    Source="{Binding Converter={StaticResource ImageSourceConverter}}"
+                                    Stretch="Uniform"
+                                    Visibility="{Binding Converter={StaticResource ItemIsImage}}"/>
 
-                                <!-- Text & Metadata -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock
-                                        helpers:WidgetTextShadow.Cast="False"
-                                        Text="{Binding Converter={StaticResource ClipboardDisplayText}}"
-                                        FontSize="13"
-                                        MaxLines="2"
-                                        TextWrapping="Wrap"
-                                        TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock
-                                            helpers:WidgetTextShadow.Cast="False"
-                                            Text="{Binding CreatedAt, Converter={StaticResource DateTimeFormat}}"
-                                            FontSize="11"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        <Border
-                                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                                            Padding="4,1"
-                                            CornerRadius="3">
-                                            <TextBlock
-                                                helpers:WidgetTextShadow.Cast="False"
-                                                Text="{Binding Converter={StaticResource ClipboardTypeBadge}}"
-                                                FontSize="10"
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                        </Border>
+                                <Border
+                                    x:Name="ClipboardItemActionHost"
+                                    Margin="0,-2,-6,-2"
+                                    Padding="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Background="{ThemeResource WidgetOverlaySurfaceBrush}"
+                                    Canvas.ZIndex="2"
+                                    CornerRadius="4"
+                                    IsHitTestVisible="False"
+                                    Opacity="0">
+                                    <StackPanel Orientation="Horizontal" Spacing="1">
+                                        <Button
+                                            Width="26"
+                                            Height="26"
+                                            MinWidth="26"
+                                            MinHeight="26"
+                                            AutomationProperties.Name="收藏"
+                                            Click="FavoriteButton_Click"
+                                            IsTabStop="False"
+                                            Style="{StaticResource WidgetCompactIconButtonStyle}"
+                                            ToolTipService.ToolTip="收藏">
+                                            <FontIcon
+                                                FontSize="13"
+                                                Foreground="{Binding IsPinned, Converter={StaticResource StarForeground}}"
+                                                Glyph="{Binding IsPinned, Converter={StaticResource StarGlyph}}"/>
+                                        </Button>
+                                        <Button
+                                            Width="26"
+                                            Height="26"
+                                            MinWidth="26"
+                                            MinHeight="26"
+                                            AutomationProperties.Name="复制"
+                                            Click="CopyButton_Click"
+                                            IsTabStop="False"
+                                            Style="{StaticResource WidgetCompactIconButtonStyle}"
+                                            ToolTipService.ToolTip="复制">
+                                            <FontIcon FontSize="13" Glyph="&#xE8C8;"/>
+                                        </Button>
+                                        <Button
+                                            Width="26"
+                                            Height="26"
+                                            MinWidth="26"
+                                            MinHeight="26"
+                                            AutomationProperties.Name="删除"
+                                            Click="DeleteButton_Click"
+                                            IsTabStop="False"
+                                            Style="{StaticResource WidgetCompactIconButtonStyle}"
+                                            ToolTipService.ToolTip="删除">
+                                            <FontIcon FontSize="13" Glyph="&#xE74D;"/>
+                                        </Button>
                                     </StackPanel>
-                                </StackPanel>
-
-                                <!-- Hover Action Buttons -->
-                                <StackPanel
-                                    x:Name="ActionButtonsPanel"
-                                    Grid.Column="2"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    Spacing="2">
-                                    <Button
-                                        Style="{StaticResource ClipboardItemActionButtonStyle}"
-                                        ToolTipService.ToolTip="收藏"
-                                        Click="FavoriteButton_Click">
-                                        <FontIcon
-                                            FontSize="13"
-                                            Glyph="{Binding IsPinned, Converter={StaticResource StarGlyph}}"
-                                            Foreground="{Binding IsPinned, Converter={StaticResource StarForeground}}"/>
-                                    </Button>
-                                    <Button
-                                        Style="{StaticResource ClipboardItemActionButtonStyle}"
-                                        ToolTipService.ToolTip="复制"
-                                        Click="CopyButton_Click">
-                                        <FontIcon FontSize="13" Glyph="&#xE8C8;"/>
-                                    </Button>
-                                    <Button
-                                        Style="{StaticResource ClipboardItemActionButtonStyle}"
-                                        ToolTipService.ToolTip="删除"
-                                        Click="DeleteButton_Click">
-                                        <FontIcon FontSize="13" Glyph="&#xE74D;"/>
-                                    </Button>
-                                </StackPanel>
+                                </Border>
                             </Grid>
                         </Border>
                     </DataTemplate>

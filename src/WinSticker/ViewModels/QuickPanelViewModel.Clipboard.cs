@@ -202,4 +202,22 @@ public sealed partial class QuickPanelViewModel
         await CopyClipboardItemAsync(item);
         RequestPasteItem?.Invoke(this, item);
     }
+
+    /// <summary>
+    /// Windows 剪贴板"全部清除"语义：清掉未固定的最近记录，固定（收藏）项保留。
+    /// </summary>
+    [RelayCommand]
+    public async Task ClearAllClipboardItemsAsync()
+    {
+        try
+        {
+            await _quickCaptureService.ClearRecentAsync();
+            await LoadClipboardHistoryAsync();
+            ShowToast("已清空剪贴板历史");
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[QuickPanel] Clear all clipboard items failed: {ex.Message}");
+        }
+    }
 }
