@@ -14,38 +14,38 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$managedUiSmokeEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SMOKE"
+$managedUiSmokeEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SMOKE"
 $managedUiPersistencePhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_PERSISTENCE_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_PERSISTENCE_PHASE"
 $managedUiQuickCapturePhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_QUICK_CAPTURE_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_QUICK_CAPTURE_PHASE"
 $managedUiTodoPhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_TODO_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_TODO_PHASE"
 $managedUiTodoStepsPhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_TODO_STEPS_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_TODO_STEPS_PHASE"
 $managedUiTodoAttachmentsPhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE"
 $managedUiGlancePhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_GLANCE_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE"
 $managedUiGlanceFixtureEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_GLANCE_FIXTURE"
+    "WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE"
 $managedUiWeatherSettingsPhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE"
 $managedUiWeatherSurfacePhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_WEATHER_SURFACE_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_WEATHER_SURFACE_PHASE"
 $managedUiLocalFilePhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_LOCAL_FILE_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_LOCAL_FILE_PHASE"
 $managedUiRecycleBinPhaseEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_RECYCLE_BIN_PHASE"
+    "WINSTICKER_AOT_MANAGED_UI_RECYCLE_BIN_PHASE"
 $managedUiRecycleBinRunIdEnvironmentVariable =
-    "DESKBOX_AOT_MANAGED_UI_RECYCLE_BIN_RUN_ID"
+    "WINSTICKER_AOT_MANAGED_UI_RECYCLE_BIN_RUN_ID"
 $musicSessionMutationSmokeEnvironmentVariable =
-    "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE"
-$musicMutationSmokeEnvironmentVariable = "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE"
-$musicReadSmokeEnvironmentVariable = "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE"
-$mutationSmokeEnvironmentVariable = "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE"
-$shellSmokeEnvironmentVariable = "DESKBOX_AOT_SHELL_SMOKE"
-$shortcutSmokeEnvironmentVariable = "DESKBOX_AOT_SHORTCUT_SMOKE"
+    "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE"
+$musicMutationSmokeEnvironmentVariable = "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE"
+$musicReadSmokeEnvironmentVariable = "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE"
+$mutationSmokeEnvironmentVariable = "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE"
+$shellSmokeEnvironmentVariable = "WINSTICKER_AOT_SHELL_SMOKE"
+$shortcutSmokeEnvironmentVariable = "WINSTICKER_AOT_SHORTCUT_SMOKE"
 $scenario = $Scenario
 $recycleBinRunId = if ($scenario -ceq "RecycleBinMenuPersistenceRestart") {
     [Guid]::NewGuid().ToString("N")
@@ -53,8 +53,8 @@ $recycleBinRunId = if ($scenario -ceq "RecycleBinMenuPersistenceRestart") {
 else {
     $null
 }
-$ownedMarkerName = ".deskbox-aot-managed-ui-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.ManagedUiSmoke.v1"
+$ownedMarkerName = ".winsticker-aot-managed-ui-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.ManagedUiSmoke.v1"
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
 $shellMoveRunner = Join-Path $PSScriptRoot "run-aot-shell-move-persistence-smoke.ps1"
@@ -80,7 +80,7 @@ $previewSessionPath = Join-Path $repoRoot ".artifacts\aot-preview\win-x64\sessio
 $evidenceRoot = Join-Path $repoRoot ".artifacts\aot-managed-ui-smoke\win-x64"
 $defaultDataRoot = Join-Path $evidenceRoot "preview-root"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
 
 if ($scenario -ceq "ShellMovePersistenceRestart") {
     if (-not (Test-Path -LiteralPath $shellMoveRunner -PathType Leaf)) {
@@ -321,7 +321,7 @@ function Get-ExactPreviewProcesses {
     )
 
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace([string]$_.ExecutablePath) -and
                 (Test-PathEqual -Left $_.ExecutablePath -Right $ExecutablePath)
@@ -3703,7 +3703,7 @@ elseif ($scenario -ceq "RecycleBinMenuPersistenceRestart") {
     $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
     [System.IO.File]::WriteAllText(
         (Join-Path $recycleBinWidgetRoot "baseline"),
-        "DeskBox AOT 5B-4C1B1 baseline.`n",
+        "WinSticker AOT 5B-4C1B1 baseline.`n",
         $utf8WithoutBom)
     [System.IO.File]::WriteAllText(
         (Join-Path $recycleBinWidgetRoot $recycleBinSingleName),
@@ -3734,19 +3734,19 @@ elseif ($scenario -ceq "LocalFileSurfacePersistenceRestart") {
 
     New-Item -ItemType Directory -Path $localFileNestedRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $localFileSourceRoot -Force | Out-Null
-    "DeskBox AOT 5B-4C1A baseline fixture.`n" |
+    "WinSticker AOT 5B-4C1A baseline fixture.`n" |
         Set-Content `
             -LiteralPath (Join-Path $localFileWidgetRoot "baseline.txt") `
             -Encoding UTF8
-    "DeskBox AOT 5B-4C1A nested fixture.`n" |
+    "WinSticker AOT 5B-4C1A nested fixture.`n" |
         Set-Content `
             -LiteralPath (Join-Path $localFileNestedRoot "nested.txt") `
             -Encoding UTF8
-    "DeskBox AOT 5B-4C1A copy source fixture.`n" |
+    "WinSticker AOT 5B-4C1A copy source fixture.`n" |
         Set-Content `
             -LiteralPath (Join-Path $localFileSourceRoot "copy-source.txt") `
             -Encoding UTF8
-    "DeskBox AOT 5B-4C1A move source fixture.`n" |
+    "WinSticker AOT 5B-4C1A move source fixture.`n" |
         Set-Content `
             -LiteralPath (Join-Path $localFileSourceRoot "move-source.txt") `
             -Encoding UTF8
@@ -3788,7 +3788,7 @@ elseif ($scenario -ceq "QuickCapturePersistenceRestart") {
         -ItemType Directory `
         -Path (Split-Path -Parent $quickCaptureAttachmentFixturePath) `
         -Force | Out-Null
-    "DeskBox AOT 5B-4B2B1 managed attachment fixture.`n" |
+    "WinSticker AOT 5B-4B2B1 managed attachment fixture.`n" |
         Set-Content -LiteralPath $quickCaptureAttachmentFixturePath -Encoding UTF8
 }
 elseif ($scenario -in @(
@@ -3849,7 +3849,7 @@ elseif ($scenario -in @(
             -ItemType Directory `
             -Path (Split-Path -Parent $todoAttachmentFixturePath) `
             -Force | Out-Null
-        "DeskBox AOT 5B-4B2B2B2 managed Todo attachment fixture.`n" |
+        "WinSticker AOT 5B-4B2B2B2 managed Todo attachment fixture.`n" |
             Set-Content -LiteralPath $todoAttachmentFixturePath -Encoding UTF8
     }
 }
@@ -4136,7 +4136,7 @@ if ($scenario -ceq "RecycleBinMenuPersistenceRestart") {
             throw "Recycle Bin matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Recycle Bin matrix did not produce its runtime log."
         }
@@ -4178,7 +4178,7 @@ if ($scenario -ceq "RecycleBinMenuPersistenceRestart") {
             $recycleBinArchiveRoot `
             "postflight-result.json"
         $archivedSessionPath = Join-Path $recycleBinArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $recycleBinArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $recycleBinArchiveRoot "WinSticker.log"
         $archivedFinalSettingsPath = Join-Path `
             $recycleBinArchiveRoot `
             "final-settings.json"
@@ -4473,7 +4473,7 @@ if ($scenario -ceq "LocalFileSurfacePersistenceRestart") {
             throw "Local-file matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Local-file matrix did not produce its runtime log."
         }
@@ -4529,7 +4529,7 @@ if ($scenario -ceq "LocalFileSurfacePersistenceRestart") {
             $localFileArchiveRoot `
             "postflight-result.json"
         $archivedLocalFileSessionPath = Join-Path $localFileArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $localFileArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $localFileArchiveRoot "WinSticker.log"
         $archivedFinalSettingsPath = Join-Path $localFileArchiveRoot "final-settings.json"
         $archivedDiskStatesPath = Join-Path $localFileArchiveRoot "disk-states.json"
         $archivedFinalFixtureRoot = Join-Path $localFileArchiveRoot "final-fixture"
@@ -4725,7 +4725,7 @@ if ($scenario -ceq "WeatherSurfacePersistenceRestart") {
             throw "Weather surface matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Weather surface matrix did not produce its runtime log."
         }
@@ -4790,7 +4790,7 @@ if ($scenario -ceq "WeatherSurfacePersistenceRestart") {
             $weatherSurfaceArchiveRoot `
             "postflight-result.json"
         $archivedWeatherSurfaceSessionPath = Join-Path $weatherSurfaceArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $weatherSurfaceArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $weatherSurfaceArchiveRoot "WinSticker.log"
         $archivedFinalSettingsPath = Join-Path $weatherSurfaceArchiveRoot "final-settings.json"
         Copy-Item -LiteralPath $mutateResultPath -Destination $archivedMutateResultPath
         Copy-Item `
@@ -4971,7 +4971,7 @@ if ($scenario -ceq "WeatherSettingsPersistenceRestart") {
             throw "Weather settings matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Weather settings matrix did not produce its runtime log."
         }
@@ -5025,7 +5025,7 @@ if ($scenario -ceq "WeatherSettingsPersistenceRestart") {
             $weatherArchiveRoot `
             "postflight-result.json"
         $archivedWeatherSessionPath = Join-Path $weatherArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $weatherArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $weatherArchiveRoot "WinSticker.log"
         $archivedFinalSettingsPath = Join-Path $weatherArchiveRoot "final-settings.json"
         Copy-Item -LiteralPath $mutateResultPath -Destination $archivedMutateResultPath
         Copy-Item `
@@ -5214,7 +5214,7 @@ if ($scenario -ceq "GlancePersistenceRestart") {
             throw "Glance persistence matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Glance persistence matrix did not produce its runtime log."
         }
@@ -5260,7 +5260,7 @@ if ($scenario -ceq "GlancePersistenceRestart") {
             $glanceArchiveRoot `
             "postflight-result.json"
         $archivedGlanceSessionPath = Join-Path $glanceArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $glanceArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $glanceArchiveRoot "WinSticker.log"
         $archivedFinalStorePath = Join-Path $glanceArchiveRoot "final-glance.json"
         $archivedFinalSettingsPath = Join-Path $glanceArchiveRoot "final-settings.json"
         $archivedFixturePath = Join-Path $glanceArchiveRoot "glance-local.png"
@@ -5506,7 +5506,7 @@ if ($scenario -ceq "TodoAttachmentsPersistenceRestart") {
             throw "Todo attachments matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Todo attachments matrix did not produce its runtime log."
         }
@@ -5560,7 +5560,7 @@ if ($scenario -ceq "TodoAttachmentsPersistenceRestart") {
             "session.json"
         $archivedRuntimeLogPath = Join-Path `
             $todoAttachmentsArchiveRoot `
-            "DeskBox.log"
+            "WinSticker.log"
         $archivedFinalStorePath = Join-Path `
             $todoAttachmentsArchiveRoot `
             "final-todo.json"
@@ -5789,7 +5789,7 @@ if ($scenario -ceq "TodoStepsPersistenceRestart") {
             throw "Todo steps persistence matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Todo steps persistence matrix did not produce its runtime log."
         }
@@ -5831,7 +5831,7 @@ if ($scenario -ceq "TodoStepsPersistenceRestart") {
             $todoStepsArchiveRoot `
             "postflight-result.json"
         $archivedTodoStepsSessionPath = Join-Path $todoStepsArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $todoStepsArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $todoStepsArchiveRoot "WinSticker.log"
         $archivedFinalStorePath = Join-Path $todoStepsArchiveRoot "final-todo.json"
         $archivedFinalSettingsPath = Join-Path $todoStepsArchiveRoot "final-settings.json"
         $finalStorePath = Join-Path `
@@ -6015,7 +6015,7 @@ if ($scenario -ceq "TodoPersistenceRestart") {
             throw "Todo persistence matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Todo persistence matrix did not produce its runtime log."
         }
@@ -6057,7 +6057,7 @@ if ($scenario -ceq "TodoPersistenceRestart") {
             $todoArchiveRoot `
             "postflight-result.json"
         $archivedTodoSessionPath = Join-Path $todoArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $todoArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $todoArchiveRoot "WinSticker.log"
         $archivedFinalStorePath = Join-Path $todoArchiveRoot "final-todo.json"
         $archivedFinalSettingsPath = Join-Path $todoArchiveRoot "final-settings.json"
         $finalStorePath = Join-Path `
@@ -6246,7 +6246,7 @@ if ($scenario -ceq "QuickCapturePersistenceRestart") {
             throw "Quick Capture persistence matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Quick Capture persistence matrix did not produce its runtime log."
         }
@@ -6290,7 +6290,7 @@ if ($scenario -ceq "QuickCapturePersistenceRestart") {
             $quickCaptureArchiveRoot `
             "postflight-result.json"
         $archivedQuickCaptureSessionPath = Join-Path $quickCaptureArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $quickCaptureArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $quickCaptureArchiveRoot "WinSticker.log"
         $archivedFinalStorePath = Join-Path `
             $quickCaptureArchiveRoot `
             "final-quick-capture.json"
@@ -6451,7 +6451,7 @@ if ($scenario -ceq "SettingsWidgetPersistenceRestart") {
             throw "Persistence restart matrix left an audited preview process running."
         }
 
-        $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+        $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
         if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
             throw "Persistence restart matrix did not produce its runtime log."
         }
@@ -6487,7 +6487,7 @@ if ($scenario -ceq "SettingsWidgetPersistenceRestart") {
         $archivedVerifyRestoreResultPath = Join-Path $persistenceArchiveRoot "verify-restore-result.json"
         $archivedPostflightResultPath = Join-Path $persistenceArchiveRoot "postflight-result.json"
         $archivedPersistenceSessionPath = Join-Path $persistenceArchiveRoot "session.json"
-        $archivedRuntimeLogPath = Join-Path $persistenceArchiveRoot "DeskBox.log"
+        $archivedRuntimeLogPath = Join-Path $persistenceArchiveRoot "WinSticker.log"
         $archivedFinalSettingsPath = Join-Path $persistenceArchiveRoot "final-settings.json"
         Copy-Item -LiteralPath $mutateResultPath -Destination $archivedMutateResultPath
         Copy-Item -LiteralPath $verifyRestoreResultPath -Destination $archivedVerifyRestoreResultPath
@@ -6816,7 +6816,7 @@ try {
             "Apps:Apps",
             "Images:Images",
             "Documents:Documents",
-            "DeskBox:DeskBox")
+            "WinSticker:WinSticker")
         $sortTransitions = @(
             "Name:True", "Name:False",
             "Size:False", "Size:True",
@@ -6944,7 +6944,7 @@ try {
 
     Stop-ExactPreviewProcess -ExecutablePath ([string]$previewSession.executablePath)
     $previewStopped = $true
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
         throw "Managed UI smoke did not produce its runtime log."
     }

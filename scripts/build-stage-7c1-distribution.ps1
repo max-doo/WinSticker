@@ -165,25 +165,25 @@ $directFiles | Set-Content -LiteralPath (Join-Path $OutputDirectory "direct-publ
     -Encoding utf8
 
 $directRequiredFiles = @(
-    "DeskBox.exe",
-    "DeskBox.Updater.exe",
-    "DeskBox.ThumbnailProxy.exe",
-    "deskbox_native.dll",
+    "WinSticker.exe",
+    "WinSticker.Updater.exe",
+    "WinSticker.ThumbnailProxy.exe",
+    "winsticker_native.dll",
     "EverythingSdk.dll",
     "Microsoft.UI.Input.dll",
     "Microsoft.ui.xaml.dll",
     "Microsoft.WindowsAppRuntime.dll",
     "Microsoft.WindowsAppRuntime.Insights.Resource.dll",
     "ThirdParty/Everything/LICENSE.txt",
-    "DeskBox.pri",
-    "DeskBox.InstallManifest.txt"
+    "WinSticker.pri",
+    "WinSticker.InstallManifest.txt"
 )
 $missingDirectFiles = @($directRequiredFiles | Where-Object { $directFiles -notcontains $_ })
 $directForbiddenPatterns = @(
     '\.pdb$',
-    '(^|/)DeskBox\.dll$',
-    '(^|/)DeskBox\.deps\.json$',
-    '(^|/)DeskBox\.runtimeconfig\.json$',
+    '(^|/)WinSticker\.dll$',
+    '(^|/)WinSticker\.deps\.json$',
+    '(^|/)WinSticker\.runtimeconfig\.json$',
     '(^|/)(?:coreclr|clrjit|hostfxr|hostpolicy)\.dll$',
     '(^|/)Assets/Store/',
     'store-assets-html'
@@ -207,15 +207,15 @@ if ($forbiddenDirectFiles.Count -gt 0) {
     throw "The Direct AOT publish contains forbidden files: $($forbiddenDirectFiles -join ', ')."
 }
 
-$deskBoxMachine = Get-PeMachine -Path (Join-Path $directPublishDirectory "DeskBox.exe")
-$updaterMachine = Get-PeMachine -Path (Join-Path $directPublishDirectory "DeskBox.Updater.exe")
+$winstickerMachine = Get-PeMachine -Path (Join-Path $directPublishDirectory "WinSticker.exe")
+$updaterMachine = Get-PeMachine -Path (Join-Path $directPublishDirectory "WinSticker.Updater.exe")
 $thumbnailProxyMachine = Get-PeMachine -Path (
-    Join-Path $directPublishDirectory "DeskBox.ThumbnailProxy.exe")
+    Join-Path $directPublishDirectory "WinSticker.ThumbnailProxy.exe")
 $everythingSdkMachine = Get-PeMachine -Path (
     Join-Path $directPublishDirectory "EverythingSdk.dll")
 $windowsAppRuntimeInsightsMachine = Get-PeMachine -Path (
     Join-Path $directPublishDirectory "Microsoft.WindowsAppRuntime.Insights.Resource.dll")
-if ($deskBoxMachine -ne $expectedMachine -or
+if ($winstickerMachine -ne $expectedMachine -or
     $updaterMachine -ne $expectedMachine -or
     $thumbnailProxyMachine -ne $expectedMachine -or
     $everythingSdkMachine -ne $expectedMachine -or
@@ -225,19 +225,19 @@ if ($deskBoxMachine -ne $expectedMachine -or
 
 . (Join-Path $PSScriptRoot "native-pe-contract.ps1")
 $nativeExports = @(
-    "deskbox_native_abi_version",
-    "deskbox_native_capabilities",
-    "deskbox_shortcut_read_v2",
-    "deskbox_shortcut_resolve_no_ui_v2",
-    "deskbox_shortcut_write_v2",
-    "deskbox_shortcut_resolve_with_ui_v2",
-    "deskbox_music_volume_v1",
-    "deskbox_explorer_shell_launch_v1",
-    "deskbox_quick_access_v1",
-    "deskbox_recycle_bin_v1"
+    "winsticker_native_abi_version",
+    "winsticker_native_capabilities",
+    "winsticker_shortcut_read_v2",
+    "winsticker_shortcut_resolve_no_ui_v2",
+    "winsticker_shortcut_write_v2",
+    "winsticker_shortcut_resolve_with_ui_v2",
+    "winsticker_music_volume_v1",
+    "winsticker_explorer_shell_launch_v1",
+    "winsticker_quick_access_v1",
+    "winsticker_recycle_bin_v1"
 )
-$nativeContract = Get-DeskBoxNativePeContract `
-    -Path (Join-Path $directPublishDirectory "deskbox_native.dll") `
+$nativeContract = Get-WinStickerNativePeContract `
+    -Path (Join-Path $directPublishDirectory "winsticker_native.dll") `
     -ExpectedPlatform $Platform `
     -RequiredExports $nativeExports
 $vcImports = @(
@@ -252,10 +252,10 @@ if ($vcImports.Count -gt 0) {
 $installerOutputDirectory = Join-Path $OutputDirectory "direct-installer"
 New-Item -ItemType Directory -Path $installerOutputDirectory -Force | Out-Null
 $installerScript = if ($Platform -eq "ARM64") {
-    Join-Path $repoRoot "installer\DeskBox.arm64.iss"
+    Join-Path $repoRoot "installer\WinSticker.arm64.iss"
 }
 else {
-    Join-Path $repoRoot "installer\DeskBox.iss"
+    Join-Path $repoRoot "installer\WinSticker.iss"
 }
 $installerScriptText = Get-Content -LiteralPath $installerScript -Raw
 $installerBaseNameMatch = [regex]::Match(
@@ -267,7 +267,7 @@ $installerVersionMatch = [regex]::Match(
 if (-not $installerBaseNameMatch.Success -or -not $installerVersionMatch.Success) {
     throw "The Inno script does not expose MyAppOutputBaseName and MyAppVersion definitions."
 }
-# Keep the DeskBox_Setup_<version>_<arch>.exe shape: every released updater
+# Keep the WinSticker_Setup_<version>_<arch>.exe shape: every released updater
 # (1.4.3 and later) only accepts assets and manifest URLs ending in
 # "_x64.exe"/"_arm64.exe", and the distribution workflow publishes this exact
 # name to GitHub Releases and stable.json. Flavor suffixes break that contract.
@@ -279,8 +279,8 @@ $innoCompiler = Get-InnoCompilerPath
 $innoLogPath = Join-Path $OutputDirectory "inno-compile.log"
 $innoArguments = @(
     "/Qp",
-    "/DDeskBoxNativeAot=1",
-    "/DDeskBoxBundledRuntime=1",
+    "/DWinStickerNativeAot=1",
+    "/DWinStickerBundledRuntime=1",
     "/DMyAppReleaseDir=$directPublishDirectory",
     "/F$installerOutputBaseName",
     "/O$installerOutputDirectory",
@@ -325,7 +325,7 @@ if ($null -eq $msix -or $null -eq $appxSym -or $null -eq $msixUpload) {
 }
 
 $storePublishDirectory = Join-Path $repoRoot (
-    "src\DeskBox\bin\$Platform\$configuration\net10.0-windows10.0.22621.0\$runtimeIdentifier\publish")
+    "src\WinSticker\bin\$Platform\$configuration\net10.0-windows10.0.22621.0\$runtimeIdentifier\publish")
 $storeAuditDirectory = Join-Path $OutputDirectory "store-audit"
 & (Join-Path $PSScriptRoot "audit-store-native-aot-package.ps1") `
     -MsixPath $msix.FullName `
@@ -373,7 +373,7 @@ $summary = [ordered]@{
         requiredFiles = $directRequiredFiles
         missingRequiredFiles = $missingDirectFiles
         forbiddenFiles = $forbiddenDirectFiles
-        executableMachine = "0x$($deskBoxMachine.ToString('X4'))"
+        executableMachine = "0x$($winstickerMachine.ToString('X4'))"
         updaterMachine = "0x$($updaterMachine.ToString('X4'))"
         thumbnailProxyMachine = "0x$($thumbnailProxyMachine.ToString('X4'))"
         windowsAppRuntimeInsightsMachine = "0x$($windowsAppRuntimeInsightsMachine.ToString('X4'))"

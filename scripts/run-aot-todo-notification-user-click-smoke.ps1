@@ -15,12 +15,12 @@ Set-StrictMode -Version Latest
 
 $scenario = "RealWindowsNotificationUserClick"
 $smokeEnvironmentVariable =
-    "DESKBOX_AOT_TODO_NOTIFICATION_USER_CLICK_SMOKE"
+    "WINSTICKER_AOT_TODO_NOTIFICATION_USER_CLICK_SMOKE"
 $phaseEnvironmentVariable =
-    "DESKBOX_AOT_TODO_NOTIFICATION_USER_CLICK_PHASE"
+    "WINSTICKER_AOT_TODO_NOTIFICATION_USER_CLICK_PHASE"
 $runIdEnvironmentVariable =
-    "DESKBOX_AOT_TODO_NOTIFICATION_USER_CLICK_RUN_ID"
-$previewRootEnvironmentVariable = "DESKBOX_AOT_PREVIEW_DATA_ROOT"
+    "WINSTICKER_AOT_TODO_NOTIFICATION_USER_CLICK_RUN_ID"
+$previewRootEnvironmentVariable = "WINSTICKER_AOT_PREVIEW_DATA_ROOT"
 $runId = [Guid]::NewGuid().ToString("N")
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
@@ -34,9 +34,9 @@ $evidenceRoot = Join-Path `
     $repoRoot `
     ".artifacts\aot-todo-notification-user-click-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-todo-notification-user-click-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.TodoNotificationUserClickSmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-todo-notification-user-click-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.TodoNotificationUserClickSmoke.v1"
 $requiredAuditProfileVersion = 59
 $requiredSummarySchemaVersion = 55
 
@@ -106,7 +106,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace(
                     [string]$_.ExecutablePath) -and
@@ -187,7 +187,7 @@ function Invoke-WithSmokeEnvironment {
 
     $variables = @(
         @(Get-ChildItem Env: |
-            Where-Object { $_.Name -like "DESKBOX_AOT_*_SMOKE" } |
+            Where-Object { $_.Name -like "WINSTICKER_AOT_*_SMOKE" } |
             Select-Object -ExpandProperty Name) +
         @(
             $smokeEnvironmentVariable,
@@ -495,7 +495,7 @@ New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
 
 $productionBefore = Get-DirectoryStateFingerprint -Path $productionDataRoot
 $previewExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path ([string]$auditSummary.publishDirectory) "DeskBox.exe"))
+    (Join-Path ([string]$auditSummary.publishDirectory) "WinSticker.exe"))
 $userEnvironmentBefore = @{}
 $userEnvironmentChanged = $false
 $runSucceeded = $false
@@ -572,7 +572,7 @@ try {
         [int]$productionAfter.fileCount -ne
             [int]$productionBefore.fileCount -or
         [long]$productionAfter.bytes -ne [long]$productionBefore.bytes) {
-        throw "Production DeskBox data changed during the isolated click matrix."
+        throw "Production WinSticker data changed during the isolated click matrix."
     }
 
     New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
@@ -583,8 +583,8 @@ try {
         -Destination (Join-Path $archiveRoot "results") `
         -Recurse
     Copy-Item `
-        -LiteralPath (Join-Path $DataRoot "DeskBox.log") `
-        -Destination (Join-Path $archiveRoot "DeskBox.log")
+        -LiteralPath (Join-Path $DataRoot "WinSticker.log") `
+        -Destination (Join-Path $archiveRoot "WinSticker.log")
 
     Assert-OwnedRootAndRemove -Root $DataRoot
     $previewRootCleaned = -not (Test-Path -LiteralPath $DataRoot)

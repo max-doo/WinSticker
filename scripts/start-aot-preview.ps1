@@ -141,7 +141,7 @@ function Get-AotPreviewProcesses {
 
     $normalizedExecutablePath = [System.IO.Path]::GetFullPath($ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 if ([string]::IsNullOrWhiteSpace($_.ExecutablePath)) {
                     return $false
@@ -195,24 +195,24 @@ if (-not (Test-Path -LiteralPath $expectedPublishDirectory -PathType Container))
     throw "Audited Native AOT publish directory was not found: '$expectedPublishDirectory'."
 }
 
-$exe = Join-Path $expectedPublishDirectory "DeskBox.exe"
-$rustDll = Join-Path $expectedPublishDirectory "deskbox_native.dll"
+$exe = Join-Path $expectedPublishDirectory "WinSticker.exe"
+$rustDll = Join-Path $expectedPublishDirectory "winsticker_native.dll"
 foreach ($requiredFile in @($exe, $rustDll)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Audited Native AOT file was not found: '$requiredFile'."
     }
 }
 
-$exeImages = @($summary.peImages | Where-Object { [string]$_.file -ceq "DeskBox.exe" })
+$exeImages = @($summary.peImages | Where-Object { [string]$_.file -ceq "WinSticker.exe" })
 if ($exeImages.Count -ne 1) {
-    throw "Native AOT audit summary must contain exactly one DeskBox.exe PE record."
+    throw "Native AOT audit summary must contain exactly one WinSticker.exe PE record."
 }
 $exeSha256 = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
 if (-not [string]::Equals(
         $exeSha256,
         [string]$exeImages[0].sha256,
         [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "DeskBox.exe no longer matches the audited SHA256. Run the AOT audit again."
+    throw "WinSticker.exe no longer matches the audited SHA256. Run the AOT audit again."
 }
 
 if (-not [bool]$summary.rustNative.enabled -or
@@ -227,18 +227,18 @@ if (-not [string]::Equals(
         $rustSha256,
         [string]$summary.rustNative.publishSha256,
         [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "deskbox_native.dll no longer matches the audited SHA256. Run the AOT audit again."
+    throw "winsticker_native.dll no longer matches the audited SHA256. Run the AOT audit again."
 }
 
 if ([string]::IsNullOrWhiteSpace($DataRoot)) {
     $worktreeName = Split-Path $repoRootPath -Leaf
     $safeWorktreeName = $worktreeName -replace '[^A-Za-z0-9._-]', '-'
     $pathHash = (Get-TextSha256 -Value $repoRootPath.ToUpperInvariant()).Substring(0, 8)
-    $DataRoot = Join-Path $env:LOCALAPPDATA "DeskBox-AotPreview\$safeWorktreeName-$pathHash"
+    $DataRoot = Join-Path $env:LOCALAPPDATA "WinSticker-AotPreview\$safeWorktreeName-$pathHash"
 }
 $DataRoot = [System.IO.Path]::GetFullPath($DataRoot)
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
 if ((Test-PathEqualOrInside -Root $productionDataRoot -Candidate $DataRoot) -or
     (Test-PathEqualOrInside -Root $DataRoot -Candidate $productionDataRoot)) {
     throw "Refusing to start Native AOT preview with the production data root or an overlapping path: '$DataRoot'."
@@ -267,18 +267,18 @@ elseif (-not $NoStop.IsPresent) {
 }
 
 $previousAotPreviewRoot = [Environment]::GetEnvironmentVariable(
-    "DESKBOX_AOT_PREVIEW_DATA_ROOT",
+    "WINSTICKER_AOT_PREVIEW_DATA_ROOT",
     "Process")
 $previousDevelopmentRoot = [Environment]::GetEnvironmentVariable(
-    "DESKBOX_DEV_DATA_ROOT",
+    "WINSTICKER_DEV_DATA_ROOT",
     "Process")
 try {
     [Environment]::SetEnvironmentVariable(
-        "DESKBOX_AOT_PREVIEW_DATA_ROOT",
+        "WINSTICKER_AOT_PREVIEW_DATA_ROOT",
         $DataRoot,
         "Process")
     [Environment]::SetEnvironmentVariable(
-        "DESKBOX_DEV_DATA_ROOT",
+        "WINSTICKER_DEV_DATA_ROOT",
         $null,
         "Process")
     $process = Start-Process `
@@ -289,11 +289,11 @@ try {
 }
 finally {
     [Environment]::SetEnvironmentVariable(
-        "DESKBOX_AOT_PREVIEW_DATA_ROOT",
+        "WINSTICKER_AOT_PREVIEW_DATA_ROOT",
         $previousAotPreviewRoot,
         "Process")
     [Environment]::SetEnvironmentVariable(
-        "DESKBOX_DEV_DATA_ROOT",
+        "WINSTICKER_DEV_DATA_ROOT",
         $previousDevelopmentRoot,
         "Process")
 }
@@ -327,7 +327,7 @@ elseif ($AllowEarlyExit.IsPresent) {
     }
 }
 elseif (-not $startedProcessStillRunning -or $previewProcessesAfterStart.Count -ne 1) {
-    throw "Native AOT preview did not remain alive after $StartupWaitSeconds seconds. Inspect '$DataRoot\DeskBox.log'."
+    throw "Native AOT preview did not remain alive after $StartupWaitSeconds seconds. Inspect '$DataRoot\WinSticker.log'."
 }
 
 New-Item -ItemType Directory -Path $previewEvidenceDirectory -Force | Out-Null
@@ -342,7 +342,7 @@ $session = [ordered]@{
     rustNativePath = $rustDll
     rustNativeSha256 = $rustSha256
     previewDataRoot = $DataRoot
-    previewLogPath = Join-Path $DataRoot "DeskBox.log"
+    previewLogPath = Join-Path $DataRoot "WinSticker.log"
         productionDataRoot = $productionDataRoot
         productionDataFingerprintAlgorithm = "path-upper-length-lastwriteutc-v1-ordinal"
         productionDataExistedBefore = $productionStateBefore.exists
@@ -366,7 +366,7 @@ $session | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $sessionPath -Enco
     Running = $startedProcessStillRunning
     ExistingInstanceActivated = $existingInstanceActivated
     DataRoot = $DataRoot
-    LogPath = Join-Path $DataRoot "DeskBox.log"
+    LogPath = Join-Path $DataRoot "WinSticker.log"
     ProductionDataFingerprintBefore = $productionStateBefore.fingerprint
     SummaryPath = $SummaryPath
     SessionPath = $sessionPath

@@ -13,7 +13,7 @@ Set-StrictMode -Version Latest
 
 $scenario = "TodoNotificationSurfaceRouting"
 $smokeEnvironmentVariable =
-    "DESKBOX_AOT_TODO_NOTIFICATION_SURFACE_SMOKE"
+    "WINSTICKER_AOT_TODO_NOTIFICATION_SURFACE_SMOKE"
 $requiredAuditProfileVersion = 59
 $requiredSummarySchemaVersion = 55
 $runId = [Guid]::NewGuid().ToString("N")
@@ -32,9 +32,9 @@ $evidenceRoot = Join-Path `
     $repoRoot `
     ".artifacts\aot-todo-notification-surface-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-todo-notification-surface-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.TodoNotificationSurfaceSmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-todo-notification-surface-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.TodoNotificationSurfaceSmoke.v1"
 
 function Test-PathEqual {
     param([string]$Left, [string]$Right)
@@ -102,7 +102,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace(
                     [string]$_.ExecutablePath) -and
@@ -247,7 +247,7 @@ $previewRootCleaned = $false
 try {
     $variables = @(
         @(Get-ChildItem Env: |
-            Where-Object { $_.Name -like "DESKBOX_AOT_*_SMOKE" } |
+            Where-Object { $_.Name -like "WINSTICKER_AOT_*_SMOKE" } |
             Select-Object -ExpandProperty Name) +
         @($smokeEnvironmentVariable)) | Sort-Object -Unique
     $previous = @{}
@@ -344,7 +344,7 @@ try {
         throw "Todo notification surface process did not exit naturally."
     }
 
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     $runtimeFailureLogLines = @(
         Get-Content -LiteralPath $runtimeLogPath |
             Where-Object {
@@ -369,7 +369,7 @@ try {
     $archiveRoot = Join-Path $evidenceRoot "runs\$runId"
     New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
     $archivedResultPath = Join-Path $archiveRoot "result.json"
-    $archivedLogPath = Join-Path $archiveRoot "DeskBox.log"
+    $archivedLogPath = Join-Path $archiveRoot "WinSticker.log"
     $archivedPreviewSessionPath = Join-Path $archiveRoot "preview-session.json"
     Copy-Item -LiteralPath $resultPath -Destination $archivedResultPath
     Copy-Item -LiteralPath $runtimeLogPath -Destination $archivedLogPath

@@ -13,11 +13,11 @@ Set-StrictMode -Version Latest
 
 $scenario = "DeterministicStateMatrix"
 $smokeEnvironmentVariable =
-    "DESKBOX_AOT_TODO_RECURRENCE_REMINDER_SMOKE"
+    "WINSTICKER_AOT_TODO_RECURRENCE_REMINDER_SMOKE"
 $phaseEnvironmentVariable =
-    "DESKBOX_AOT_TODO_RECURRENCE_REMINDER_PHASE"
+    "WINSTICKER_AOT_TODO_RECURRENCE_REMINDER_PHASE"
 $runIdEnvironmentVariable =
-    "DESKBOX_AOT_TODO_RECURRENCE_REMINDER_RUN_ID"
+    "WINSTICKER_AOT_TODO_RECURRENCE_REMINDER_RUN_ID"
 $runId = [Guid]::NewGuid().ToString("N")
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
@@ -34,9 +34,9 @@ $evidenceRoot = Join-Path `
     $repoRoot `
     ".artifacts\aot-todo-recurrence-reminder-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-todo-recurrence-reminder-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.TodoRecurrenceReminderSmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-todo-recurrence-reminder-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.TodoRecurrenceReminderSmoke.v1"
 $phases = @(
     "SeedAndSnooze",
     "SnoozeAndComplete",
@@ -110,7 +110,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace(
                     [string]$_.ExecutablePath) -and
@@ -273,14 +273,14 @@ function Invoke-TodoRecurrenceReminderPhase {
         $smokeEnvironmentVariable,
         $phaseEnvironmentVariable,
         $runIdEnvironmentVariable,
-        "DESKBOX_AOT_MANAGED_UI_SMOKE",
-        "DESKBOX_AOT_HOTKEY_SMOKE",
-        "DESKBOX_AOT_SHORTCUT_SMOKE",
-        "DESKBOX_AOT_SHELL_SMOKE",
-        "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE")
+        "WINSTICKER_AOT_MANAGED_UI_SMOKE",
+        "WINSTICKER_AOT_HOTKEY_SMOKE",
+        "WINSTICKER_AOT_SHORTCUT_SMOKE",
+        "WINSTICKER_AOT_SHELL_SMOKE",
+        "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE")
     $previous = @{}
     foreach ($variable in $variables) {
         $previous[$variable] = [Environment]::GetEnvironmentVariable(
@@ -365,7 +365,7 @@ function Invoke-TodoRecurrenceReminderPhase {
     }
     Assert-RequiredSteps -Phase $Phase -Result $result
 
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     $failureLines = @(
         Get-Content -LiteralPath $runtimeLogPath |
             Where-Object {
@@ -476,7 +476,7 @@ $settings | ConvertTo-Json -Depth 16 |
 
 $productionBefore = Get-DirectoryStateFingerprint -Path $productionDataRoot
 $previewExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path ([string]$auditSummary.publishDirectory) "DeskBox.exe"))
+    (Join-Path ([string]$auditSummary.publishDirectory) "WinSticker.exe"))
 $runSucceeded = $false
 $previewRootCleaned = $false
 $phaseRuns = [System.Collections.Generic.List[object]]::new()
@@ -540,7 +540,7 @@ try {
         [int]$productionAfter.fileCount -ne
             [int]$productionBefore.fileCount -or
         [long]$productionAfter.bytes -ne [long]$productionBefore.bytes) {
-        throw "Production DeskBox data changed during the isolated Todo recurrence/reminder smoke."
+        throw "Production WinSticker data changed during the isolated Todo recurrence/reminder smoke."
     }
 
     New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
@@ -557,8 +557,8 @@ try {
         -LiteralPath $settingsPath `
         -Destination (Join-Path $archiveRoot "preview-settings.json")
     Copy-Item `
-        -LiteralPath (Join-Path $DataRoot "DeskBox.log") `
-        -Destination (Join-Path $archiveRoot "DeskBox.log")
+        -LiteralPath (Join-Path $DataRoot "WinSticker.log") `
+        -Destination (Join-Path $archiveRoot "WinSticker.log")
     Copy-Item `
         -LiteralPath (Join-Path `
             $DataRoot `

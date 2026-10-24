@@ -4,13 +4,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-# Ensure no DeskBox from this repo is already running (shared single-instance mutex).
-Get-Process DeskBox -ErrorAction SilentlyContinue |
+# Ensure no WinSticker from this repo is already running (shared single-instance mutex).
+Get-Process WinSticker -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -like 'D:\project\wingezi*' } |
     ForEach-Object { Stop-Process -Id $_.Id -Force }
 Start-Sleep -Milliseconds 800
 
-$log = "$env:LOCALAPPDATA\DeskBox\DeskBox.log"
+$log = "$env:LOCALAPPDATA\WinSticker\WinSticker.log"
 $beforeLength = if (Test-Path $log) { (Get-Item $log).Length } else { 0 }
 
 $process = Start-Process -FilePath $ExePath -PassThru -WorkingDirectory (Split-Path $ExePath -Parent)

@@ -11,7 +11,7 @@
 
 ## 隔离（关键）
 
-实验实例通过 `DESKBOX_AOT_PREVIEW_DATA_ROOT` 指向独立数据根（默认 `%LOCALAPPDATA%\DeskBox-AotCurve`）：
+实验实例通过 `WINSTICKER_AOT_PREVIEW_DATA_ROOT` 指向独立数据根（默认 `%LOCALAPPDATA%\WinSticker-AotCurve`）：
 
 - 单实例锁按数据根派生独立 scope → **可与正在运行的安装版 1.5.3 共存**；
 - settings / log / recovery journal 全部落在实验根 → **绝不触碰真实数据目录与 19.8MB 现场**。
@@ -34,24 +34,24 @@ powershell -File scripts\publish-aot-audit.ps1
 或用下方等价的裸命令（只做编译验证、不跑冒烟）：
 
 ```powershell
-dotnet publish src/DeskBox/DeskBox.csproj -c Release `
+dotnet publish src/WinSticker/WinSticker.csproj -c Release `
     -p:Platform=x64 -p:RuntimeIdentifier=win-x64 `
-    -p:DeskBoxAotAudit=true -p:DeskBoxRustNative=true `
+    -p:WinStickerAotAudit=true -p:WinStickerRustNative=true `
     -p:IlcUseEnvironmentalTools=true
 ```
 
 已踩的坑（2026-09-18 记录）：
-1. 按 AGENTS.md 安装器流程传 `-p:SelfContained=false` 会**静默退化成 JIT 输出**——publish 里出现 10MB 的 DeskBox.dll、exe 只有几百 KB 就是没走 AOT；JIT 产物混进 publish 目录会污染判定，重建前先删 publish 目录。
-2. `DeskBoxAotAudit=true` 单独不够：还需要 `DeskBoxRustNative=true`（否则 Validate target 报错，AOT 必须带 Rust 后端）。
+1. 按 AGENTS.md 安装器流程传 `-p:SelfContained=false` 会**静默退化成 JIT 输出**——publish 里出现 10MB 的 WinSticker.dll、exe 只有几百 KB 就是没走 AOT；JIT 产物混进 publish 目录会污染判定，重建前先删 publish 目录。
+2. `WinStickerAotAudit=true` 单独不够：还需要 `WinStickerRustNative=true`（否则 Validate target 报错，AOT 必须带 Rust 后端）。
 3. 本机 BuildTools 默认工具集 `14.42.34433` 的 `lib/x64` **缺 LIBCMT.lib**（arm64 全、14.44.35207 全）→ `LNK1104` 链接失败。`-p:VCToolsVersion` 对 ILCompiler 的 vswhere 探测无效，必须走 `vcvarsall -vcvars_ver=14.44` + `IlcUseEnvironmentalTools=true`。
-4. 验证特征：真 AOT 输出 **无 DeskBox.dll**，exe 约 46MB，`deskbox_native.dll` 在位。
+4. 验证特征：真 AOT 输出 **无 WinSticker.dll**，exe 约 46MB，`winsticker_native.dll` 在位。
 
 
 ## 阶段指令（Simon 手动操作，采样器全程跑着）
 
 ```powershell
 # 准备（可选）：生成 2500 个测试文件到暂存目录（盘符自选）
-$d = 'E:\DeskBox-AotCurve-Staging'; New-Item -ItemType Directory -Force $d | Out-Null
+$d = 'E:\WinSticker-AotCurve-Staging'; New-Item -ItemType Directory -Force $d | Out-Null
 0..2499 | ForEach-Object { Set-Content -Path (Join-Path $d ("t{0:d4}.png" -f $_)) -Value 'x' }
 
 # 阶段 1 —— baseline（5 分钟）：启动实验实例，走完首启，
@@ -85,7 +85,7 @@ $d = 'E:\DeskBox-AotCurve-Staging'; New-Item -ItemType Directory -Force $d | Out
 ```
 
 - 看 `batch-phase peak trend` 的自动 verdict；
-- 交叉验证：实验根 `DeskBox.log` 的 `[Memory]` 行（`managedHeapAfterMB` vs `privateAfterMB`）——
+- 交叉验证：实验根 `WinSticker.log` 的 `[Memory]` 行（`managedHeapAfterMB` vs `privateAfterMB`）——
   托管堆稳定而私有爬升 = native 侧；两者都爬 = 托管还有放大器；
 - 若 verdict 是 plateau：AOT 线结案，1.5.4 进入打包流程；
 - 若持续爬升：留 dump + 曲线 CSV，转入 native 持有排查（cdb 路线）。

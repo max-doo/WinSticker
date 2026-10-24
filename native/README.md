@@ -1,16 +1,16 @@
-# DeskBox native workspace
+# WinSticker native workspace
 
-This workspace contains narrowly scoped native modules used by DeskBox.
+This workspace contains narrowly scoped native modules used by WinSticker.
 
 ## Current stage
 
-The production `deskbox-native` module remains frozen at ABI 2, capability mask
+The production `winsticker-native` module remains frozen at ABI 2, capability mask
 `511`, and ten exports. Supported x64 Native AOT builds use it for shortcut,
 Explorer-hosted launch, Quick Access, music-volume, and exact Recycle Bin
 recovery boundaries. Ordinary JIT runs keep the established C# implementations
 as their default oracle.
 
-The workspace also contains `deskbox-audio-session-fixture`, a test-only binary
+The workspace also contains `winsticker-audio-session-fixture`, a test-only binary
 used by the Stage 5B-3C smoke script. It loops a generated all-zero PCM WAV to
 create a controlled Core Audio session, is bound to the parent script lifetime,
 and is never copied into the application or AOT publish output. It is not part
@@ -25,7 +25,7 @@ of the production ABI, capability mask, or export list.
   `RECYCLE_BIN_V1`)
 - Targets: `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc`
 - Library type: `cdylib`
-- Public header: `include/deskbox_native.h`
+- Public header: `include/winsticker_native.h`
 - ARM64 Stage 7A report: `../docs/architecture/rust-stage-7a-arm64-static-report.md`
 - Detailed shortcut contract: `../docs/architecture/shortcut-native-abi-v2.md`
 - Detailed music-volume contract: `../docs/architecture/music-volume-native-abi-v1.md`
@@ -44,16 +44,16 @@ object pointers, COM pointers, and exceptions must not cross the boundary.
 
 The required exports are:
 
-- `deskbox_native_abi_version`
-- `deskbox_native_capabilities`
-- `deskbox_shortcut_read_v2`
-- `deskbox_shortcut_resolve_no_ui_v2`
-- `deskbox_shortcut_write_v2`
-- `deskbox_shortcut_resolve_with_ui_v2`
-- `deskbox_music_volume_v1`
-- `deskbox_explorer_shell_launch_v1`
-- `deskbox_quick_access_v1`
-- `deskbox_recycle_bin_v1`
+- `winsticker_native_abi_version`
+- `winsticker_native_capabilities`
+- `winsticker_shortcut_read_v2`
+- `winsticker_shortcut_resolve_no_ui_v2`
+- `winsticker_shortcut_write_v2`
+- `winsticker_shortcut_resolve_with_ui_v2`
+- `winsticker_music_volume_v1`
+- `winsticker_explorer_shell_launch_v1`
+- `winsticker_quick_access_v1`
+- `winsticker_recycle_bin_v1`
 
 The presence of an export does not by itself mean the operation is implemented.
 Callers check ABI version, all required exports, and the operation capability
@@ -88,7 +88,7 @@ kept/deleted product result.
 
 `MUSIC_VOLUME_V1` resolves the default render/multimedia endpoint on every
 call. It reads or sets system master volume and enumerates application sessions
-using the legacy DeskBox matching order without retaining device, session, or
+using the legacy WinSticker matching order without retaining device, session, or
 callback state. Task-allocated Core Audio strings and COM interfaces are
 released before the call returns.
 
@@ -97,7 +97,7 @@ Explorer process and invokes its `IShellDispatch2::ShellExecute`. It uses the
 typed `IShellDispatch` → `IShellWindows` → `IWebBrowser` →
 `IShellFolderViewDual` chain, records seven phase HRESULTs, and releases all
 COM interfaces and automation values before returning. The operation does not
-replace DeskBox's existing local `Process.Start` and `SHOpenWithDialog`
+replace WinSticker's existing local `Process.Start` and `SHOpenWithDialog`
 fallbacks.
 
 `QUICK_ACCESS_V1` queries `System.IsPinnedToNameSpaceTree`, invokes
@@ -108,30 +108,30 @@ managed pre-check and falls back to parent-folder `ParseName` when the pinned
 item is not present in the namespace. The operation records ten phase HRESULTs
 and never retains a Shell object, collection, item, `BSTR`, or `VARIANT`.
 
-For JIT diagnostics, build with `DeskBoxRustNative=true` and launch with
-`DESKBOX_SHORTCUT_BACKEND=rust`. Missing DLL, export, ABI, or capability errors
+For JIT diagnostics, build with `WinStickerRustNative=true` and launch with
+`WINSTICKER_SHORTCUT_BACKEND=rust`. Missing DLL, export, ABI, or capability errors
 are logged and do not fall back to C#. Native AOT defines
-`DESKBOX_NATIVE_AOT`, excludes the legacy shortcut COM code, and always selects
-Rust. Both architecture audit scripts pass `DeskBoxRustNative=true`.
+`WINSTICKER_NATIVE_AOT`, excludes the legacy shortcut COM code, and always selects
+Rust. Both architecture audit scripts pass `WinStickerRustNative=true`.
 The current MSBuild guard accepts only complete x64/win-x64 or ARM64/win-arm64
-pairs, and every Native AOT build requires `DeskBoxRustNative=true`.
+pairs, and every Native AOT build requires `WinStickerRustNative=true`.
 Omitting the Rust property now fails before compilation instead of producing an
 incomplete publish. Diagnostic bundle capture does not initialize the lazy
 native loader and records no absolute module path. Stage 7A cross-publishes ARM64
 without executing target code on the x64 host; real ARM64 runtime evidence is a
 separate Stage 7B gate.
 
-Music volume has a separate `DESKBOX_MUSIC_VOLUME_BACKEND=rust` JIT opt-in.
+Music volume has a separate `WINSTICKER_MUSIC_VOLUME_BACKEND=rust` JIT opt-in.
 Native AOT selects Rust at compile time and excludes the legacy Core Audio
 `ComImport` declarations. Its failure path likewise never falls back to C#.
 
 Explorer-hosted launch has a separate
-`DESKBOX_EXPLORER_SHELL_BACKEND=rust` JIT opt-in. Native AOT excludes the C#
+`WINSTICKER_EXPLORER_SHELL_BACKEND=rust` JIT opt-in. Native AOT excludes the C#
 dynamic oracle and always selects Rust. A Rust boundary failure is returned to
 the unchanged product layer, which may then use its local ShellExecute/Open
 With fallbacks; it never silently executes the C# oracle.
 
-Quick Access has a separate `DESKBOX_QUICK_ACCESS_BACKEND=rust` JIT opt-in.
+Quick Access has a separate `WINSTICKER_QUICK_ACCESS_BACKEND=rust` JIT opt-in.
 The public synchronous APIs and dedicated-background-STA asynchronous wrapper
 are unchanged. Native AOT excludes the C# ProgID/dynamic oracle and always
 selects Rust. Automated tests probe the capability and export and perform only
@@ -165,8 +165,8 @@ cancel, repair, and delete behavior; the record is described in
 `../docs/architecture/shortcut-native-abi-v2.md`. Stage 3C-3 also verified the
 compile-time AOT exclusion, side-effect-free diagnostics, unique x64 publish
 DLL, ARM64 exclusion, and detached updater boundary. A fresh ordinary JIT
-instance was then verified to load no `deskbox_native.dll` at startup. The
-DeskBox AOT executable was not launched because other application-level AOT
+instance was then verified to load no `winsticker_native.dll` at startup. The
+WinSticker AOT executable was not launched because other application-level AOT
 blockers remain.
 
 Stage 3C-3-R closes the release-contract gap found after 3C-3. Real MSBuild
@@ -286,8 +286,8 @@ items and leaves zero exact matches. Full details are in
 
 Stage 7A adds the pinned ARM64 Rust standard library, an audited x64-hosted MSVC
 ARM64 environment, case-sensitive static PE/export parsing, exact Platform/RID
-guards, and a separate cross-compiled static AOT audit. `DeskBox.exe`,
-`DeskBox.Updater.exe`, and `deskbox_native.dll` all report machine `0xAA64`;
+guards, and a separate cross-compiled static AOT audit. `WinSticker.exe`,
+`WinSticker.Updater.exe`, and `winsticker_native.dll` all report machine `0xAA64`;
 staging/publish DLL hashes match and symbols are separated. The evidence does
 not execute target code. Full results and the Stage 7B boundary are in
 `../docs/architecture/rust-stage-7a-arm64-static-report.md`.

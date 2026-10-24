@@ -1,6 +1,6 @@
 # Code signing policy
 
-DeskBox direct installers (`DeskBox_Setup_<version>_x64.exe` and `DeskBox_Setup_<version>_arm64.exe`) are built by GitHub Actions and signed in the same workflow run via SignPath.
+WinSticker direct installers (`WinSticker_Setup_<version>_x64.exe` and `WinSticker_Setup_<version>_arm64.exe`) are built by GitHub Actions and signed in the same workflow run via SignPath.
 
 Free code signing provided by [SignPath.io](https://signpath.io), certificate by the [SignPath Foundation](https://signpath.org).
 
@@ -19,17 +19,17 @@ Free code signing provided by [SignPath.io](https://signpath.io), certificate by
 
 ```powershell
 # Signature (signed builds)
-Get-AuthenticodeSignature .\DeskBox_Setup_x.y.z_x64.exe | Format-List Status, SignerCertificate, TimeStamperCertificate
+Get-AuthenticodeSignature .\WinSticker_Setup_x.y.z_x64.exe | Format-List Status, SignerCertificate, TimeStamperCertificate
 
 # Hash (any build)
-Get-FileHash .\DeskBox_Setup_x.y.z_x64.exe -Algorithm SHA256
+Get-FileHash .\WinSticker_Setup_x.y.z_x64.exe -Algorithm SHA256
 ```
 
 The CI distribution gate also runs an automated signature check (`verify-signature` job) on every signing run before the artifacts are accepted.
 
 ## Team roles
 
-DeskBox is a single-maintainer project. All three roles are held by the same person:
+WinSticker is a single-maintainer project. All three roles are held by the same person:
 
 - Committer: Tianyu Zhu (Simon)
 - Reviewer: Tianyu Zhu (Simon)

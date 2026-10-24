@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Creates a read-only integrity inventory for a source tree and a DeskBox
+Creates a read-only integrity inventory for a source tree and a WinSticker
 destination tree after an interrupted copy or move.
 
 .DESCRIPTION
@@ -292,13 +292,13 @@ foreach ($relativePath in $relativePaths) {
 $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $reportPath = Join-Path `
     $resolvedOutputDirectory `
-    "DeskBox-Transfer-Integrity-$runStamp.csv"
+    "WinSticker-Transfer-Integrity-$runStamp.csv"
 $summaryPath = Join-Path `
     $resolvedOutputDirectory `
-    "DeskBox-Transfer-Integrity-$runStamp.json"
+    "WinSticker-Transfer-Integrity-$runStamp.json"
 $errorsPath = Join-Path `
     $resolvedOutputDirectory `
-    "DeskBox-Transfer-Integrity-Errors-$runStamp.csv"
+    "WinSticker-Transfer-Integrity-Errors-$runStamp.csv"
 $rows | Export-Csv -LiteralPath $reportPath -NoTypeInformation -Encoding utf8
 if ($inventoryErrors.Count -gt 0) {
     $inventoryErrors | Export-Csv `

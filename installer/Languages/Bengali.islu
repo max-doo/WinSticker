@@ -12,7 +12,7 @@
 ; The following three entries are very important. Be sure to read and
 ; understand the '[LangOptions] section' topic in the help file.
 LanguageName=<09AC><09BE><0982><09B2><09BE>
-; DeskBox supports Bengali (Bangladesh), so use the matching Windows locale.
+; WinSticker supports Bengali (Bangladesh), so use the matching Windows locale.
 LanguageID=$0845
 LanguageCodePage=0
 ; If the language you are translating to requires special font faces or

@@ -7,9 +7,9 @@ $repoRoot = Split-Path $PSScriptRoot -Parent
 $auditRoot = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $auditRoot -Force | Out-Null
 $probeId = [Guid]::NewGuid().ToString('N')
-$packageName = 'DeskBox.Probe.' + $probeId
-$aliasName = 'DeskBox-StartupProbe-' + $probeId + '.exe'
-$taskName = 'DeskBox Startup Probe-' + $probeId
+$packageName = 'WinSticker.Probe.' + $probeId
+$aliasName = 'WinSticker-StartupProbe-' + $probeId + '.exe'
+$taskName = 'WinSticker Startup Probe-' + $probeId
 $probeLog = Join-Path $auditRoot 'probe-launches.log'
 $reportPath = Join-Path $auditRoot 'lifecycle-result.json'
 $certificate = Get-Item -LiteralPath ('Cert:\CurrentUser\My\' + $CertificateThumbprint)
@@ -40,8 +40,8 @@ try {
     foreach ($version in @('1.0.0.0', '2.0.0.0')) {
         $packageRoot = Join-Path $auditRoot $version
         New-Item -ItemType Directory -Path (Join-Path $packageRoot 'Assets') -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $repoRoot 'src\DeskBox\Assets\Store\Square150x150Logo.png') -Destination (Join-Path $packageRoot 'Assets\Logo.png')
-        Copy-Item -LiteralPath (Join-Path $repoRoot 'src\DeskBox\Assets\Store\Square44x44Logo.png') -Destination (Join-Path $packageRoot 'Assets\SmallLogo.png')
+        Copy-Item -LiteralPath (Join-Path $repoRoot 'src\WinSticker\Assets\Store\Square150x150Logo.png') -Destination (Join-Path $packageRoot 'Assets\Logo.png')
+        Copy-Item -LiteralPath (Join-Path $repoRoot 'src\WinSticker\Assets\Store\Square44x44Logo.png') -Destination (Join-Path $packageRoot 'Assets\SmallLogo.png')
         $source = @"
 using System;
 using System.IO;
@@ -75,11 +75,11 @@ internal static class Probe {
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap3 desktop rescap">
   <Identity Name="$packageName" Publisher="$publisher" Version="$version" ProcessorArchitecture="x64" />
-  <Properties><DisplayName>DeskBox Startup Probe</DisplayName><PublisherDisplayName>DeskBox Test</PublisherDisplayName><Logo>Assets\Logo.png</Logo></Properties>
+  <Properties><DisplayName>WinSticker Startup Probe</DisplayName><PublisherDisplayName>WinSticker Test</PublisherDisplayName><Logo>Assets\Logo.png</Logo></Properties>
   <Resources><Resource Language="en-US" /></Resources>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
   <Applications><Application Id="App" Executable="Probe.exe" EntryPoint="Windows.FullTrustApplication">
-    <uap:VisualElements DisplayName="DeskBox Startup Probe" Description="Temporary startup lifecycle test" BackgroundColor="transparent" Square150x150Logo="Assets\Logo.png" Square44x44Logo="Assets\SmallLogo.png" />
+    <uap:VisualElements DisplayName="WinSticker Startup Probe" Description="Temporary startup lifecycle test" BackgroundColor="transparent" Square150x150Logo="Assets\Logo.png" Square44x44Logo="Assets\SmallLogo.png" />
     <Extensions><uap3:Extension Category="windows.appExecutionAlias" Executable="Probe.exe" EntryPoint="Windows.FullTrustApplication"><uap3:AppExecutionAlias><desktop:ExecutionAlias Alias="$aliasName" /></uap3:AppExecutionAlias></uap3:Extension></Extensions>
   </Application></Applications>
   <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
@@ -101,7 +101,7 @@ internal static class Probe {
             @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Source>DeskBox Startup Probe</Source><URI>\$taskName</URI></RegistrationInfo>
+  <RegistrationInfo><Source>WinSticker Startup Probe</Source><URI>\$taskName</URI></RegistrationInfo>
   <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>$userName</UserId></LogonTrigger></Triggers>
   <Principals><Principal id="Author"><UserId>$userSid</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Priority>4</Priority></Settings>

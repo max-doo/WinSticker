@@ -8,7 +8,7 @@
 
 ### Our pledge
 
-DeskBox is a community around a free, open-source desktop tool. Everyone should feel welcome to ask questions, report problems, and share ideas — in English, Chinese, or any language you're comfortable with.
+WinSticker is a community around a free, open-source desktop tool. Everyone should feel welcome to ask questions, report problems, and share ideas — in English, Chinese, or any language you're comfortable with.
 
 ### Our standards
 
@@ -28,7 +28,7 @@ Behavior that is not acceptable:
 
 ### Enforcement
 
-Reports of unacceptable behavior go to the maintainer at **1047078635@qq.com** (subject: `[DeskBox conduct]`) or via a GitHub report. Enforcement is at the maintainer's discretion and may include warning, comment removal, or ban.
+Reports of unacceptable behavior go to the maintainer at **1047078635@qq.com** (subject: `[WinSticker conduct]`) or via a GitHub report. Enforcement is at the maintainer's discretion and may include warning, comment removal, or ban.
 
 ---
 
@@ -36,7 +36,7 @@ Reports of unacceptable behavior go to the maintainer at **1047078635@qq.com** (
 
 ### 我们的承诺
 
-DeskBox 是围绕一个免费开源桌面工具的社区。任何人提问、报告问题、分享想法都应受到欢迎——用英文、中文或你熟悉的任何语言。
+WinSticker 是围绕一个免费开源桌面工具的社区。任何人提问、报告问题、分享想法都应受到欢迎——用英文、中文或你熟悉的任何语言。
 
 ### 行为标准
 
@@ -56,4 +56,4 @@ DeskBox 是围绕一个免费开源桌面工具的社区。任何人提问、报
 
 ### 处理
 
-举报不可接受的行为请发邮件至 **1047078635@qq.com**（标题注明 `[DeskBox conduct]`），或通过 GitHub 举报功能。处理方式由维护者裁量，包括警告、删除评论或封禁。
+举报不可接受的行为请发邮件至 **1047078635@qq.com**（标题注明 `[WinSticker conduct]`），或通过 GitHub 举报功能。处理方式由维护者裁量，包括警告、删除评论或封禁。

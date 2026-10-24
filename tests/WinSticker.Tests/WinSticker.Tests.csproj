@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <WinStickerNativeTestPlatform Condition="'$(Platform)' == 'ARM64' Or '$(RuntimeIdentifier)' == 'win-arm64'">ARM64</WinStickerNativeTestPlatform>
+    <WinStickerNativeTestPlatform Condition="'$(WinStickerNativeTestPlatform)' == ''">x64</WinStickerNativeTestPlatform>
+    <WinStickerRustCrtLinkage Condition="'$(WinStickerRustCrtLinkage)' == ''">Static</WinStickerRustCrtLinkage>
+    <WinStickerNativeTestIntermediateDir>$(MSBuildProjectDirectory)\obj\rust-native\$(Configuration)\$(Platform)\$(RuntimeIdentifier)\$(WinStickerRustCrtLinkage)</WinStickerNativeTestIntermediateDir>
+    <WinStickerNativeTestCargoTargetDir>$(WinStickerNativeTestIntermediateDir)\cargo-target</WinStickerNativeTestCargoTargetDir>
+    <WinStickerNativeTestDll>$(WinStickerNativeTestIntermediateDir)\winsticker_native.dll</WinStickerNativeTestDll>
+    <WinStickerNativeTestPdb>$(WinStickerNativeTestIntermediateDir)\winsticker_native.pdb</WinStickerNativeTestPdb>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\rust-toolchain.toml" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\native\Cargo.toml" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\native\Cargo.lock" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\native\winsticker-native\Cargo.toml" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\native\winsticker-native\src\**\*" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\native\include\winsticker_native.h" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\scripts\build-rust-native.ps1" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\scripts\native-pe-contract.ps1" />
+    <WinStickerNativeTestInput Include="$(MSBuildProjectDirectory)\..\..\scripts\rust-arm64-msvc-environment.ps1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\WinSticker\WinSticker.csproj" />
+    <ProjectReference Include="..\..\src\WinSticker.Updater\WinSticker.Updater.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="WinSticker.Platform" />
+  </ItemGroup>
+
+  <Target
+    Name="BuildWinStickerNativeTestModule"
+    BeforeTargets="CoreCompile"
+    Inputs="@(WinStickerNativeTestInput)"
+    Outputs="$(WinStickerNativeTestDll);$(WinStickerNativeTestPdb)">
+    <Error
+      Condition="'$(WinStickerRustCrtLinkage)' != 'Dynamic' and '$(WinStickerRustCrtLinkage)' != 'Static'"
+      Text="WinSticker test Rust CRT linkage must be Dynamic or Static." />
+    <Exec
+      Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\build-rust-native.ps1&quot; -Platform $(WinStickerNativeTestPlatform) -Configuration $(Configuration) -CrtLinkage $(WinStickerRustCrtLinkage) -OutputDirectory &quot;$(WinStickerNativeTestIntermediateDir)&quot; -CargoTargetDirectory &quot;$(WinStickerNativeTestCargoTargetDir)&quot;" />
+  </Target>
+
+  <Target
+    Name="CopyWinStickerNativeTestModule"
+    AfterTargets="Build"
+    DependsOnTargets="BuildWinStickerNativeTestModule">
+    <Copy
+      SourceFiles="$(WinStickerNativeTestDll);$(WinStickerNativeTestPdb)"
+      DestinationFolder="$(OutDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

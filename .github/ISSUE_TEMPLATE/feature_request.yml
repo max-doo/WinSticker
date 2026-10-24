@@ -20,7 +20,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: DeskBox version (if relevant)
+      label: WinSticker version (if relevant)
       description: Settings → About · 设置 → 关于
       placeholder: "e.g. 1.5.5"
     validations:

@@ -13,21 +13,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 $musicSessionMutationSmokeEnvironmentVariable =
-    "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE"
+    "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE"
 $musicSessionFixturePidEnvironmentVariable =
-    "DESKBOX_AOT_MUSIC_VOLUME_SESSION_FIXTURE_PID"
-$musicMutationSmokeEnvironmentVariable = "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE"
-$musicReadSmokeEnvironmentVariable = "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE"
-$shortcutSmokeEnvironmentVariable = "DESKBOX_AOT_SHORTCUT_SMOKE"
-$shellSmokeEnvironmentVariable = "DESKBOX_AOT_SHELL_SMOKE"
-$mutationSmokeEnvironmentVariable = "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE"
-$managedUiSmokeEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SMOKE"
-$musicBackendEnvironmentVariable = "DESKBOX_MUSIC_VOLUME_BACKEND"
+    "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_FIXTURE_PID"
+$musicMutationSmokeEnvironmentVariable = "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE"
+$musicReadSmokeEnvironmentVariable = "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE"
+$shortcutSmokeEnvironmentVariable = "WINSTICKER_AOT_SHORTCUT_SMOKE"
+$shellSmokeEnvironmentVariable = "WINSTICKER_AOT_SHELL_SMOKE"
+$mutationSmokeEnvironmentVariable = "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE"
+$managedUiSmokeEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SMOKE"
+$musicBackendEnvironmentVariable = "WINSTICKER_MUSIC_VOLUME_BACKEND"
 $sessionVolumeTolerance = 0.005
 $systemVolumeTolerance = 0.005
 $expectedMatchKind = 4
-$controlledFixtureProcessName = "deskbox-audio-session-fixture"
-$controlledSourceAppUserModelId = "DeskBox.Aot.Controlled.Session.Identity"
+$controlledFixtureProcessName = "winsticker-audio-session-fixture"
+$controlledSourceAppUserModelId = "WinSticker.Aot.Controlled.Session.Identity"
 $controlledSourceDisplayName = $controlledFixtureProcessName
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
@@ -35,10 +35,10 @@ $previewSessionPath = Join-Path $repoRoot ".artifacts\aot-preview\win-x64\sessio
 $evidenceRoot = Join-Path $repoRoot (
     ".artifacts\aot-music-volume-session-mutation-smoke\win-x64")
 $fixtureManifest = Join-Path $repoRoot (
-    "native\deskbox-audio-session-fixture\Cargo.toml")
+    "native\winsticker-audio-session-fixture\Cargo.toml")
 $fixtureTargetTriple = "x86_64-pc-windows-msvc"
 $fixtureExecutablePath = Join-Path $repoRoot (
-    "native\target\$fixtureTargetTriple\release\deskbox-audio-session-fixture.exe")
+    "native\target\$fixtureTargetTriple\release\winsticker-audio-session-fixture.exe")
 
 function Get-TextSha256 {
     param(
@@ -115,7 +115,7 @@ function Get-ExactPreviewProcesses {
     )
 
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and
                 (Test-PathEqual -Left $_.ExecutablePath -Right $ExecutablePath)
@@ -658,12 +658,12 @@ if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
 }
 $auditSummary = Get-Content -LiteralPath $SummaryPath -Raw | ConvertFrom-Json
 $script:expectedExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path $auditSummary.publishDirectory "DeskBox.exe"))
+    (Join-Path $auditSummary.publishDirectory "WinSticker.exe"))
 if ([string]::IsNullOrWhiteSpace($DataRoot)) {
     $worktreeName = (Split-Path $repoRoot -Leaf) -replace '[^A-Za-z0-9._-]', '-'
     $pathHash = (Get-TextSha256 -Value $repoRoot.ToUpperInvariant()).Substring(0, 8)
     $DataRoot = Join-Path $env:LOCALAPPDATA (
-        "DeskBox-AotPreview\{0}-{1}-stage5b3c-music-volume-session-mutation" -f @(
+        "WinSticker-AotPreview\{0}-{1}-stage5b3c-music-volume-session-mutation" -f @(
             $worktreeName,
             $pathHash))
 }
@@ -686,7 +686,7 @@ if (Test-Path -LiteralPath $recoveryIntentPath -PathType Leaf) {
 
 $existingFixtureProcesses = @(
     Get-CimInstance Win32_Process -Filter (
-        "Name='deskbox-audio-session-fixture.exe'") -ErrorAction SilentlyContinue)
+        "Name='winsticker-audio-session-fixture.exe'") -ErrorAction SilentlyContinue)
 if ($existingFixtureProcesses.Count -ne 0) {
     throw "A controlled audio fixture is already running; refusing to touch it. PIDs=$($existingFixtureProcesses.ProcessId -join ',')."
 }
@@ -695,7 +695,7 @@ $cargo = Get-Command cargo -ErrorAction Stop
 & $cargo.Source `
     build `
     --manifest-path $fixtureManifest `
-    --package deskbox-audio-session-fixture `
+    --package winsticker-audio-session-fixture `
     --target $fixtureTargetTriple `
     --release `
     --locked

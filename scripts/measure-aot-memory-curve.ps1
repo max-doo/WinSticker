@@ -9,9 +9,9 @@
     # -Attach 模式不启动新进程，采样已运行的实验实例
 #>
 param(
-    [string]$ExePath = "D:\project\wingezi\src\DeskBox\bin\x64\Release\net10.0-windows10.0.22621.0\win-x64\publish\DeskBox.exe",
-    [string]$DataRoot = "$env:LOCALAPPDATA\DeskBox-AotCurve",
-    [string]$CsvPath = "D:\project\wingezi\deskbox-aot-curve-samples.csv",
+    [string]$ExePath = "D:\project\wingezi\src\WinSticker\bin\x64\Release\net10.0-windows10.0.22621.0\win-x64\publish\WinSticker.exe",
+    [string]$DataRoot = "$env:LOCALAPPDATA\WinSticker-AotCurve",
+    [string]$CsvPath = "D:\project\wingezi\winsticker-aot-curve-samples.csv",
     [string]$Phase = "phase",
     [double]$Minutes = 10,
     [switch]$Attach,
@@ -45,13 +45,13 @@ if (-not $Attach) {
     New-Item -ItemType Directory -Force -Path $DataRoot | Out-Null
     # 隔离数据根：非默认根派生独立的单实例锁 scope，可与安装版共存，
     # settings/log/journal 全部落在实验根下。
-    $env:DESKBOX_AOT_PREVIEW_DATA_ROOT = $DataRoot
+    $env:WINSTICKER_AOT_PREVIEW_DATA_ROOT = $DataRoot
     $proc = Start-Process -FilePath $ExePath -PassThru -WorkingDirectory (Split-Path $ExePath)
     $processId = $proc.Id
     Write-Host "Launched experiment instance PID=$processId dataRoot=$DataRoot"
 } else {
     # 附加模式：按数据根对应的锁 scope 不好反查，直接按 exe 路径找唯一实例。
-    $candidates = Get-Process DeskBox -ErrorAction SilentlyContinue |
+    $candidates = Get-Process WinSticker -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -eq $ExePath }
     if ($candidates.Count -ne 1) {
         throw "Expected exactly 1 running instance of the experiment exe, found $($candidates.Count). Start it with the launch block first."

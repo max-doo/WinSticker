@@ -1,33 +1,35 @@
-# DeskBox
+# WinSticker
 
 **A free, open-source, local-first Windows desktop organizer with native-feeling WinUI 3 widgets.**
+
+> WinSticker is a renamed fork of [DeskBox](https://github.com/Tianyu199509/DeskBox) by 朱天雨, distributed under the original project's license.
 
 English | [简体中文](README.zh-CN.md)
 
 > External pull requests are not being merged at this time — bug reports, ideas, and discussions are very welcome via Issues / Discussions. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-[![CI](https://github.com/Tianyu199509/DeskBox/actions/workflows/ci.yml/badge.svg)](https://github.com/Tianyu199509/DeskBox/actions/workflows/ci.yml)
-[![Release 1.5.9](https://img.shields.io/badge/release-1.5.9-2563EB.svg)](https://github.com/Tianyu199509/DeskBox/releases/tag/v1.5.9)
+[![CI](https://github.com/max-doo/WinSticker/actions/workflows/ci.yml/badge.svg)](https://github.com/max-doo/WinSticker/actions/workflows/ci.yml)
+[![Release 1.5.9](https://img.shields.io/badge/release-1.5.9-2563EB.svg)](https://github.com/max-doo/WinSticker/releases/tag/v1.5.9)
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4.svg)](#system-requirements)
 [![x64 and ARM64](https://img.shields.io/badge/architecture-x64%20%7C%20ARM64-5C2D91.svg)](#download)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/Tianyu199509/DeskBox?style=flat&color=yellow)](https://github.com/Tianyu199509/DeskBox/stargazers)
-[![Downloads](https://img.shields.io/github/downloads/Tianyu199509/DeskBox/total?style=flat&color=brightgreen)](https://github.com/Tianyu199509/DeskBox/releases)
-<a href="https://hellogithub.com/repository/Tianyu199509/DeskBox" target="_blank"><img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=f0cae3cb81f3496b9b6ead91194dc6f8&claim_uid=x4er8iQsXYT3aMN&theme=small" alt="Featured｜HelloGitHub" /></a>
+[![GitHub stars](https://img.shields.io/github/stars/max-doo/WinSticker?style=flat&color=yellow)](https://github.com/max-doo/WinSticker/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/max-doo/WinSticker/total?style=flat&color=brightgreen)](https://github.com/max-doo/WinSticker/releases)
+<a href="https://hellogithub.com/repository/max-doo/WinSticker" target="_blank"><img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=f0cae3cb81f3496b9b6ead91194dc6f8&claim_uid=x4er8iQsXYT3aMN&theme=small" alt="Featured｜HelloGitHub" /></a>
 
-![DeskBox Windows desktop organizer with file, todo, search, weather, and music widgets](docs/images/brand/readme-hero-1-3-7-dark-en.png)
+![WinSticker Windows desktop organizer with file, todo, search, weather, and music widgets](docs/images/brand/readme-hero-1-3-7-dark-en.png)
 
-DeskBox organizes desktop files, maps existing folders, and keeps everyday tools close without replacing Explorer or changing how your files work. Its real-folder-backed widgets make it a modern open-source alternative to tools such as Stardock Fences, while Glance, todos, quick notes, search, weather, and music controls remain useful extras rather than the product's core promise.
+WinSticker organizes desktop files, maps existing folders, and keeps everyday tools close without replacing Explorer or changing how your files work. Its real-folder-backed widgets make it a modern open-source alternative to tools such as Stardock Fences, while Glance, todos, quick notes, search, weather, and music controls remain useful extras rather than the product's core promise.
 
 ## Mica and Acrylic on the desktop
 
-DeskBox uses native-feeling Windows materials and keeps ordinary desktop files and folders in place.
+WinSticker uses native-feeling Windows materials and keeps ordinary desktop files and folders in place.
 
 | Mica | Acrylic |
 | --- | --- |
-| ![DeskBox desktop widgets with Mica material in English](docs/images/screenshots/en-us/云母材质.png) | ![DeskBox desktop widgets with Acrylic material in English](docs/images/screenshots/en-us/亚克力材质.png) |
+| ![WinSticker desktop widgets with Mica material in English](docs/images/screenshots/en-us/云母材质.png) | ![WinSticker desktop widgets with Acrylic material in English](docs/images/screenshots/en-us/亚克力材质.png) |
 
-## DeskBox at a glance
+## WinSticker at a glance
 
 | | |
 | --- | --- |
@@ -41,16 +43,16 @@ All thirteen selectable languages share the same resource-key and formatting-pla
 
 ## Download
 
-DeskBox 1.5.9 is prepared for release. The [GitHub Releases](https://github.com/Tianyu199509/DeskBox/releases/tag/v1.5.9) download links below will become available after publication.
+WinSticker 1.5.9 is prepared for release. The [GitHub Releases](https://github.com/max-doo/WinSticker/releases/tag/v1.5.9) download links below will become available after publication.
 
-- [DeskBox 1.5.9 for x64](https://github.com/Tianyu199509/DeskBox/releases/download/v1.5.9/DeskBox_Setup_1.5.9_x64.exe), recommended for most Intel and AMD PCs.
-- [DeskBox 1.5.9 for ARM64](https://github.com/Tianyu199509/DeskBox/releases/download/v1.5.9/DeskBox_Setup_1.5.9_arm64.exe), recommended for Snapdragon, Surface Pro X, and other Windows on ARM PCs.
+- [WinSticker 1.5.9 for x64](https://github.com/max-doo/WinSticker/releases/download/v1.5.9/WinSticker_Setup_1.5.9_x64.exe), recommended for most Intel and AMD PCs.
+- [WinSticker 1.5.9 for ARM64](https://github.com/max-doo/WinSticker/releases/download/v1.5.9/WinSticker_Setup_1.5.9_arm64.exe), recommended for Snapdragon, Surface Pro X, and other Windows on ARM PCs.
 
 Both packages are Full Native AOT builds with the matching private Windows App Runtime 2.5.1, so they can install offline without downloading a separate .NET 10 or Windows App Runtime package.
 
 Every release publishes a matching `.sha256` sidecar for each installer. Code signing is integrated via SignPath: starting with the first release published after the production certificate is issued, installers are signed by the SignPath Foundation; until then, verify the hash before running an installer. See the [code signing policy](docs/code-signing.md) for details.
 
-> DeskBox itself installs for the current user by default.
+> WinSticker itself installs for the current user by default.
 
 ## Features
 
@@ -80,12 +82,12 @@ Every release publishes a matching `.sha256` sidecar for each installer. Code si
 - Work in responsive Todo and Quick Capture list/detail layouts that switch between single- and dual-pane modes, with an adjustable master pane on wide widgets.
 - Track tasks with due dates, reminders, recurrence, color markers, Markdown notes, multi-item attachments, filters, and batch actions.
 - Save reusable text, links, images, and files in Quick Capture with pinning, paper styles, Markdown editing and preview, removable attachments, and focused editing.
-- Keep attachment files linked to their original location or copy them into DeskBox-managed storage.
+- Keep attachment files linked to their original location or copy them into WinSticker-managed storage.
 
 ### Desktop search
 
 - Search files, folders, applications, settings, notes, and todos from one popup or search widget.
-- File results come from Everything's existing local index over IPC and merge with DeskBox content in the same window, without a duplicate file index on DeskBox's side.
+- File results come from Everything's existing local index over IPC and merge with WinSticker content in the same window, without a duplicate file index on WinSticker's side.
 - Everything is detected or launched from Settings, where you can choose its executable, see connection and permission status, opt into advanced syntax, and filter low-value system and cache paths. Everything itself is not bundled and must be installed separately.
 - Use configurable filters, sortable detail columns, result limits, history, favorites, and a global search hotkey.
 - Select multiple rows with Ctrl or Shift, drag a selection rectangle with edge auto-scroll, and apply batch actions to the result set.
@@ -96,7 +98,7 @@ Every release publishes a matching `.sha256` sidecar for each installer. Code si
 
 - Glance keeps the date, weekday, lunar calendar, solar terms, and festivals visible, with your own background image or rotation and an independent image transparency control.
 - View current conditions plus hourly and multi-day forecasts with MSN Weather and automatic Open-Meteo fallback.
-- Choose a theme-aware Standard weather skin or the richer condition-based skin, and pick one of four bundled weather icon styles — Fluent, DeskBox line-art, Meteocons Flat, and Meteocons Line — that render identically on Windows 10 and 11. Responsive Day and Week views adapt across widget sizes; startup shows a fresh cached forecast immediately and keeps refresh work off the interaction path.
+- Choose a theme-aware Standard weather skin or the richer condition-based skin, and pick one of four bundled weather icon styles — Fluent, WinSticker line-art, Meteocons Flat, and Meteocons Line — that render identically on Windows 10 and 11. Responsive Day and Week views adapt across widget sizes; startup shows a fresh cached forecast immediately and keeps refresh work off the interaction path.
 - Control the active Windows media session, playback mode, progress, and system volume from the music widget, or switch between available media sessions and follow the system-selected source.
 - Use responsive cover, controls, record, and compact layouts with optional album-color ambience.
 
@@ -125,7 +127,7 @@ Every release publishes a matching `.sha256` sidecar for each installer. Code si
 ### Updates, backup, and diagnostics
 
 - Check for updates in the app, read long release notes in a dedicated view, retry failed downloads, or continue from the official website.
-- Start a visible installer after DeskBox closes; upgrades reuse and lock the existing installation path instead of creating a second copy.
+- Start a visible installer after WinSticker closes; upgrades reuse and lock the existing installation path instead of creating a second copy.
 - Back up and restore settings locally, or back up todos, quick captures, and widget styles to your own WebDAV server on a schedule; passwords live in Windows Credential Manager, each data domain toggles independently, and remote snapshots can be browsed and restored in merge or snapshot-faithful mode.
 - Export a privacy-filtered diagnostics package for troubleshooting.
 - Recover settings from resilient snapshots, flush pending changes during shutdown, and report save failures instead of silently reverting to defaults.
@@ -142,9 +144,9 @@ Read the complete [changelog](CHANGELOG.md) or the [1.5.9 release notes](docs/re
 
 ## What's new in 1.5.8
 
-- **More accurate administrator notices.** The "running as administrator" notice now appears only when DeskBox runs above the shell, so fully elevated desktops (company-managed machines included) no longer see it. The notice closes the elevated instance in one click and provides the steps to restart with normal privileges, and one-click updates no longer restart the app as administrator.
-- **Graceful under an elevated Explorer.** When Explorer itself runs elevated, DeskBox stays reachable — the reveal hotkey and settings keep working, an explanatory notice replaces the silent English failure box, and diagnostics learn to detect a shortcut's "Run as administrator" flag.
-- **Maintenance wave.** Todo-widget drags no longer crash; switching groups no longer loses stacked-member icons; cutting a subfolder and pasting it back no longer hangs; auto-organization rules survive restarts; a crashing desktop no longer drags DeskBox into a logon restart loop.
+- **More accurate administrator notices.** The "running as administrator" notice now appears only when WinSticker runs above the shell, so fully elevated desktops (company-managed machines included) no longer see it. The notice closes the elevated instance in one click and provides the steps to restart with normal privileges, and one-click updates no longer restart the app as administrator.
+- **Graceful under an elevated Explorer.** When Explorer itself runs elevated, WinSticker stays reachable — the reveal hotkey and settings keep working, an explanatory notice replaces the silent English failure box, and diagnostics learn to detect a shortcut's "Run as administrator" flag.
+- **Maintenance wave.** Todo-widget drags no longer crash; switching groups no longer loses stacked-member icons; cutting a subfolder and pasting it back no longer hangs; auto-organization rules survive restarts; a crashing desktop no longer drags WinSticker into a logon restart loop.
 
 Read the complete [changelog](CHANGELOG.md) or the [1.5.8 release notes](docs/releases/v1.5.8.md).
 
@@ -177,25 +179,25 @@ Settings pages fold low-frequency options into expandable accordions, and the bu
 
 | General | Appearance |
 | --- | --- |
-| ![DeskBox General settings in English](docs/images/screenshots/en-us/常规.png) | ![DeskBox Appearance settings in English](docs/images/screenshots/en-us/外观.png) |
+| ![WinSticker General settings in English](docs/images/screenshots/en-us/常规.png) | ![WinSticker Appearance settings in English](docs/images/screenshots/en-us/外观.png) |
 
 | Capsule mode | File widgets |
 | --- | --- |
-| ![DeskBox Capsule mode settings in English](docs/images/screenshots/en-us/胶囊模式.png) | ![DeskBox File widget settings in English](docs/images/screenshots/en-us/文件格子.png) |
+| ![WinSticker Capsule mode settings in English](docs/images/screenshots/en-us/胶囊模式.png) | ![WinSticker File widget settings in English](docs/images/screenshots/en-us/文件格子.png) |
 
 | Feature widgets | Shortcuts & interaction |
 | --- | --- |
-| ![DeskBox Feature widget settings in English](docs/images/screenshots/en-us/功能格子.png) | ![DeskBox Shortcuts and interaction settings in English](docs/images/screenshots/en-us/快捷与交互.png) |
+| ![WinSticker Feature widget settings in English](docs/images/screenshots/en-us/功能格子.png) | ![WinSticker Shortcuts and interaction settings in English](docs/images/screenshots/en-us/快捷与交互.png) |
 
 ## Local-first data and privacy
 
-DeskBox does not require an account or cloud synchronization. Widget configuration, todos, quick notes, search history, layouts, and managed files are stored locally; the optional WebDAV backup, when you configure it, only ever contacts your own server.
+WinSticker does not require an account or cloud synchronization. Widget configuration, todos, quick notes, search history, layouts, and managed files are stored locally; the optional WebDAV backup, when you configure it, only ever contacts your own server.
 
 Some actions intentionally use the network:
 
 - Weather requests use MSN Weather or Open-Meteo.
-- Update checks contact the DeskBox update endpoint or GitHub Releases.
-- DeskBox 1.4.8 and later Full installers carry the matching Windows App Runtime; older Direct installers download a missing runtime when needed.
+- Update checks contact the WinSticker update endpoint or GitHub Releases.
+- WinSticker 1.4.8 and later Full installers carry the matching Windows App Runtime; older Direct installers download a missing runtime when needed.
 - A remote URL dragged from a browser is downloaded only when you import it.
 
 Capsule privacy mode hides selected text in the collapsed presentation; it is a presentation control, not file encryption.
@@ -204,32 +206,32 @@ Capsule privacy mode hides selected text in the collapsed presentation; it is a 
 
 - Windows 10 version 2004 (build 19041) or later; Windows 11 version 22H2 or later for the full visual treatment. Older Windows 10 releases past end of servicing (2004/20H2/21H1) still install and run, but upgrading to 22H2 or later is recommended.
 - x64 or ARM64 processor matching the installer.
-- Windows App Runtime 2.5.1. DeskBox 1.4.8 and later Full installers include a private matching runtime, and Native AOT requires no separate .NET 10 runtime.
+- Windows App Runtime 2.5.1. WinSticker 1.4.8 and later Full installers include a private matching runtime, and Native AOT requires no separate .NET 10 runtime.
 
 On Windows 10, unsupported materials, rounded corners, and some animations automatically fall back to compatible visuals; file sync, drag-and-drop, and core widget behavior are validated against the compatibility floor.
 
 ## Installation, updates, and removal
 
-DeskBox uses an Inno Setup installer and installs for the current user by default. Overwrite installation preserves app settings, widget configuration, and managed storage. Older administrator-level installations under Program Files are migrated to avoid elevated-process drag-and-drop restrictions. If DeskBox itself is launched as administrator, it explains that drag and drop with Explorer is blocked and offers a one-click restart at normal privileges; autostart instances restart themselves automatically.
+WinSticker uses an Inno Setup installer and installs for the current user by default. Overwrite installation preserves app settings, widget configuration, and managed storage. Older administrator-level installations under Program Files are migrated to avoid elevated-process drag-and-drop restrictions. If WinSticker itself is launched as administrator, it explains that drag and drop with Explorer is blocked and offers a one-click restart at normal privileges; autostart instances restart themselves automatically.
 
-Startup launch is tray-first and can start silently, keeping widgets hidden until the first tray click, hotkey, or app activation. If DeskBox is already running, a second startup instance exits instead of opening another settings window.
+Startup launch is tray-first and can start silently, keeping widgets hidden until the first tray click, hotkey, or app activation. If WinSticker is already running, a second startup instance exits instead of opening another settings window.
 
-Auto-start uses a per-user Run entry, so DeskBox appears in **Settings → Apps → Startup**. Legacy scheduled-task registrations migrate automatically when it is safe to do so, and disabling DeskBox from Windows is reflected by the in-app switch.
+Auto-start uses a per-user Run entry, so WinSticker appears in **Settings → Apps → Startup**. Legacy scheduled-task registrations migrate automatically when it is safe to do so, and disabling WinSticker from Windows is reflected by the in-app switch.
 
-Uninstall offers explicit choices to keep application data or permanently remove it. The direct-edition uninstaller detects a possibly-installed Microsoft Store edition and conservatively keeps app data in that case. Permanent removal clears `%LocalAppData%\DeskBox`, `%LocalAppData%\DeskBox-Recovery`, temporary files, and DeskBox-owned registration data; user files in the managed storage path are always preserved. Silent uninstall keeps application data unless an administrator explicitly supplies `/PURGEUSERDATA`.
+Uninstall offers explicit choices to keep application data or permanently remove it. The direct-edition uninstaller detects a possibly-installed Microsoft Store edition and conservatively keeps app data in that case. Permanent removal clears `%LocalAppData%\WinSticker`, `%LocalAppData%\WinSticker-Recovery`, temporary files, and WinSticker-owned registration data; user files in the managed storage path are always preserved. Silent uninstall keeps application data unless an administrator explicitly supplies `/PURGEUSERDATA`.
 
 ## FAQ
 
-### Is DeskBox a Windows desktop replacement?
+### Is WinSticker a Windows desktop replacement?
 
-No. Explorer remains the desktop shell, and files remain normal files and folders. DeskBox adds independently managed widgets above the existing desktop.
+No. Explorer remains the desktop shell, and files remain normal files and folders. WinSticker adds independently managed widgets above the existing desktop.
 
-### Where does DeskBox store data?
+### Where does WinSticker store data?
 
-- App settings and widget data: `%LocalAppData%\DeskBox\data`
-- New-user managed storage: a fixed non-system drive with enough free space when available, such as `D:\DeskBox\username`; otherwise `%UserProfile%\DeskBox`
+- App settings and widget data: `%LocalAppData%\WinSticker\data`
+- New-user managed storage: a fixed non-system drive with enough free space when available, such as `D:\WinSticker\username`; otherwise `%UserProfile%\WinSticker`
 
-Both locations can be backed up from DeskBox settings.
+Both locations can be backed up from WinSticker settings.
 
 ### Which installer should I choose?
 
@@ -245,14 +247,14 @@ No. Disabling a feature closes its UI and releases runtime resources, while its 
 
 ## Build from source
 
-Development requires the .NET 10 SDK and a Windows 11 environment. Visual Studio with the Windows App SDK workload is recommended. The Rust toolchain pinned by `rust-toolchain.toml` is required when publishing with `-p:DeskBoxRustNative=true`, which is what shipping builds use for the shortcut, system volume, Quick Access, Recycle Bin, and Explorer Shell native paths.
+Development requires the .NET 10 SDK and a Windows 11 environment. Visual Studio with the Windows App SDK workload is recommended. The Rust toolchain pinned by `rust-toolchain.toml` is required when publishing with `-p:WinStickerRustNative=true`, which is what shipping builds use for the shortcut, system volume, Quick Access, Recycle Bin, and Explorer Shell native paths.
 
 Restore, test, and build the x64 Debug version:
 
 ```powershell
-dotnet restore .\DeskBox.sln -p:Platform=x64
-dotnet test .\DeskBox.Tests\DeskBox.Tests.csproj --configuration Debug --no-restore -p:Platform=x64 -v:minimal
-dotnet build .\src\DeskBox\DeskBox.csproj --configuration Debug --no-restore -p:Platform=x64 -v:minimal
+dotnet restore .\WinSticker.sln -p:Platform=x64
+dotnet test .\WinSticker.Tests\WinSticker.Tests.csproj --configuration Debug --no-restore -p:Platform=x64 -v:minimal
+dotnet build .\src\WinSticker\WinSticker.csproj --configuration Debug --no-restore -p:Platform=x64 -v:minimal
 ```
 
 `scripts\publish-aot-retail.ps1` is the authoritative path for retail packages. It produces a Full Native AOT payload with private Windows App Runtime components, builds the matching Rust DLL, generates the install manifest used for safe upgrades, and audits the produced binaries:
@@ -262,29 +264,29 @@ dotnet build .\src\DeskBox\DeskBox.csproj --configuration Debug --no-restore -p:
 .\scripts\publish-aot-retail.ps1 -Platform ARM64
 ```
 
-The publish output is self-contained for both .NET Native AOT and Windows App SDK deployment. Do not replace this script with a bare `dotnet publish`: the installer requires the generated `DeskBox.InstallManifest.txt` to remove files owned by older payloads without touching user-created files.
+The publish output is self-contained for both .NET Native AOT and Windows App SDK deployment. Do not replace this script with a bare `dotnet publish`: the installer requires the generated `WinSticker.InstallManifest.txt` to remove files owned by older payloads without touching user-created files.
 
 With Inno Setup 6 or newer installed, compile the standard-named offline installers:
 
 ```powershell
-ISCC.exe /DDeskBoxNativeAot=1 /DDeskBoxBundledRuntime=1 /DMyAppReleaseDir=..\.artifacts\aot-retail\win-x64\publish .\installer\DeskBox.iss
-ISCC.exe /DDeskBoxNativeAot=1 /DDeskBoxBundledRuntime=1 /DMyAppReleaseDir=..\.artifacts\aot-retail\win-arm64\publish .\installer\DeskBox.arm64.iss
+ISCC.exe /DWinStickerNativeAot=1 /DWinStickerBundledRuntime=1 /DMyAppReleaseDir=..\.artifacts\aot-retail\win-x64\publish .\installer\WinSticker.iss
+ISCC.exe /DWinStickerNativeAot=1 /DWinStickerBundledRuntime=1 /DMyAppReleaseDir=..\.artifacts\aot-retail\win-arm64\publish .\installer\WinSticker.arm64.iss
 ```
 
 Expected outputs:
 
 ```text
-Output\DeskBox_Setup_1.5.9_x64.exe
-Output\DeskBox_Setup_1.5.9_arm64.exe
+Output\WinSticker_Setup_1.5.9_x64.exe
+Output\WinSticker_Setup_1.5.9_arm64.exe
 ```
 
 ## Project layout
 
 ```text
-src\DeskBox                 WinUI 3 application (widget shell, services, views)
-src\DeskBox.Updater         direct-release updater helper
+src\WinSticker                 WinUI 3 application (widget shell, services, views)
+src\WinSticker.Updater         direct-release updater helper
 native                      Rust native layer, Shell ABI, and thumbnail proxy
-tests\DeskBox.Tests         service, policy, and AOT contract tests
+tests\WinSticker.Tests         service, policy, and AOT contract tests
 scripts                     build, publish, audit, and memory measurement scripts
 installer                   x64/ARM64 Inno Setup scripts
 docs\architecture           current architecture, native ABI contracts, AOT stages
@@ -296,23 +298,23 @@ docs\releases               release copy and test checklists
 
 ## Feedback and localization
 
-DeskBox is currently developed and maintained by a solo developer. External pull requests are not being accepted at this stage so the project can keep a consistent architecture and clear copyright boundaries, but bug reports, feature requests, translations, and UI/UX feedback are welcome through [GitHub Issues](https://github.com/Tianyu199509/DeskBox/issues).
+WinSticker is currently developed and maintained by a solo developer. External pull requests are not being accepted at this stage so the project can keep a consistent architecture and clear copyright boundaries, but bug reports, feature requests, translations, and UI/UX feedback are welcome through [GitHub Issues](https://github.com/max-doo/WinSticker/issues).
 
 Special thanks to [@magisph](https://github.com/magisph) for the Brazilian Portuguese localization.
 
-You can also visit [deskbox.fun](https://deskbox.fun) or use the contact information in the app's About page.
+You can also visit [winsticker.fun](https://winsticker.fun) or use the contact information in the app's About page.
 
 ## Author and license
 
 - Developer: Tianyu Zhu
-- Repository: <https://github.com/Tianyu199509/DeskBox>
+- Repository: <https://github.com/max-doo/WinSticker>
 - License: [GPL-3.0-only](LICENSE)
 
-Earlier DeskBox versions already published under the MIT License remain available under that license. The change is not retroactive.
+Earlier WinSticker versions already published under the MIT License remain available under that license. The change is not retroactive.
 
 
 ## Star history
 
-If DeskBox helps you, a star ⭐ is a big encouragement for this solo project.
+If WinSticker helps you, a star ⭐ is a big encouragement for this solo project.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Tianyu199509/DeskBox&type=Date)](https://star-history.com/#Tianyu199509/DeskBox&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=max-doo/WinSticker&type=Date)](https://star-history.com/#max-doo/WinSticker&Date)

@@ -1,4 +1,4 @@
-﻿; DeskBox 简体中文安装器语言文件
+﻿; WinSticker 简体中文安装器语言文件
 
 [LangOptions]
 LanguageName=简体中文

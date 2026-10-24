@@ -13,19 +13,19 @@
 - `[WidgetGroup] Switched ... source=cached|fresh prepareMs= firstFrameMs= settleMs= totalMs= sinceLastActiveMs=`
   — 每次组内切换一行；`-` 表示该阶段未发生（隐藏组不等首帧；成员首次激活无回切间隔）。
 - `[Perf] MemorySample ... cachedGroupContents= materializedContentByKind=File=2;Todo=1 cachedContentByKind=Todo=1 ...`
-  — 需要 `DESKBOX_PERF_LOG=1`，30s 一行。`materialized` = 活动树 + 非活动缓存树；`cached` = 其中非活动的。
+  — 需要 `WINSTICKER_PERF_LOG=1`，30s 一行。`materialized` = 活动树 + 非活动缓存树；`cached` = 其中非活动的。
 - `[Memory] Deep finalizer cleanup completed ... privateBeforeMB= privateAfterMB= reclaimPrivateBeforeMB= reclaimPrivateAfterMB=`
   — 强制 GC 分支（MemoryReclaimer 两次 max-gen + finalizer），只在**全部格子隐藏**满 `HiddenCacheCleanupDelaySeconds`（默认 30s）后触发。
 
 ## 隔离
 
-与 AOT 曲线协议相同：`DESKBOX_AOT_PREVIEW_DATA_ROOT` 指向独立数据根，复用 `measure-aot-memory-curve.ps1` 采样器（`-CsvPath` 换成本实验的 CSV）。**加 `DESKBOX_PERF_LOG=1`**。
+与 AOT 曲线协议相同：`WINSTICKER_AOT_PREVIEW_DATA_ROOT` 指向独立数据根，复用 `measure-aot-memory-curve.ps1` 采样器（`-CsvPath` 换成本实验的 CSV）。**加 `WINSTICKER_PERF_LOG=1`**。
 
 ```powershell
-$env:DESKBOX_PERF_LOG = '1'
+$env:WINSTICKER_PERF_LOG = '1'
 ./scripts/measure-aot-memory-curve.ps1 -Phase <phase> -Minutes <n> [-Attach] `
-    -CsvPath D:\project\wingezi\deskbox-residency-p0-samples.csv `
-    -DataRoot "$env:LOCALAPPDATA\DeskBox-ResidencyP0"
+    -CsvPath D:\project\wingezi\winsticker-residency-p0-samples.csv `
+    -DataRoot "$env:LOCALAPPDATA\WinSticker-ResidencyP0"
 ```
 
 Debug 构建也可以跑（口径一致即可，但 Release/AOT 更接近用户数字；两者别混在一个 CSV 里）。
@@ -56,15 +56,15 @@ Debug 构建也可以跑（口径一致即可，但 Release/AOT 更接近用户�
 
 ### C. 切换延迟与回切间隔（被动收集）
 
-日常使用一天，不做操作。汇总脚本从 `DeskBox.log` 抽 `Switched` 行：
+日常使用一天，不做操作。汇总脚本从 `WinSticker.log` 抽 `Switched` 行：
 - `totalMs` 按 `source` 分组的 P50/P95 → Go/No-Go 基线（cached 是 Warm 命中的体验下限，fresh 是今天 Cold 的近似）；
 - `sinceLastActiveMs` 分布 → TTL 定参：取 P80 作为"不该过期"的下界。
 
 ## 判读
 
 ```powershell
-./scripts/summarize-residency-p0.ps1 -LogPath "$env:LOCALAPPDATA\DeskBox-ResidencyP0\DeskBox.log" `
-    -CsvPath D:\project\wingezi\deskbox-residency-p0-samples.csv
+./scripts/summarize-residency-p0.ps1 -LogPath "$env:LOCALAPPDATA\WinSticker-ResidencyP0\WinSticker.log" `
+    -CsvPath D:\project\wingezi\winsticker-residency-p0-samples.csv
 ```
 
 输出：① 每阶段 privateMB 起/峰/末 + 强制 GC 后的值；② `materializedContentByKind` 变化点与对应的 privateMB 阶跃；③ Switched 延迟四点 P50/P95 by source；④ sinceLastActive 分布 P50/P80/P95。

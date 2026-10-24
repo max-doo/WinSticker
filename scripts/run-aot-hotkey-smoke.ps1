@@ -12,9 +12,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $scenario = "RegistrationLifecycle"
-$smokeEnvironmentVariable = "DESKBOX_AOT_HOTKEY_SMOKE"
-$phaseEnvironmentVariable = "DESKBOX_AOT_HOTKEY_PHASE"
-$runIdEnvironmentVariable = "DESKBOX_AOT_HOTKEY_RUN_ID"
+$smokeEnvironmentVariable = "WINSTICKER_AOT_HOTKEY_SMOKE"
+$phaseEnvironmentVariable = "WINSTICKER_AOT_HOTKEY_PHASE"
+$runIdEnvironmentVariable = "WINSTICKER_AOT_HOTKEY_RUN_ID"
 $runId = [Guid]::NewGuid().ToString("N")
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
@@ -29,9 +29,9 @@ else {
 }
 $evidenceRoot = Join-Path $repoRoot ".artifacts\aot-hotkey-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-hotkey-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.HotkeySmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-hotkey-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.HotkeySmoke.v1"
 
 function Test-PathEqual {
     param([string]$Left, [string]$Right)
@@ -99,7 +99,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace(
                     [string]$_.ExecutablePath) -and
@@ -207,13 +207,13 @@ function Invoke-HotkeyPhase {
         $smokeEnvironmentVariable,
         $phaseEnvironmentVariable,
         $runIdEnvironmentVariable,
-        "DESKBOX_AOT_MANAGED_UI_SMOKE",
-        "DESKBOX_AOT_SHORTCUT_SMOKE",
-        "DESKBOX_AOT_SHELL_SMOKE",
-        "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE")
+        "WINSTICKER_AOT_MANAGED_UI_SMOKE",
+        "WINSTICKER_AOT_SHORTCUT_SMOKE",
+        "WINSTICKER_AOT_SHELL_SMOKE",
+        "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE")
     $previous = @{}
     foreach ($variable in $variables) {
         $previous[$variable] = [Environment]::GetEnvironmentVariable(
@@ -312,7 +312,7 @@ function Invoke-HotkeyPhase {
         throw "Hotkey phase '$Phase' did not complete the registration lifecycle matrix."
     }
 
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     $failureLines = @(
         Get-Content -LiteralPath $runtimeLogPath |
             Where-Object {
@@ -445,7 +445,7 @@ $settings | ConvertTo-Json -Depth 16 |
 
 $productionBefore = Get-DirectoryStateFingerprint -Path $productionDataRoot
 $previewExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path ([string]$auditSummary.publishDirectory) "DeskBox.exe"))
+    (Join-Path ([string]$auditSummary.publishDirectory) "WinSticker.exe"))
 $runSucceeded = $false
 $previewRootCleaned = $false
 $primary = $null
@@ -496,7 +496,7 @@ try {
         [int]$productionAfter.fileCount -ne
             [int]$productionBefore.fileCount -or
         [long]$productionAfter.bytes -ne [long]$productionBefore.bytes) {
-        throw "Production DeskBox data changed during the isolated hotkey smoke."
+        throw "Production WinSticker data changed during the isolated hotkey smoke."
     }
 
     New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
@@ -511,8 +511,8 @@ try {
         -LiteralPath $settingsPath `
         -Destination (Join-Path $archiveRoot "settings.json")
     Copy-Item `
-        -LiteralPath (Join-Path $DataRoot "DeskBox.log") `
-        -Destination (Join-Path $archiveRoot "DeskBox.log")
+        -LiteralPath (Join-Path $DataRoot "WinSticker.log") `
+        -Destination (Join-Path $archiveRoot "WinSticker.log")
 
     Assert-OwnedRootAndRemove -Root $DataRoot
     $previewRootCleaned = -not (Test-Path -LiteralPath $DataRoot)

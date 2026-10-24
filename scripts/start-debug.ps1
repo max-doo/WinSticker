@@ -24,7 +24,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $repoRootPath = $repoRoot.Path
-$project = Join-Path $repoRoot "src\DeskBox\DeskBox.csproj"
+$project = Join-Path $repoRoot "src\WinSticker\WinSticker.csproj"
 $dotnetFromRepo = Join-Path $repoRoot ".codex-temp\dotnet10\dotnet.exe"
 $dotnet = if (Test-Path -LiteralPath $dotnetFromRepo) { $dotnetFromRepo } else { "dotnet" }
 
@@ -59,11 +59,11 @@ if ($Configuration -eq "Debug" -and
         $sha.Dispose()
     }
 
-    $DataRoot = Join-Path $env:LOCALAPPDATA "DeskBox-Dev\$safeWorktreeName-$pathHash"
+    $DataRoot = Join-Path $env:LOCALAPPDATA "WinSticker-Dev\$safeWorktreeName-$pathHash"
 }
 
 if (-not $NoStop.IsPresent) {
-    Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+    Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
         Where-Object {
             $_.ExecutablePath -and
             $_.ExecutablePath.StartsWith($repoRootPath, [System.StringComparison]::OrdinalIgnoreCase)
@@ -77,7 +77,7 @@ if ($Build.IsPresent) {
         -c $Configuration `
         -p:Platform=$Platform `
         -p:RuntimeIdentifier=$RuntimeIdentifier `
-        -p:DeskBoxDistribution=$Distribution `
+        -p:WinStickerDistribution=$Distribution `
         -v:minimal
 
     if ($LASTEXITCODE -ne 0) {
@@ -85,21 +85,21 @@ if ($Build.IsPresent) {
     }
 }
 
-$outputDir = Join-Path $repoRoot "src\DeskBox\bin\$Platform\$Configuration\$targetFramework\$RuntimeIdentifier"
-$exe = Join-Path $outputDir "DeskBox.exe"
+$outputDir = Join-Path $repoRoot "src\WinSticker\bin\$Platform\$Configuration\$targetFramework\$RuntimeIdentifier"
+$exe = Join-Path $outputDir "WinSticker.exe"
 
 if (-not (Test-Path -LiteralPath $exe)) {
-    throw "DeskBox.exe was not found at $exe. Run this script with -Build first."
+    throw "WinSticker.exe was not found at $exe. Run this script with -Build first."
 }
 
-$previousDataRoot = [Environment]::GetEnvironmentVariable("DESKBOX_DEV_DATA_ROOT", "Process")
+$previousDataRoot = [Environment]::GetEnvironmentVariable("WINSTICKER_DEV_DATA_ROOT", "Process")
 try {
     if ([string]::IsNullOrWhiteSpace($DataRoot)) {
-        [Environment]::SetEnvironmentVariable("DESKBOX_DEV_DATA_ROOT", $null, "Process")
+        [Environment]::SetEnvironmentVariable("WINSTICKER_DEV_DATA_ROOT", $null, "Process")
     }
     else {
         $DataRoot = [System.IO.Path]::GetFullPath($DataRoot)
-        [Environment]::SetEnvironmentVariable("DESKBOX_DEV_DATA_ROOT", $DataRoot, "Process")
+        [Environment]::SetEnvironmentVariable("WINSTICKER_DEV_DATA_ROOT", $DataRoot, "Process")
     }
 
     $process = Start-Process `
@@ -109,7 +109,7 @@ try {
         -PassThru
 }
 finally {
-    [Environment]::SetEnvironmentVariable("DESKBOX_DEV_DATA_ROOT", $previousDataRoot, "Process")
+    [Environment]::SetEnvironmentVariable("WINSTICKER_DEV_DATA_ROOT", $previousDataRoot, "Process")
 }
 
 Start-Sleep -Seconds 3

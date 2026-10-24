@@ -2,11 +2,11 @@
 .SYNOPSIS
     汇总 measure-aot-memory-curve.ps1 采得的 CSV：按阶段输出基线/峰值/末值，
     计算批间私有峰值趋势，输出 plateau vs 持续爬升的判别结论；
-    可选对照实验根 DeskBox.log 的 [Memory] 托管堆数字。
+    可选对照实验根 WinSticker.log 的 [Memory] 托管堆数字。
 #>
 param(
-    [string]$CsvPath = "D:\project\wingezi\deskbox-aot-curve-samples.csv",
-    [string]$DataRoot = "$env:LOCALAPPDATA\DeskBox-AotCurve",
+    [string]$CsvPath = "D:\project\wingezi\winsticker-aot-curve-samples.csv",
+    [string]$DataRoot = "$env:LOCALAPPDATA\WinSticker-AotCurve",
     # plateau 判别：最后一批的峰值相对第一批峰值允许的涨幅
     [double]$PlateauTolerancePercent = 15,
     # Runs the fixed-data verdict regression cases and exits; no CSV needed.
@@ -159,7 +159,7 @@ if ($peaks.Count -ge 2) {
     Write-Host "(少于 2 个 batch 阶段，跳过趋势判别)"
 }
 
-$logPath = Join-Path $DataRoot 'DeskBox.log'
+$logPath = Join-Path $DataRoot 'WinSticker.log'
 if (Test-Path $logPath) {
     Write-Host "`n== [Memory] managed heap lines (tail 12, from experiment log) =="
     Select-String -Path $logPath -Pattern '\[Memory\].*(managedHeap|cleanup outcome)' |

@@ -1,4 +1,4 @@
-function Get-DeskBoxMsvcEnvironment {
+function Get-WinStickerMsvcEnvironment {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -33,7 +33,7 @@ function Get-DeskBoxMsvcEnvironment {
             "x64"
         }
         else {
-            throw "DeskBox Rust builds require a native ARM64 or x64 PowerShell host; found '$processArchitecture'."
+            throw "WinSticker Rust builds require a native ARM64 or x64 PowerShell host; found '$processArchitecture'."
         }
     )
 
@@ -222,7 +222,7 @@ function Get-DeskBoxMsvcEnvironment {
     }
 }
 
-function Enter-DeskBoxMsvcEnvironment {
+function Enter-WinStickerMsvcEnvironment {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -275,7 +275,7 @@ function Enter-DeskBoxMsvcEnvironment {
     }
 }
 
-function Exit-DeskBoxMsvcEnvironment {
+function Exit-WinStickerMsvcEnvironment {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -298,29 +298,29 @@ function Exit-DeskBoxMsvcEnvironment {
 
 # Compatibility wrappers keep the existing ARM64 build scripts narrow while the
 # shared implementation also supplies the explicit x64 NativeAOT environment.
-function Get-DeskBoxArm64MsvcEnvironment {
+function Get-WinStickerArm64MsvcEnvironment {
     [CmdletBinding()]
     param()
 
-    Get-DeskBoxMsvcEnvironment -Platform ARM64
+    Get-WinStickerMsvcEnvironment -Platform ARM64
 }
 
-function Enter-DeskBoxArm64MsvcEnvironment {
+function Enter-WinStickerArm64MsvcEnvironment {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [psobject]$Toolchain
     )
 
-    Enter-DeskBoxMsvcEnvironment -Toolchain $Toolchain
+    Enter-WinStickerMsvcEnvironment -Toolchain $Toolchain
 }
 
-function Exit-DeskBoxArm64MsvcEnvironment {
+function Exit-WinStickerArm64MsvcEnvironment {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [psobject]$State
     )
 
-    Exit-DeskBoxMsvcEnvironment -State $State
+    Exit-WinStickerMsvcEnvironment -State $State
 }

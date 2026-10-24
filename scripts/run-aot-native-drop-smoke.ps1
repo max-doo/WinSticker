@@ -12,9 +12,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $scenario = "NativeDropPersistenceRestart"
-$smokeEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SMOKE"
-$phaseEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_NATIVE_DROP_PHASE"
-$runIdEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_NATIVE_DROP_RUN_ID"
+$smokeEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SMOKE"
+$phaseEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_NATIVE_DROP_PHASE"
+$runIdEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_NATIVE_DROP_RUN_ID"
 $runId = [Guid]::NewGuid().ToString("N")
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
@@ -31,9 +31,9 @@ $evidenceRoot = Join-Path `
     $repoRoot `
     ".artifacts\aot-managed-ui-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-managed-ui-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.NativeDropSmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-managed-ui-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.NativeDropSmoke.v1"
 $largeFileLength = 384MB
 
 function Test-PathEqual {
@@ -102,7 +102,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace(
                     [string]$_.ExecutablePath) -and
@@ -230,32 +230,32 @@ function Invoke-NativeDropPhase {
     }
 
     $variables = @(
-        "DESKBOX_AOT_MANAGED_UI_SMOKE",
-        "DESKBOX_AOT_MANAGED_UI_PERSISTENCE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_QUICK_CAPTURE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_TODO_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_TODO_STEPS_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_GLANCE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_GLANCE_FIXTURE",
-        "DESKBOX_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_WEATHER_SURFACE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_LOCAL_FILE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_RECYCLE_BIN_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_RECYCLE_BIN_RUN_ID",
-        "DESKBOX_AOT_MANAGED_UI_SHELL_MOVE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_SHELL_MOVE_RUN_ID",
-        "DESKBOX_AOT_MANAGED_UI_FILE_PROPERTIES_RUN_ID",
-        "DESKBOX_AOT_MANAGED_UI_PICKER_CLIPBOARD_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_PICKER_CLIPBOARD_RUN_ID",
+        "WINSTICKER_AOT_MANAGED_UI_SMOKE",
+        "WINSTICKER_AOT_MANAGED_UI_PERSISTENCE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_QUICK_CAPTURE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_TODO_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_TODO_STEPS_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE",
+        "WINSTICKER_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_WEATHER_SURFACE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_LOCAL_FILE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_RECYCLE_BIN_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_RECYCLE_BIN_RUN_ID",
+        "WINSTICKER_AOT_MANAGED_UI_SHELL_MOVE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_SHELL_MOVE_RUN_ID",
+        "WINSTICKER_AOT_MANAGED_UI_FILE_PROPERTIES_RUN_ID",
+        "WINSTICKER_AOT_MANAGED_UI_PICKER_CLIPBOARD_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_PICKER_CLIPBOARD_RUN_ID",
         $phaseEnvironmentVariable,
         $runIdEnvironmentVariable,
-        "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE",
-        "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE",
-        "DESKBOX_AOT_SHELL_SMOKE",
-        "DESKBOX_AOT_SHORTCUT_SMOKE")
+        "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE",
+        "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE",
+        "WINSTICKER_AOT_SHELL_SMOKE",
+        "WINSTICKER_AOT_SHORTCUT_SMOKE")
     $previous = @{}
     foreach ($variable in $variables) {
         $previous[$variable] = [Environment]::GetEnvironmentVariable(
@@ -328,7 +328,7 @@ function Invoke-NativeDropPhase {
         throw "Native-drop phase '$Phase' returned inconsistent structured evidence."
     }
 
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     $failureLines = @(
         Get-Content -LiteralPath $runtimeLogPath |
             Where-Object {
@@ -551,7 +551,7 @@ $initialHashes = [ordered]@{
 }
 $productionBefore = Get-DirectoryStateFingerprint -Path $productionDataRoot
 $previewExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path ([string]$auditSummary.publishDirectory) "DeskBox.exe"))
+    (Join-Path ([string]$auditSummary.publishDirectory) "WinSticker.exe"))
 $runSucceeded = $false
 $previewRootCleaned = $false
 $recoveryRootCleaned = $false
@@ -644,7 +644,7 @@ try {
             -Destination (Join-Path $phaseArchive "result.json")
         Copy-Item `
             -LiteralPath ([string]$phase.runtimeLogPath) `
-            -Destination (Join-Path $phaseArchive "DeskBox.log")
+            -Destination (Join-Path $phaseArchive "WinSticker.log")
     }
     Copy-Item `
         -LiteralPath $settingsPath `

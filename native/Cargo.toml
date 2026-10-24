@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "deskbox-native",
-    "deskbox-audio-session-fixture",
-    "deskbox-thumbnail-proxy",
+    "winsticker-native",
+    "winsticker-audio-session-fixture",
+    "winsticker-thumbnail-proxy",
 ]
 resolver = "3"
 

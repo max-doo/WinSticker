@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions & ideas (Discussions)
-    url: https://github.com/Tianyu199509/DeskBox/discussions
+    url: https://github.com/max-doo/WinSticker/discussions
     about: Ask how something works or propose a feature before filing an issue.
   - name: Wiki
-    url: https://github.com/Tianyu199509/DeskBox/wiki
+    url: https://github.com/max-doo/WinSticker/wiki
     about: Guides, FAQ, keyboard shortcuts, and troubleshooting.
   - name: Website
-    url: https://deskbox.fun
+    url: https://winsticker.fun
     about: Product pages and download channels.

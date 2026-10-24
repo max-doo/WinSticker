@@ -1,4 +1,4 @@
-# Scenario memory measurement harness for DeskBox.
+# Scenario memory measurement harness for WinSticker.
 #
 # Drives a repeated UI scenario while sampling process memory, then records a
 # baseline summary. See docs/memory-optimization-plan.md (Phase 0 / P0.5).
@@ -72,8 +72,8 @@ function Invoke-Wheel([int]$x, [int]$y, [int]$delta) {
     [NativeInput]::mouse_event(0x800, 0, 0, [uint32]$delta, [UIntPtr]::Zero)
 }
 
-function Get-DeskBox {
-    $candidates = Get-Process -Name DeskBox -ErrorAction SilentlyContinue
+function Get-WinSticker {
+    $candidates = Get-Process -Name WinSticker -ErrorAction SilentlyContinue
     if (-not $candidates) { return $null }
     $mine = $candidates | Where-Object { $_.Path -like "*\project\wingezi*" } | Select-Object -First 1
     if ($mine) { return $mine }
@@ -91,10 +91,10 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $csvPath = Join-Path $outDir 'samples.csv'
 "timestamp,phase,ws_mb,private_mb,handles,threads" | Out-File $csvPath -Encoding utf8
 
-$proc = Get-DeskBox
-if (-not $proc) { throw "DeskBox is not running. Start it from the canonical Debug output first." }
+$proc = Get-WinSticker
+if (-not $proc) { throw "WinSticker is not running. Start it from the canonical Debug output first." }
 $procId = $proc.Id
-Write-Host "Target: DeskBox PID $procId ($($proc.Path))"
+Write-Host "Target: WinSticker PID $procId ($($proc.Path))"
 
 $dotnetCounters = $null
 if ($WithDotnetCounters) {
@@ -159,7 +159,7 @@ function Invoke-DriverOnce([int]$cycle) {
 Write-Host "Phase: warmup ${WarmupSeconds}s (settle after startup)..."
 $warmupEnd = (Get-Date).AddSeconds($WarmupSeconds)
 while ((Get-Date) -lt $warmupEnd) {
-    if (-not (Sample 'warmup')) { throw "DeskBox exited during warmup." }
+    if (-not (Sample 'warmup')) { throw "WinSticker exited during warmup." }
     Start-Sleep -Seconds $SampleIntervalSeconds
 }
 

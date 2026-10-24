@@ -3,21 +3,21 @@
 version = 4
 
 [[package]]
-name = "deskbox-audio-session-fixture"
+name = "winsticker-audio-session-fixture"
 version = "0.1.0"
 dependencies = [
  "windows",
 ]
 
 [[package]]
-name = "deskbox-native"
+name = "winsticker-native"
 version = "0.1.0"
 dependencies = [
  "windows",
 ]
 
 [[package]]
-name = "deskbox-thumbnail-proxy"
+name = "winsticker-thumbnail-proxy"
 version = "0.1.0"
 dependencies = [
  "windows",

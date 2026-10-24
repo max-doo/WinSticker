@@ -197,18 +197,18 @@ if ($null -eq $identity) {
     Add-AuditFailure "The package identity is missing."
 }
 else {
-    if ($identity.Name -ne "D1FC332A.DeskBoxWidgets") {
+    if ($identity.Name -ne "WinSticker") {
         Add-AuditFailure "Unexpected package identity name '$($identity.Name)'."
     }
-    if ($identity.Publisher -ne "CN=3B75AA4A-2433-4F71-9CC1-B644B26F474A") {
+    if ($identity.Publisher -ne "CN=WinSticker") {
         Add-AuditFailure "Unexpected package publisher '$($identity.Publisher)'."
     }
     if ($identity.ProcessorArchitecture -ine $platformSegment) {
         Add-AuditFailure "Package architecture '$($identity.ProcessorArchitecture)' does not match '$platformSegment'."
     }
 }
-if ($null -eq $application -or $application.Executable -ne "DeskBox.exe") {
-    Add-AuditFailure "The package application does not target DeskBox.exe."
+if ($null -eq $application -or $application.Executable -ne "WinSticker.exe") {
+    Add-AuditFailure "The package application does not target WinSticker.exe."
 }
 if ($null -eq $frameworkDependency -or
     [version]$frameworkDependency.MinVersion -lt [version]"2.5.1.0") {
@@ -216,9 +216,9 @@ if ($null -eq $frameworkDependency -or
 }
 
 $requiredFiles = @(
-    "DeskBox.exe",
-    "DeskBox.ThumbnailProxy.exe",
-    "deskbox_native.dll",
+    "WinSticker.exe",
+    "WinSticker.ThumbnailProxy.exe",
+    "winsticker_native.dll",
     "EverythingSdk.dll",
     "ThirdParty/Everything/LICENSE.txt",
     "resources.pri",
@@ -234,11 +234,11 @@ foreach ($missingFile in $missingRequiredFiles) {
 }
 
 $forbiddenPatterns = @(
-    '(^|/)DeskBox\.dll$',
-    '(^|/)DeskBox\.deps\.json$',
-    '(^|/)DeskBox\.runtimeconfig\.json$',
-    '(^|/)DeskBox\.Updater(?:\.|/|$)',
-    '(^|/)deskbox_search_core(?:\.|$)',
+    '(^|/)WinSticker\.dll$',
+    '(^|/)WinSticker\.deps\.json$',
+    '(^|/)WinSticker\.runtimeconfig\.json$',
+    '(^|/)WinSticker\.Updater(?:\.|/|$)',
+    '(^|/)winsticker_search_core(?:\.|$)',
     '\.pdb$',
     '(^|/)(?:coreclr|clrjit|hostfxr|hostpolicy)\.dll$',
     'donation-wechat',
@@ -262,33 +262,33 @@ foreach ($forbiddenFile in $forbiddenFiles) {
     Add-AuditFailure "Forbidden Store AOT payload is present: '$forbiddenFile'."
 }
 
-$deskBoxExePath = Join-Path $layoutDirectory "DeskBox.exe"
-$thumbnailProxyPath = Join-Path $layoutDirectory "DeskBox.ThumbnailProxy.exe"
-$nativeDllPath = Join-Path $layoutDirectory "deskbox_native.dll"
+$winstickerExePath = Join-Path $layoutDirectory "WinSticker.exe"
+$thumbnailProxyPath = Join-Path $layoutDirectory "WinSticker.ThumbnailProxy.exe"
+$nativeDllPath = Join-Path $layoutDirectory "winsticker_native.dll"
 $everythingSdkPath = Join-Path $layoutDirectory "EverythingSdk.dll"
-$deskBoxPe = $null
+$winstickerPe = $null
 $thumbnailProxyPe = $null
 $nativeContract = $null
-if (Test-Path -LiteralPath $deskBoxExePath -PathType Leaf) {
-    $deskBoxPe = Get-PeFacts -Path $deskBoxExePath
-    if ($deskBoxPe.Machine -ne $expectedMachine) {
-        Add-AuditFailure "DeskBox.exe machine '$($deskBoxPe.MachineHex)' does not match $ExpectedPlatform."
+if (Test-Path -LiteralPath $winstickerExePath -PathType Leaf) {
+    $winstickerPe = Get-PeFacts -Path $winstickerExePath
+    if ($winstickerPe.Machine -ne $expectedMachine) {
+        Add-AuditFailure "WinSticker.exe machine '$($winstickerPe.MachineHex)' does not match $ExpectedPlatform."
     }
-    if ($deskBoxPe.HasClrHeader) {
-        Add-AuditFailure "DeskBox.exe still contains a CLR header instead of a Native AOT image."
+    if ($winstickerPe.HasClrHeader) {
+        Add-AuditFailure "WinSticker.exe still contains a CLR header instead of a Native AOT image."
     }
-    if ($deskBoxPe.Length -lt 10MB) {
-        Add-AuditFailure "DeskBox.exe is unexpectedly small for the current Native AOT product image."
+    if ($winstickerPe.Length -lt 10MB) {
+        Add-AuditFailure "WinSticker.exe is unexpectedly small for the current Native AOT product image."
     }
 }
 
 if (Test-Path -LiteralPath $thumbnailProxyPath -PathType Leaf) {
     $thumbnailProxyPe = Get-PeFacts -Path $thumbnailProxyPath
     if ($thumbnailProxyPe.Machine -ne $expectedMachine) {
-        Add-AuditFailure "DeskBox.ThumbnailProxy.exe machine '$($thumbnailProxyPe.MachineHex)' does not match $ExpectedPlatform."
+        Add-AuditFailure "WinSticker.ThumbnailProxy.exe machine '$($thumbnailProxyPe.MachineHex)' does not match $ExpectedPlatform."
     }
     if ($thumbnailProxyPe.HasClrHeader) {
-        Add-AuditFailure "DeskBox.ThumbnailProxy.exe unexpectedly contains a CLR header."
+        Add-AuditFailure "WinSticker.ThumbnailProxy.exe unexpectedly contains a CLR header."
     }
 }
 
@@ -303,20 +303,20 @@ else {
 }
 
 $nativeExports = @(
-    "deskbox_native_abi_version",
-    "deskbox_native_capabilities",
-    "deskbox_shortcut_read_v2",
-    "deskbox_shortcut_resolve_no_ui_v2",
-    "deskbox_shortcut_write_v2",
-    "deskbox_shortcut_resolve_with_ui_v2",
-    "deskbox_music_volume_v1",
-    "deskbox_explorer_shell_launch_v1",
-    "deskbox_quick_access_v1",
-    "deskbox_recycle_bin_v1"
+    "winsticker_native_abi_version",
+    "winsticker_native_capabilities",
+    "winsticker_shortcut_read_v2",
+    "winsticker_shortcut_resolve_no_ui_v2",
+    "winsticker_shortcut_write_v2",
+    "winsticker_shortcut_resolve_with_ui_v2",
+    "winsticker_music_volume_v1",
+    "winsticker_explorer_shell_launch_v1",
+    "winsticker_quick_access_v1",
+    "winsticker_recycle_bin_v1"
 )
 if (Test-Path -LiteralPath $nativeDllPath -PathType Leaf) {
     . (Join-Path $PSScriptRoot "native-pe-contract.ps1")
-    $nativeContract = Get-DeskBoxNativePeContract `
+    $nativeContract = Get-WinStickerNativePeContract `
         -Path $nativeDllPath `
         -ExpectedPlatform $ExpectedPlatform `
         -RequiredExports $nativeExports
@@ -332,13 +332,13 @@ if (Test-Path -LiteralPath $nativeDllPath -PathType Leaf) {
 $publishHashMatch = $null
 if (-not [string]::IsNullOrWhiteSpace($ExpectedPublishDirectory)) {
     $resolvedPublishDirectory = [System.IO.Path]::GetFullPath($ExpectedPublishDirectory)
-    $publishedExe = Join-Path $resolvedPublishDirectory "DeskBox.exe"
-    $publishedThumbnailProxy = Join-Path $resolvedPublishDirectory "DeskBox.ThumbnailProxy.exe"
-    $publishedNative = Join-Path $resolvedPublishDirectory "deskbox_native.dll"
+    $publishedExe = Join-Path $resolvedPublishDirectory "WinSticker.exe"
+    $publishedThumbnailProxy = Join-Path $resolvedPublishDirectory "WinSticker.ThumbnailProxy.exe"
+    $publishedNative = Join-Path $resolvedPublishDirectory "winsticker_native.dll"
     if (-not (Test-Path -LiteralPath $publishedExe -PathType Leaf) -or
         -not (Test-Path -LiteralPath $publishedThumbnailProxy -PathType Leaf) -or
         -not (Test-Path -LiteralPath $publishedNative -PathType Leaf) -or
-        -not (Test-Path -LiteralPath $deskBoxExePath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $winstickerExePath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $thumbnailProxyPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $nativeDllPath -PathType Leaf)) {
         Add-AuditFailure "The expected Store AOT publish directory is incomplete: '$resolvedPublishDirectory'."
@@ -346,7 +346,7 @@ if (-not [string]::IsNullOrWhiteSpace($ExpectedPublishDirectory)) {
     }
     else {
         $publishHashMatch =
-            (Get-FileSha256 -Path $publishedExe) -eq (Get-FileSha256 -Path $deskBoxExePath) -and
+            (Get-FileSha256 -Path $publishedExe) -eq (Get-FileSha256 -Path $winstickerExePath) -and
             (Get-FileSha256 -Path $publishedThumbnailProxy) -eq (Get-FileSha256 -Path $thumbnailProxyPath) -and
             (Get-FileSha256 -Path $publishedNative) -eq (Get-FileSha256 -Path $nativeDllPath)
         if (-not $publishHashMatch) {
@@ -371,9 +371,9 @@ if (-not [string]::IsNullOrWhiteSpace($AppxSymPath)) {
             $archive.Dispose()
         }
         foreach ($requiredSymbol in @(
-                "DeskBox.pdb",
-                "DeskBox.ThumbnailProxy.pdb",
-                "deskbox_native.pdb")) {
+                "WinSticker.pdb",
+                "WinSticker.ThumbnailProxy.pdb",
+                "winsticker_native.pdb")) {
             if ($symbolEntries -notcontains $requiredSymbol) {
                 Add-AuditFailure "Required Native AOT symbol is missing from appxsym: '$requiredSymbol'."
             }
@@ -442,7 +442,7 @@ $summary = [ordered]@{
             publisher = $frameworkDependency.Publisher
         }
     }
-    nativeAotExecutable = $deskBoxPe
+    nativeAotExecutable = $winstickerPe
     thumbnailProxy = $thumbnailProxyPe
     rustNative = $nativeContract
     publishPayloadHashesMatch = $publishHashMatch

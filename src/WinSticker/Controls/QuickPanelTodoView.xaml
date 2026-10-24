@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="WinSticker.Controls.QuickPanelTodoView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
+    xmlns:helpers="using:WinSticker.Helpers"
+    xmlns:models="using:WinSticker.Models"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <helpers:QuickPanelBoolToVisibilityConverter x:Key="BoolToVis"/>
+        <helpers:QuickPanelInverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <helpers:QuickPanelCountToVisibilityConverter x:Key="CountToVis"/>
+        <helpers:QuickPanelZeroCountToVisibilityConverter x:Key="ZeroCountToVis"/>
+        <helpers:QuickPanelDueDateConverter x:Key="DueDateText"/>
+        <helpers:QuickPanelDueDateForegroundConverter x:Key="DueDateForeground"/>
+        <helpers:QuickPanelStarGlyphConverter x:Key="StarGlyph"/>
+        <helpers:QuickPanelStarForegroundConverter x:Key="StarForeground"/>
+        <helpers:QuickPanelTodoStrikethroughConverter x:Key="StrikethroughConverter"/>
+        <helpers:QuickPanelTodoCompletedOpacityConverter x:Key="CompletedOpacityConverter"/>
+
+        <Style x:Key="TodoItemActionButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid RowSpacing="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- View Mode Segmented Bar -->
+        <toolkit:Segmented
+            x:Name="TodoModeSegmented"
+            Grid.Row="0"
+            HorizontalAlignment="Stretch"
+            SelectionChanged="TodoModeSegmented_SelectionChanged"
+            SelectedIndex="0">
+            <toolkit:SegmentedItem Tag="Today">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="今天"/>
+                    <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="4,0" Visibility="{Binding TodayCount, Converter={StaticResource CountToVis}}">
+                        <TextBlock Text="{Binding TodayCount}" FontSize="10"/>
+                    </Border>
+                </StackPanel>
+            </toolkit:SegmentedItem>
+            <toolkit:SegmentedItem Tag="Overdue">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="逾期"/>
+                    <Border Background="#E34D4D" CornerRadius="6" Padding="4,0" Visibility="{Binding OverdueCount, Converter={StaticResource CountToVis}}">
+                        <TextBlock Text="{Binding OverdueCount}" FontSize="10" Foreground="White"/>
+                    </Border>
+                </StackPanel>
+            </toolkit:SegmentedItem>
+            <toolkit:SegmentedItem Tag="Unscheduled">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="未安排"/>
+                    <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="4,0" Visibility="{Binding UnscheduledCount, Converter={StaticResource CountToVis}}">
+                        <TextBlock Text="{Binding UnscheduledCount}" FontSize="10"/>
+                    </Border>
+                </StackPanel>
+            </toolkit:SegmentedItem>
+            <toolkit:SegmentedItem Tag="Timeline">
+                <TextBlock Text="时间线"/>
+            </toolkit:SegmentedItem>
+            <toolkit:SegmentedItem Tag="Completed">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="已完成"/>
+                    <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="6" Padding="4,0" Visibility="{Binding CompletedCount, Converter={StaticResource CountToVis}}">
+                        <TextBlock Text="{Binding CompletedCount}" FontSize="10"/>
+                    </Border>
+                </StackPanel>
+            </toolkit:SegmentedItem>
+        </toolkit:Segmented>
+
+        <!-- Quick Composer Card -->
+        <Border
+            Grid.Row="1"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="10,8">
+            <Grid RowSpacing="6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox
+                        x:Name="ComposerTitleBox"
+                        Grid.Column="0"
+                        PlaceholderText="添加新待办，按 Enter 保存..."
+                        Text="{Binding ComposerTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        KeyDown="ComposerTitleBox_KeyDown"/>
+
+                    <Button
+                        Grid.Column="1"
+                        Style="{StaticResource TodoItemActionButtonStyle}"
+                        ToolTipService.ToolTip="标记重要"
+                        Click="ComposerImportant_Click">
+                        <FontIcon
+                            FontSize="14"
+                            Glyph="{Binding ComposerIsImportant, Converter={StaticResource StarGlyph}}"
+                            Foreground="{Binding ComposerIsImportant, Converter={StaticResource StarForeground}}"/>
+                    </Button>
+
+                    <Button
+                        Grid.Column="2"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Content="{Binding ComposerActionText}"
+                        Click="ComposerAdd_Click"/>
+                </Grid>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+                    <Button
+                        x:Name="DateTodayChip"
+                        Style="{StaticResource SubtleButtonStyle}"
+                        Padding="8,2"
+                        FontSize="11"
+                        Content="今天"
+                        Click="DateTodayChip_Click"/>
+                    <Button
+                        x:Name="DateTomorrowChip"
+                        Style="{StaticResource SubtleButtonStyle}"
+                        Padding="8,2"
+                        FontSize="11"
+                        Content="明天"
+                        Click="DateTomorrowChip_Click"/>
+                    <Button
+                        x:Name="DatePickChip"
+                        Style="{StaticResource SubtleButtonStyle}"
+                        Padding="8,2"
+                        FontSize="11"
+                        Content="自选日期"
+                        Click="DatePickChip_Click">
+                        <Button.Flyout>
+                            <DatePickerFlyout x:Name="ComposerDatePicker" DatePicked="ComposerDatePicker_DatePicked"/>
+                        </Button.Flyout>
+                    </Button>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                        Text="{Binding ComposerDueDate, Converter={StaticResource DueDateText}}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Todo Items List -->
+        <Grid Grid.Row="2">
+            <ListView
+                x:Name="TodoListView"
+                ItemsSource="{Binding CurrentViewTodos}"
+                SelectionMode="None"
+                ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,2"/>
+                        <Setter Property="MinHeight" Value="0"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
+
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:TodoItem">
+                        <Border
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8,6">
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Completion Checkbox -->
+                                <CheckBox
+                                    Grid.Column="0"
+                                    IsChecked="{Binding IsCompleted, Mode=TwoWay}"
+                                    Click="TodoCheckBox_Click"
+                                    MinWidth="0"
+                                    Margin="0"/>
+
+                                <!-- Title and Notes Preview -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock
+                                        helpers:WidgetTextShadow.Cast="False"
+                                        Text="{Binding Text}"
+                                        FontSize="13"
+                                        TextDecorations="{Binding IsCompleted, Converter={StaticResource StrikethroughConverter}}"
+                                        Opacity="{Binding IsCompleted, Converter={StaticResource CompletedOpacityConverter}}"
+                                        MaxLines="2"
+                                        TextWrapping="Wrap"
+                                        TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock
+                                        helpers:WidgetTextShadow.Cast="False"
+                                        Text="{Binding Notes}"
+                                        FontSize="11"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        MaxLines="1"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{Binding Notes, Converter={StaticResource CountToVis}}"/>
+                                </StackPanel>
+
+                                <!-- Due Date & Priority Badges -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
+                                    <Border
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                        Padding="5,1"
+                                        CornerRadius="3"
+                                        Visibility="{Binding DueDate, Converter={StaticResource CountToVis}}">
+                                        <TextBlock
+                                            helpers:WidgetTextShadow.Cast="False"
+                                            Text="{Binding DueDate, Converter={StaticResource DueDateText}}"
+                                            FontSize="10"
+                                            Foreground="{Binding DueDate, Converter={StaticResource DueDateForeground}}"/>
+                                    </Border>
+                                    <FontIcon
+                                        FontSize="12"
+                                        Glyph="&#xE735;"
+                                        Foreground="#F2C94C"
+                                        Visibility="{Binding IsImportant, Converter={StaticResource BoolToVis}}"/>
+                                </StackPanel>
+
+                                <!-- Action Buttons -->
+                                <Button
+                                    Grid.Column="3"
+                                    Style="{StaticResource TodoItemActionButtonStyle}"
+                                    ToolTipService.ToolTip="删除待办"
+                                    Click="DeleteTodoButton_Click">
+                                    <FontIcon FontSize="13" Glyph="&#xE74D;"/>
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- Empty State -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="8"
+                Visibility="{Binding CurrentViewTodos.Count, Converter={StaticResource ZeroCountToVis}}">
+                <FontIcon FontSize="36" Glyph="&#xE73E;" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                <TextBlock
+                    Text="暂无待办事项"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock
+                    Text="在上方输入待办并按 Enter 添加"
+                    FontSize="12"
+                    HorizontalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

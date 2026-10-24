@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>../../src/WinSticker/app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/WinSticker/Services/DirectStartupTaskBackend.cs" Link="DirectStartupTaskBackend.cs" />
+    <Compile Include="../../src/WinSticker/Services/DirectStartupTaskXmlReader.cs" Link="DirectStartupTaskXmlReader.cs" />
+  </ItemGroup>
+</Project>

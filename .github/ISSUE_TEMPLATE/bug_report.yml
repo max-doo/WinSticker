@@ -11,7 +11,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: DeskBox version
+      label: WinSticker version
       description: Settings → About · 设置 → 关于
       placeholder: "e.g. 1.5.5"
     validations:

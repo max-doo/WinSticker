@@ -22,7 +22,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$project = Join-Path $repoRoot "src\DeskBox\DeskBox.csproj"
+$project = Join-Path $repoRoot "src\WinSticker\WinSticker.csproj"
 $dotnetFromRepo = Join-Path $repoRoot ".codex-temp\dotnet10\dotnet.exe"
 $dotnet = if (Test-Path $dotnetFromRepo) { $dotnetFromRepo } else { "dotnet" }
 $runtimeIdentifier = if ($Platform -eq "ARM64") { "win-arm64" } else { "win-x64" }
@@ -47,8 +47,8 @@ $signingEnabled = if ($SignPackage.IsPresent) { "true" } else { "false" }
 $properties = @(
     "-p:Platform=$Platform",
     "-p:RuntimeIdentifier=$runtimeIdentifier",
-    "-p:DeskBoxDistribution=Store",
-    "-p:DeskBoxCreateMsixPackage=true",
+    "-p:WinStickerDistribution=Store",
+    "-p:WinStickerCreateMsixPackage=true",
     "-p:SelfContained=true",
     "-p:WindowsAppSDKSelfContained=false",
     "-p:PublishSingleFile=false",
@@ -61,11 +61,11 @@ $properties = @(
 
 if ($NativeAot.IsPresent) {
     $properties += @(
-        "-p:DeskBoxAotAudit=true",
-        "-p:DeskBoxAotSmokeHarness=false",
+        "-p:WinStickerAotAudit=true",
+        "-p:WinStickerAotSmokeHarness=false",
         "-p:PublishAot=true",
-        "-p:DeskBoxRustNative=true",
-        "-p:DeskBoxRustCrtLinkage=Static",
+        "-p:WinStickerRustNative=true",
+        "-p:WinStickerRustCrtLinkage=Static",
         "-p:JsonSerializerIsReflectionEnabledByDefault=false",
         "-p:IlcUseEnvironmentalTools=true",
         "-p:PublishTrimmed=true"
@@ -83,8 +83,8 @@ if (-not [string]::IsNullOrWhiteSpace($PackageCertificateKeyFile)) {
 # environment for both AOT and ordinary Store builds instead.
 $environmentScript = Join-Path $PSScriptRoot "rust-arm64-msvc-environment.ps1"
 . $environmentScript
-$msvcEnvironment = Get-DeskBoxMsvcEnvironment -Platform $Platform
-$environmentState = Enter-DeskBoxMsvcEnvironment -Toolchain $msvcEnvironment
+$msvcEnvironment = Get-WinStickerMsvcEnvironment -Platform $Platform
+$environmentState = Enter-WinStickerMsvcEnvironment -Toolchain $msvcEnvironment
 
 try {
     & $dotnet publish $project -c $Configuration @properties -v:minimal
@@ -92,7 +92,7 @@ try {
 }
 finally {
     if ($null -ne $environmentState) {
-        Exit-DeskBoxMsvcEnvironment -State $environmentState
+        Exit-WinStickerMsvcEnvironment -State $environmentState
     }
 }
 

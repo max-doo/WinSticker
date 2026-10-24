@@ -31,7 +31,7 @@ jobs:
       - name: Setup pinned .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.402
+          dotnet-version: 10.0.401
 
       - name: Verify native ARM64 host and pinned Rust
         shell: pwsh
@@ -54,7 +54,7 @@ jobs:
       - name: Restore ARM64 assets
         shell: pwsh
         run: >-
-          dotnet restore .\DeskBox.sln
+          dotnet restore .\WinSticker.sln
           --locked-mode
           -p:Platform=ARM64
           -p:RuntimeIdentifier=win-arm64

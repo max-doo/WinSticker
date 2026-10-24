@@ -7,14 +7,14 @@
 ;   5.5.3 Translator: Domddol (domddol@gmail.com)
 ; Source: https://github.com/jrsoftware/issrc (Files/Languages/Korean.isl)
 ;
-; DeskBox adaptation: stored as UTF-8 with BOM (.islu) and
+; WinSticker adaptation: stored as UTF-8 with BOM (.islu) and
 ; LanguageCodePage=0, following Bengali.islu and Hindi.islu.
 
 [LangOptions]
 ; The following three entries are very important. Be sure to read and
 ; understand the '[LangOptions] section' topic in the help file.
 LanguageName=한국어
-; DeskBox ships this file as UTF-8 (.islu); keep LanguageCodePage=0 like
+; WinSticker ships this file as UTF-8 (.islu); keep LanguageCodePage=0 like
 ; Bengali.islu/Hindi.islu. The Korean Windows locale ID is 0x0412 (1042).
 LanguageID=$0412
 LanguageCodePage=0

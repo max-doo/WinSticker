@@ -13,18 +13,18 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $scenario = "ShellMovePersistenceRestart"
-$phaseEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SHELL_MOVE_PHASE"
-$runIdEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SHELL_MOVE_RUN_ID"
-$smokeEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SMOKE"
+$phaseEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SHELL_MOVE_PHASE"
+$runIdEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SHELL_MOVE_RUN_ID"
+$smokeEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SMOKE"
 $runId = [Guid]::NewGuid().ToString("N")
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
 $previewSessionPath = Join-Path $repoRoot ".artifacts\aot-preview\win-x64\session.json"
 $evidenceRoot = Join-Path $repoRoot ".artifacts\aot-managed-ui-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-managed-ui-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.ShellMoveSmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-managed-ui-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.ShellMoveSmoke.v1"
 
 function Test-PathEqual {
     param([string]$Left, [string]$Right)
@@ -88,7 +88,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace([string]$_.ExecutablePath) -and
                 (Test-PathEqual -Left $_.ExecutablePath -Right $ExecutablePath)
@@ -363,27 +363,27 @@ function Invoke-ShellMovePhase {
         [string]$ResultPath
     )
     $variables = @(
-        "DESKBOX_AOT_MANAGED_UI_SMOKE",
-        "DESKBOX_AOT_MANAGED_UI_PERSISTENCE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_QUICK_CAPTURE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_TODO_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_TODO_STEPS_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_GLANCE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_GLANCE_FIXTURE",
-        "DESKBOX_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_WEATHER_SURFACE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_LOCAL_FILE_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_RECYCLE_BIN_PHASE",
-        "DESKBOX_AOT_MANAGED_UI_RECYCLE_BIN_RUN_ID",
+        "WINSTICKER_AOT_MANAGED_UI_SMOKE",
+        "WINSTICKER_AOT_MANAGED_UI_PERSISTENCE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_QUICK_CAPTURE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_TODO_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_TODO_STEPS_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE",
+        "WINSTICKER_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_WEATHER_SURFACE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_LOCAL_FILE_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_RECYCLE_BIN_PHASE",
+        "WINSTICKER_AOT_MANAGED_UI_RECYCLE_BIN_RUN_ID",
         $phaseEnvironmentVariable,
         $runIdEnvironmentVariable,
-        "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE",
-        "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE",
-        "DESKBOX_AOT_SHELL_SMOKE",
-        "DESKBOX_AOT_SHORTCUT_SMOKE")
+        "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE",
+        "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE",
+        "WINSTICKER_AOT_SHELL_SMOKE",
+        "WINSTICKER_AOT_SHORTCUT_SMOKE")
     $previous = @{}
     foreach ($variable in $variables) {
         $previous[$variable] = [Environment]::GetEnvironmentVariable($variable, "Process")
@@ -651,7 +651,7 @@ try {
         throw "Shell move matrix left an audited preview process running."
     }
 
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     if (-not (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf)) {
         throw "Shell move matrix did not produce its runtime log."
     }
@@ -691,7 +691,7 @@ try {
     $archivedMutatePath = Join-Path $archiveRoot "mutate-result.json"
     $archivedVerifyPath = Join-Path $archiveRoot "verify-restore-result.json"
     $archivedPostflightPath = Join-Path $archiveRoot "postflight-result.json"
-    $archivedRuntimeLogPath = Join-Path $archiveRoot "DeskBox.log"
+    $archivedRuntimeLogPath = Join-Path $archiveRoot "WinSticker.log"
     $archivedSettingsPath = Join-Path $archiveRoot "final-settings.json"
     $archivedFixtureRoot = Join-Path $archiveRoot "final-fixture"
     $archivedDiskStatesPath = Join-Path $archiveRoot "disk-states.json"

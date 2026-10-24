@@ -9,14 +9,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$mutationSmokeEnvironmentVariable = "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE"
-$shortcutSmokeEnvironmentVariable = "DESKBOX_AOT_SHORTCUT_SMOKE"
-$shellSmokeEnvironmentVariable = "DESKBOX_AOT_SHELL_SMOKE"
-$musicReadSmokeEnvironmentVariable = "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE"
-$musicMutationSmokeEnvironmentVariable = "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE"
+$mutationSmokeEnvironmentVariable = "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE"
+$shortcutSmokeEnvironmentVariable = "WINSTICKER_AOT_SHORTCUT_SMOKE"
+$shellSmokeEnvironmentVariable = "WINSTICKER_AOT_SHELL_SMOKE"
+$musicReadSmokeEnvironmentVariable = "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE"
+$musicMutationSmokeEnvironmentVariable = "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE"
 $musicSessionMutationSmokeEnvironmentVariable =
-    "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE"
-$managedUiSmokeEnvironmentVariable = "DESKBOX_AOT_MANAGED_UI_SMOKE"
+    "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE"
+$managedUiSmokeEnvironmentVariable = "WINSTICKER_AOT_MANAGED_UI_SMOKE"
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
 $previewSessionPath = Join-Path $repoRoot ".artifacts\aot-preview\win-x64\session.json"
@@ -97,7 +97,7 @@ function Stop-ExactPreviewProcess {
     )
 
     $processIds = [System.Collections.Generic.HashSet[int]]::new()
-    foreach ($process in @(Get-Process DeskBox -ErrorAction SilentlyContinue)) {
+    foreach ($process in @(Get-Process WinSticker -ErrorAction SilentlyContinue)) {
         try {
             if (Test-PathEqual -Left $process.MainModule.FileName -Right $ExecutablePath) {
                 $null = $processIds.Add($process.Id)
@@ -108,7 +108,7 @@ function Stop-ExactPreviewProcess {
         }
     }
 
-    foreach ($process in @(Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'")) {
+    foreach ($process in @(Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'")) {
         if (-not [string]::IsNullOrWhiteSpace($process.ExecutablePath) -and
             (Test-PathEqual -Left $process.ExecutablePath -Right $ExecutablePath)) {
             $null = $processIds.Add([int]$process.ProcessId)
@@ -513,12 +513,12 @@ if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
 }
 $auditSummary = Get-Content -LiteralPath $SummaryPath -Raw | ConvertFrom-Json
 $expectedExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path $auditSummary.publishDirectory "DeskBox.exe"))
+    (Join-Path $auditSummary.publishDirectory "WinSticker.exe"))
 if ([string]::IsNullOrWhiteSpace($DataRoot)) {
     $worktreeName = (Split-Path $repoRoot -Leaf) -replace '[^A-Za-z0-9._-]', '-'
     $pathHash = (Get-TextSha256 -Value $repoRoot.ToUpperInvariant()).Substring(0, 8)
     $DataRoot = Join-Path $env:LOCALAPPDATA (
-        "DeskBox-AotPreview\{0}-{1}-stage5b2b-quick-access-mutation" -f @(
+        "WinSticker-AotPreview\{0}-{1}-stage5b2b-quick-access-mutation" -f @(
             $worktreeName,
             $pathHash))
 }

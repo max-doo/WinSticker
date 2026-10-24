@@ -46,17 +46,17 @@ build_*.txt
 # CI test results
 .github-test-results-*/
 
-# Old website (replaced by deskbox-site)
+# Old website (replaced by winsticker-site)
 website/
 
 # Website source moved to private repository
-deskbox-site/
+winsticker-site/
 deploy.ps1
 ssh_run.ps1
 fail2ban-nginx.conf
-deskbox-site/node_modules/
-deskbox-site/.next/
-deskbox-site/out/
+winsticker-site/node_modules/
+winsticker-site/.next/
+winsticker-site/out/
 
 # Local backup patches
 backups/

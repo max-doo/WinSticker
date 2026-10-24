@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Residency P0 归因汇总：从实验实例的 DeskBox.log 抽切换延迟四点、回切间隔、
+    Residency P0 归因汇总：从实验实例的 WinSticker.log 抽切换延迟四点、回切间隔、
     MemorySample 的 per-kind 物化树计数与私有内存阶跃、强制 GC 前后值；
     可选叠加采样器 CSV 的分阶段起/峰/末。协议见 residency-p0-attribution-protocol.md。
 .EXAMPLE
-    ./scripts/summarize-residency-p0.ps1 -LogPath "$env:LOCALAPPDATA\DeskBox-ResidencyP0\DeskBox.log" `
-        -CsvPath D:\project\wingezi\deskbox-residency-p0-samples.csv
+    ./scripts/summarize-residency-p0.ps1 -LogPath "$env:LOCALAPPDATA\WinSticker-ResidencyP0\WinSticker.log" `
+        -CsvPath D:\project\wingezi\winsticker-residency-p0-samples.csv
 #>
 param(
     [Parameter(Mandatory)] [string]$LogPath,
@@ -73,7 +73,7 @@ if (-not $switches) {
 }
 
 # ── ② MemorySample：物化树计数变化点与私有内存阶跃 ─────────────────────
-Write-Host "`n== MemorySample residency track ([Perf] MemorySample, needs DESKBOX_PERF_LOG=1) =="
+Write-Host "`n== MemorySample residency track ([Perf] MemorySample, needs WINSTICKER_PERF_LOG=1) =="
 $samples = foreach ($line in $lines) {
     if ($line -notmatch '\[Perf\] MemorySample') { continue }
     [pscustomobject]@{
@@ -88,7 +88,7 @@ $samples = foreach ($line in $lines) {
     }
 }
 if (-not $samples) {
-    Write-Host '  (no MemorySample lines — run the instance with DESKBOX_PERF_LOG=1)'
+    Write-Host '  (no MemorySample lines — run the instance with WINSTICKER_PERF_LOG=1)'
 } else {
     $previous = $null
     foreach ($s in $samples) {

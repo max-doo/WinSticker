@@ -1,0 +1,40 @@
+using WinSticker.Models;
+using WinSticker.Services;
+using WinSticker.ViewModels;
+
+namespace WinSticker.Tests;
+
+public sealed class QuickCaptureClipboardCopyPolicyTests
+{
+    [Fact]
+    public void ShouldCopyBitmap_OnlyForImageInReadOnlyClipboardHistory()
+    {
+        Assert.True(QuickCaptureClipboardCopyPolicy.ShouldCopyBitmap(CreateItem(
+            QuickCaptureItemType.Image,
+            isRecent: true)));
+        Assert.False(QuickCaptureClipboardCopyPolicy.ShouldCopyBitmap(CreateItem(
+            QuickCaptureItemType.Text,
+            isRecent: true)));
+        Assert.False(QuickCaptureClipboardCopyPolicy.ShouldCopyBitmap(CreateItem(
+            QuickCaptureItemType.Image,
+            isRecent: false)));
+    }
+
+    private static QuickCaptureItemViewModel CreateItem(
+        QuickCaptureItemType type,
+        bool isRecent)
+    {
+        return new QuickCaptureItemViewModel(
+            new QuickCaptureItem
+            {
+                Body = type == QuickCaptureItemType.Image ? "Image" : "Text",
+                Type = type,
+                IsRecent = isRecent,
+                SourceKind = QuickCaptureSourceKind.Clipboard
+            },
+            TestServices.CreateLocalizationService(),
+            textSize: 14,
+            iconSize: 14,
+            searchText: null);
+    }
+}

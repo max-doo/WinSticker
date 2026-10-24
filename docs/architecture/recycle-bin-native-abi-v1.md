@@ -47,11 +47,11 @@ Rust 打开 Shell namespace CSIDL 10，完整枚举回收站项目。名称通�
 - 结构版本：`1`；
 - 能力位：`DESKBOX_NATIVE_CAPABILITY_RECYCLE_BIN_V1 = 1 << 8`；
 - 完整能力掩码：`511`；
-- 新导出：`deskbox_recycle_bin_v1`；
+- 新导出：`winsticker_recycle_bin_v1`；
 - 当前发布必需导出：10 个。
 
 ```c
-uint32_t deskbox_recycle_bin_v1(
+uint32_t winsticker_recycle_bin_v1(
     const DeskBoxRecycleBinRequestV1* request,
     DeskBoxRecycleBinResultV1* result);
 ```

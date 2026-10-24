@@ -12,9 +12,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $scenario = "RealDisplayAndCleanup"
-$smokeEnvironmentVariable = "DESKBOX_AOT_TODO_NOTIFICATION_SMOKE"
-$phaseEnvironmentVariable = "DESKBOX_AOT_TODO_NOTIFICATION_PHASE"
-$runIdEnvironmentVariable = "DESKBOX_AOT_TODO_NOTIFICATION_RUN_ID"
+$smokeEnvironmentVariable = "WINSTICKER_AOT_TODO_NOTIFICATION_SMOKE"
+$phaseEnvironmentVariable = "WINSTICKER_AOT_TODO_NOTIFICATION_PHASE"
+$runIdEnvironmentVariable = "WINSTICKER_AOT_TODO_NOTIFICATION_RUN_ID"
 $runId = [Guid]::NewGuid().ToString("N")
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $launcher = Join-Path $PSScriptRoot "start-aot-preview.ps1"
@@ -31,9 +31,9 @@ $evidenceRoot = Join-Path `
     $repoRoot `
     ".artifacts\aot-todo-notification-smoke\win-x64"
 $productionDataRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $env:LOCALAPPDATA "DeskBox"))
-$ownedMarkerName = ".deskbox-aot-todo-notification-owned.json"
-$ownedMarkerKind = "DeskBox.Aot.TodoNotificationSmoke.v1"
+    (Join-Path $env:LOCALAPPDATA "WinSticker"))
+$ownedMarkerName = ".winsticker-aot-todo-notification-owned.json"
+$ownedMarkerKind = "WinSticker.Aot.TodoNotificationSmoke.v1"
 $phases = @("ShowAndInspect", "Cleanup", "Postflight")
 
 function Test-PathEqual {
@@ -102,7 +102,7 @@ function Get-DirectoryStateFingerprint {
 function Get-ExactPreviewProcesses {
     param([string]$ExecutablePath)
     return @(
-        Get-CimInstance Win32_Process -Filter "Name='DeskBox.exe'" |
+        Get-CimInstance Win32_Process -Filter "Name='WinSticker.exe'" |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace(
                     [string]$_.ExecutablePath) -and
@@ -250,17 +250,17 @@ function Invoke-TodoNotificationPhase {
         $smokeEnvironmentVariable,
         $phaseEnvironmentVariable,
         $runIdEnvironmentVariable,
-        "DESKBOX_AOT_TODO_RECURRENCE_REMINDER_SMOKE",
-        "DESKBOX_AOT_TODO_RECURRENCE_REMINDER_PHASE",
-        "DESKBOX_AOT_TODO_RECURRENCE_REMINDER_RUN_ID",
-        "DESKBOX_AOT_MANAGED_UI_SMOKE",
-        "DESKBOX_AOT_HOTKEY_SMOKE",
-        "DESKBOX_AOT_SHORTCUT_SMOKE",
-        "DESKBOX_AOT_SHELL_SMOKE",
-        "DESKBOX_AOT_QUICK_ACCESS_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_READ_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
-        "DESKBOX_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE")
+        "WINSTICKER_AOT_TODO_RECURRENCE_REMINDER_SMOKE",
+        "WINSTICKER_AOT_TODO_RECURRENCE_REMINDER_PHASE",
+        "WINSTICKER_AOT_TODO_RECURRENCE_REMINDER_RUN_ID",
+        "WINSTICKER_AOT_MANAGED_UI_SMOKE",
+        "WINSTICKER_AOT_HOTKEY_SMOKE",
+        "WINSTICKER_AOT_SHORTCUT_SMOKE",
+        "WINSTICKER_AOT_SHELL_SMOKE",
+        "WINSTICKER_AOT_QUICK_ACCESS_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_READ_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_MUTATION_SMOKE",
+        "WINSTICKER_AOT_MUSIC_VOLUME_SESSION_MUTATION_SMOKE")
     $previous = @{}
     foreach ($variable in $variables) {
         $previous[$variable] = [Environment]::GetEnvironmentVariable(
@@ -347,7 +347,7 @@ function Invoke-TodoNotificationPhase {
     }
     Assert-RequiredSteps -Phase $Phase -Result $result
 
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     $failureLines = @(
         Get-Content -LiteralPath $runtimeLogPath |
             Where-Object {
@@ -451,7 +451,7 @@ $settings | ConvertTo-Json -Depth 16 |
 
 $productionBefore = Get-DirectoryStateFingerprint -Path $productionDataRoot
 $previewExecutablePath = [System.IO.Path]::GetFullPath(
-    (Join-Path ([string]$auditSummary.publishDirectory) "DeskBox.exe"))
+    (Join-Path ([string]$auditSummary.publishDirectory) "WinSticker.exe"))
 $runSucceeded = $false
 $previewRootCleaned = $false
 $phaseRuns = [System.Collections.Generic.List[object]]::new()
@@ -503,7 +503,7 @@ try {
         [int]$productionBefore.fileCount -ne
             [int]$productionAfter.fileCount -or
         [long]$productionBefore.bytes -ne [long]$productionAfter.bytes) {
-        throw "Formal DeskBox data changed during the Todo notification smoke."
+        throw "Formal WinSticker data changed during the Todo notification smoke."
     }
 
     New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
@@ -512,7 +512,7 @@ try {
         -Destination (Join-Path $archiveRoot "aot-todo-notification-smoke") `
         -Recurse
     Copy-Item -LiteralPath $settingsPath -Destination $archiveRoot
-    $runtimeLogPath = Join-Path $DataRoot "DeskBox.log"
+    $runtimeLogPath = Join-Path $DataRoot "WinSticker.log"
     if (Test-Path -LiteralPath $runtimeLogPath -PathType Leaf) {
         Copy-Item -LiteralPath $runtimeLogPath -Destination $archiveRoot
     }

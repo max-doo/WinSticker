@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="WinSticker.Controls.QuickPanelNotesView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:helpers="using:WinSticker.Helpers"
+    xmlns:models="using:WinSticker.Models"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <helpers:QuickPanelBoolToVisibilityConverter x:Key="BoolToVis"/>
+        <helpers:QuickPanelInverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <helpers:QuickPanelCountToVisibilityConverter x:Key="CountToVis"/>
+        <helpers:QuickPanelZeroCountToVisibilityConverter x:Key="ZeroCountToVis"/>
+
+        <Style x:Key="NoteTabCloseButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="9"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid RowSpacing="6">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Note Tabs Strip -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer
+                Grid.Column="0"
+                HorizontalScrollBarVisibility="Hidden"
+                VerticalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Enabled"
+                VerticalScrollMode="Disabled">
+                <ListView
+                    x:Name="NotesTabsListView"
+                    ItemsSource="{Binding Notes}"
+                    SelectedItem="{Binding SelectedNote, Mode=TwoWay}"
+                    SelectionMode="Single"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="4"/>
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="MinWidth" Value="0"/>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="models:QuickPanelNoteItem">
+                            <Border
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8,4"
+                                Margin="0,2">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <TextBlock
+                                        helpers:WidgetTextShadow.Cast="False"
+                                        Text="{Binding Title}"
+                                        FontSize="12"
+                                        MaxWidth="110"
+                                        TextTrimming="CharacterEllipsis"/>
+                                    <Button
+                                        Style="{StaticResource NoteTabCloseButtonStyle}"
+                                        Click="DeleteNoteButton_Click"
+                                        ToolTipService.ToolTip="关闭便签">
+                                        <FontIcon FontSize="9" Glyph="&#xE8BB;"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </ScrollViewer>
+
+            <!-- Add Note Button -->
+            <Button
+                Grid.Column="1"
+                Width="28"
+                Height="28"
+                Padding="0"
+                Margin="4,0,0,0"
+                Style="{StaticResource SubtleButtonStyle}"
+                Click="AddNoteButton_Click"
+                ToolTipService.ToolTip="新建便签">
+                <FontIcon FontSize="12" Glyph="&#xE710;"/>
+            </Button>
+        </Grid>
+
+        <!-- Active Note Title -->
+        <TextBox
+            Grid.Row="1"
+            FontSize="14"
+            FontWeight="SemiBold"
+            PlaceholderText="便签标题..."
+            Text="{Binding NoteTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+            <TextBox.Resources>
+                <SolidColorBrush x:Key="TextControlBackground" Color="Transparent"/>
+            </TextBox.Resources>
+        </TextBox>
+
+        <!-- Active Note Content Editor -->
+        <TextBox
+            Grid.Row="2"
+            AcceptsReturn="True"
+            TextWrapping="Wrap"
+            VerticalAlignment="Stretch"
+            FontSize="13"
+            PlaceholderText="在此输入便签内容...&#x0a;支持 Markdown 格式，例如：&#x0a;- [ ] 待办任务&#x0a;* 会议要点"
+            Text="{Binding NoteBody, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+            <TextBox.Resources>
+                <SolidColorBrush x:Key="TextControlBackground" Color="Transparent"/>
+            </TextBox.Resources>
+        </TextBox>
+
+        <!-- Bottom Status Bar & Task Extractor -->
+        <Grid Grid.Row="3" Margin="0,4,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Auto-save Status -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                <FontIcon FontSize="11" Glyph="&#xE73E;" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                <TextBlock
+                    FontSize="11"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{Binding NoteSaveStatus}"/>
+            </StackPanel>
+
+            <!-- Extract Tasks to Todos Button -->
+            <Button
+                Grid.Column="1"
+                Style="{StaticResource SubtleButtonStyle}"
+                Padding="8,4"
+                Click="ExtractTasksButton_Click"
+                ToolTipService.ToolTip="将便签中的任务清单提取到待办">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon FontSize="12" Glyph="&#xE762;"/>
+                    <TextBlock FontSize="12" Text="从便签提取任务"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+    </Grid>
+</UserControl>
