@@ -1,4 +1,5 @@
 using System.Globalization;
+using WinSticker.Models;
 using WinSticker.Services;
 using Xunit;
 
@@ -49,5 +50,74 @@ public sealed class TodoCalendarProjectionTests
     {
         var culture = CultureInfo.GetCultureInfo(cultureName);
         Assert.Equal(expected, TodoCalendarProjection.ResolveWeekStart(culture));
+    }
+
+    [Fact]
+    public void BucketByLocalDate_UsesLocalCalendarDayNotUtcDay()
+    {
+        var tz = TimeZoneInfo.CreateCustomTimeZone("t+8", TimeSpan.FromHours(8), "t+8", "t+8");
+        var items = new List<TodoItem>
+        {
+            new() { Id = "a", Text = "late night", DueDate = new DateTimeOffset(2026, 10, 24, 23, 30, 0, TimeSpan.FromHours(8)) }
+        };
+
+        var buckets = TodoCalendarProjection.BucketByLocalDate(items, tz);
+
+        Assert.True(buckets.ContainsKey(new DateOnly(2026, 10, 24)));
+        Assert.Equal("a", buckets[new DateOnly(2026, 10, 24)][0].Id);
+    }
+
+    [Fact]
+    public void BucketByLocalDate_ExcludesItemsWithoutDueDate()
+    {
+        var items = new List<TodoItem>
+        {
+            new() { Id = "a", Text = "dated", DueDate = DateTimeOffset.UtcNow },
+            new() { Id = "b", Text = "undated", DueDate = null }
+        };
+
+        var buckets = TodoCalendarProjection.BucketByLocalDate(items, TimeZoneInfo.Utc);
+
+        Assert.DoesNotContain(buckets.Values.SelectMany(v => v), item => item.Id == "b");
+    }
+
+    [Fact]
+    public void BucketByLocalDate_OrdersActiveBeforeCompletedThenByTime()
+    {
+        var day = new DateTimeOffset(2026, 10, 24, 0, 0, 0, TimeSpan.Zero);
+        var items = new List<TodoItem>
+        {
+            new() { Id = "done", Text = "done", IsCompleted = true, DueDate = day.AddHours(9) },
+            new() { Id = "late", Text = "late", DueDate = day.AddHours(18), SortOrder = 1 },
+            new() { Id = "early", Text = "early", DueDate = day.AddHours(8), SortOrder = 5 }
+        };
+
+        var buckets = TodoCalendarProjection.BucketByLocalDate(items, TimeZoneInfo.Utc);
+
+        Assert.Equal(["early", "late", "done"], buckets[new DateOnly(2026, 10, 24)].Select(item => item.Id));
+    }
+
+    [Fact]
+    public void AssignSlots_TruncatesAndCountsOverflow()
+    {
+        var items = Enumerable.Range(0, 5)
+            .Select(i => new TodoItem { Id = i.ToString(), Text = $"t{i}", DueDate = DateTimeOffset.UtcNow })
+            .ToList();
+
+        var (visible, overflow) = TodoCalendarProjection.AssignSlots(items, maxVisible: 3);
+
+        Assert.Equal(3, visible.Count);
+        Assert.Equal(2, overflow);
+    }
+
+    [Fact]
+    public void AssignSlots_WithZeroMaxReturnsEverythingAsOverflow()
+    {
+        var items = new List<TodoItem> { new() { Id = "a", Text = "a", DueDate = DateTimeOffset.UtcNow } };
+
+        var (visible, overflow) = TodoCalendarProjection.AssignSlots(items, maxVisible: 0);
+
+        Assert.Empty(visible);
+        Assert.Equal(1, overflow);
     }
 }

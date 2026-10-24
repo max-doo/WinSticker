@@ -33,4 +33,68 @@ public static class TodoCalendarProjection
 
         return cells;
     }
+
+    public static IReadOnlyDictionary<DateOnly, IReadOnlyList<TodoItem>> BucketByLocalDate(
+        IEnumerable<TodoItem> items,
+        TimeZoneInfo tz)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(tz);
+
+        var buckets = new Dictionary<DateOnly, List<TodoItem>>();
+
+        foreach (var item in items)
+        {
+            if (item.DueDate is not { } due)
+            {
+                continue;
+            }
+
+            var localDateTime = TimeZoneInfo.ConvertTime(due, tz);
+            var localDate = DateOnly.FromDateTime(localDateTime.DateTime);
+
+            if (!buckets.TryGetValue(localDate, out var list))
+            {
+                list = [];
+                buckets[localDate] = list;
+            }
+
+            list.Add(item);
+        }
+
+        var result = new Dictionary<DateOnly, IReadOnlyList<TodoItem>>(buckets.Count);
+        foreach (var (date, list) in buckets)
+        {
+            var ordered = list
+                .OrderBy(i => i.IsCompleted)
+                .ThenBy(i => i.DueDate)
+                .ThenBy(i => i.SortOrder)
+                .ThenBy(i => i.CreatedAt)
+                .ToList();
+            result[date] = ordered;
+        }
+
+        return result;
+    }
+
+    public static (IReadOnlyList<TodoItem> visible, int overflow) AssignSlots(
+        IReadOnlyList<TodoItem> items,
+        int maxVisible)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (maxVisible <= 0)
+        {
+            return (Array.Empty<TodoItem>(), items.Count);
+        }
+
+        if (items.Count <= maxVisible)
+        {
+            return (items, 0);
+        }
+
+        var visible = items.Take(maxVisible).ToList();
+        int overflow = items.Count - maxVisible;
+        return (visible, overflow);
+    }
 }
