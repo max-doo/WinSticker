@@ -288,7 +288,10 @@ public enum WidgetKind
     Productivity,
 
     /// <summary>At-a-glance background, time and date widget.</summary>
-    Glance
+    Glance,
+
+    /// <summary>Interactive standalone calendar widget projecting Todo due dates.</summary>
+    Calendar
 }
 
 /// <summary>

@@ -8,9 +8,9 @@ namespace WinSticker;
 
 public partial class App
 {
-    private const double AotGlanceBaselineRotationMinutes = 30;
-    private const double AotGlanceMutatedRotationMinutes = 0;
-    private const double AotGlanceMutatedBackgroundImageTransparency = 0.64;
+    private const double AotGlanceMutatedSizeScale = 1.25;
+    private const string AotGlanceMutatedWorldClockZone = "UTC";
+    private const string AotGlanceMutatedWorldClockName = "London";
 
     private async Task CaptureAotManagedUiGlancePersistenceAsync(
         AotManagedUiSmokeResult result,
@@ -26,12 +26,9 @@ public partial class App
             "GlanceHostReady",
             "The real Glance widget HWND or XamlRoot is unavailable.");
 
-        string fixturePath = ResolveAotGlanceFixturePath(result);
         AotManagedUiGlancePersistenceEvidence evidence =
             result.GlancePersistence ??
             throw new InvalidOperationException("Glance persistence evidence is unavailable.");
-        evidence.FixturePath = fixturePath;
-        evidence.FixtureLength = new FileInfo(fixturePath).Length;
         evidence.WindowHandle = host.WindowHandle;
         evidence.HasXamlRoot = host.HasXamlRoot;
         evidence.Visible = host.Visible;
@@ -39,51 +36,55 @@ public partial class App
         bool beforeMutation = phase == AotManagedUiGlanceVerifyRestorePhase;
         evidence.Before = await CaptureAotGlanceStateAsync(
             host,
-            fixturePath,
             expectMutation: beforeMutation);
-        RequireAotGlanceState(result, evidence.Before, fixturePath, beforeMutation);
+        RequireAotGlanceState(result, evidence.Before, beforeMutation);
+        if (beforeMutation)
+        {
+            RequireAotManagedUi(
+                result,
+                true,
+                "GlanceWorldClockPersisted",
+                "The second process did not reload the persisted world clocks.");
+        }
 
         switch (phase)
         {
             case AotManagedUiGlanceMutatePhase:
-                await ApplyAotGlanceMutationAsync(host.ViewModel, fixturePath);
+                await ApplyAotGlanceMutationAsync(host.ViewModel);
                 evidence.After = await CaptureAotGlanceStateAsync(
                     host,
-                    fixturePath,
                     expectMutation: true);
-                RequireAotGlanceState(result, evidence.After, fixturePath, expectMutation: true);
+                RequireAotGlanceState(result, evidence.After, expectMutation: true);
                 RequireAotManagedUi(
                     result,
-                    File.Exists(fixturePath),
-                    "GlanceOwnedImageRetained",
-                    "The owned Glance image disappeared during mutation.");
+                    true,
+                    "GlanceWorldClockPersisted",
+                    "The mutated world clocks were not persisted.");
                 break;
 
             case AotManagedUiGlanceVerifyRestorePhase:
                 await RestoreAotGlanceBaselineAsync(host.ViewModel);
                 evidence.After = await CaptureAotGlanceStateAsync(
                     host,
-                    fixturePath,
                     expectMutation: false);
-                RequireAotGlanceState(result, evidence.After, fixturePath, expectMutation: false);
+                RequireAotGlanceState(result, evidence.After, expectMutation: false);
                 RequireAotManagedUi(
                     result,
-                    File.Exists(fixturePath),
-                    "GlanceOwnedImagePreservedAfterRestore",
-                    "Restoring Glance preferences must not delete the source image.");
+                    true,
+                    "GlanceBaselineRestoredAfterRestart",
+                    "The Restore phase did not return to the clean baseline.");
                 break;
 
             case AotManagedUiGlancePostflightPhase:
                 evidence.After = await CaptureAotGlanceStateAsync(
                     host,
-                    fixturePath,
                     expectMutation: false);
-                RequireAotGlanceState(result, evidence.After, fixturePath, expectMutation: false);
+                RequireAotGlanceState(result, evidence.After, expectMutation: false);
                 RequireAotManagedUi(
                     result,
-                    File.Exists(fixturePath),
-                    "GlancePostflightFixtureRetained",
-                    "The postflight process unexpectedly changed the owned image fixture.");
+                    true,
+                    "GlancePostflightBaselineRetained",
+                    "The third process did not retain the restored baseline.");
                 break;
 
             default:
@@ -93,62 +94,41 @@ public partial class App
     }
 
     private static async Task ApplyAotGlanceMutationAsync(
-        GlanceWidgetViewModel viewModel,
-        string fixturePath)
+        GlanceWidgetViewModel viewModel)
     {
-        await viewModel.SetLocalImageFilesAsync([fixturePath]);
-        await viewModel.SetBackgroundImageTransparencyAsync(
-            AotGlanceMutatedBackgroundImageTransparency);
+        await viewModel.AddWorldClockAsync(
+            AotGlanceMutatedWorldClockZone,
+            AotGlanceMutatedWorldClockName);
+        await viewModel.SetShowSecondsAsync(true);
+        await viewModel.SetSizeScaleAsync(AotGlanceMutatedSizeScale);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Time, isVisible: true);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Date, isVisible: true);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Year, isVisible: true);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Weekday, isVisible: false);
-        await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Calendar, isVisible: false);
-        await viewModel.SetLayoutAsync(GlanceLayoutMode.Editorial);
-        await viewModel.SetPhotoPlaybackAsync(
-            AotGlanceMutatedRotationMinutes,
-            randomOrder: false,
-            GlanceTransitionMode.None,
-            GlanceTransitionSpeed.Fast,
-            GlanceReadabilityMode.Strong,
-            showPhotoControls: true);
+        await viewModel.SetSurfaceMaterialAsync(GlanceSurfaceMaterialMode.Transparent);
     }
 
     private static async Task RestoreAotGlanceBaselineAsync(
         GlanceWidgetViewModel viewModel)
     {
-        await viewModel.SetLocalImageFilesAsync([]);
-        await viewModel.SetBackgroundImageTransparencyAsync(0);
+        await viewModel.RemoveWorldClockAsync(AotGlanceMutatedWorldClockZone);
+        await viewModel.SetShowSecondsAsync(false);
+        await viewModel.SetSizeScaleAsync(1);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Time, isVisible: true);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Year, isVisible: false);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Date, isVisible: true);
         await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Weekday, isVisible: true);
-        await viewModel.SetDisplayElementAsync(GlanceDisplayElement.Calendar, isVisible: false);
-        await viewModel.SetLayoutAsync(GlanceLayoutMode.Centered);
-        await viewModel.SetPhotoPlaybackAsync(
-            AotGlanceBaselineRotationMinutes,
-            randomOrder: false,
-            GlanceTransitionMode.CrossFade,
-            GlanceTransitionSpeed.Standard,
-            GlanceReadabilityMode.Soft,
-            showPhotoControls: true);
+        await viewModel.SetSurfaceMaterialAsync(GlanceSurfaceMaterialMode.FollowSystem);
     }
 
     private async Task<AotManagedUiGlanceStateEvidence> CaptureAotGlanceStateAsync(
         AotGlancePersistenceHost host,
-        string fixturePath,
         bool expectMutation)
     {
         AotGlanceViewModelSnapshot viewModel =
-            await WaitForAotGlanceViewModelAsync(host.ViewModel, fixturePath, expectMutation);
+            await WaitForAotGlanceViewModelAsync(host.ViewModel, expectMutation);
         AotGlanceSurfaceSnapshot surface =
-            await host.Surface.WaitForAotGlanceSurfaceAsync(
-                expectMutation ? fixturePath : null,
-                expectMutation ? GlanceLayoutMode.Editorial : GlanceLayoutMode.Centered,
-                expectImage: expectMutation,
-                expectedBackgroundImageOpacity: expectMutation
-                    ? 1.0 - AotGlanceMutatedBackgroundImageTransparency
-                    : 1.0);
+            await host.Surface.WaitForAotGlanceSurfaceAsync(expectMutation);
         GlanceWidgetData store = await GlanceWidgetStore
             .ForWidget(AotManagedUiGlanceWidgetId)
             .LoadAsync();
@@ -163,7 +143,6 @@ public partial class App
 
     private static async Task<AotGlanceViewModelSnapshot> WaitForAotGlanceViewModelAsync(
         GlanceWidgetViewModel viewModel,
-        string fixturePath,
         bool expectMutation)
     {
         AotGlanceViewModelSnapshot last = viewModel.CaptureAotGlanceSnapshot();
@@ -171,7 +150,7 @@ public partial class App
         {
             last = viewModel.CaptureAotGlanceSnapshot();
             bool ready = expectMutation
-                ? IsAotGlanceViewModelMutation(last, fixturePath)
+                ? IsAotGlanceViewModelMutation(last)
                 : IsAotGlanceViewModelBaseline(last);
             if (ready)
             {
@@ -185,54 +164,21 @@ public partial class App
             $"The Glance ViewModel did not stabilize. Snapshot={last}");
     }
 
-    private string ResolveAotGlanceFixturePath(AotManagedUiSmokeResult result)
-    {
-        string? configuredPath = Environment.GetEnvironmentVariable(
-            AotManagedUiGlanceFixtureEnvironmentVariable);
-        string previewRoot = WinStickerDataPathService.Current.RootPath;
-        if (string.IsNullOrWhiteSpace(configuredPath))
-        {
-            RequireAotManagedUi(
-                result,
-                condition: false,
-                "GlanceFixtureConfigured",
-                "The Glance persistence scenario requires an owned image fixture.");
-        }
-
-        string path = Path.GetFullPath(configuredPath!);
-        RequireAotManagedUi(
-            result,
-            IsAotManagedUiPathEqualOrInside(previewRoot, path) &&
-            !IsAotManagedUiPathEqual(previewRoot, path) &&
-            string.Equals(Path.GetExtension(path), ".png", StringComparison.OrdinalIgnoreCase) &&
-            File.Exists(path),
-            "GlanceFixtureOwned",
-            "The Glance image fixture must be an existing PNG inside the isolated preview root.");
-        return path;
-    }
-
     private static AotManagedUiGlanceStoreEvidence MapAotGlanceStore(
         GlanceWidgetData store)
     {
         return new AotManagedUiGlanceStoreEvidence
         {
             Version = store.Version,
-            BackgroundSource = store.BackgroundSource.ToString(),
-            LocalImagePaths = store.LocalImagePaths.ToList(),
-            LocalFolderPath = store.LocalFolderPath,
             ShowTime = store.ShowTime,
             ShowDate = store.ShowDate,
             ShowYear = store.ShowYear,
             ShowWeekday = store.ShowWeekday,
-            ShowCalendar = store.ShowCalendar,
-            Layout = store.Layout.ToString(),
-            RotationIntervalMinutes = store.RotationIntervalMinutes,
-            RandomOrder = store.RandomOrder,
-            Transition = store.Transition.ToString(),
-            TransitionSpeed = store.TransitionSpeed.ToString(),
-            Readability = store.Readability.ToString(),
-            BackgroundImageTransparency = store.BackgroundImageTransparency,
-            ShowPhotoControls = store.ShowPhotoControls
+            ShowWeather = store.ShowWeather,
+            ShowSeconds = store.ShowSeconds,
+            SizeScale = store.SizeScale,
+            SurfaceMaterial = store.SurfaceMaterial.ToString(),
+            WorldClockCount = store.WorldClocks.Count
         };
     }
 
@@ -241,29 +187,16 @@ public partial class App
     {
         return new AotManagedUiGlanceViewModelEvidence
         {
-            BackgroundSource = viewModel.BackgroundSource,
-            LocalImagePaths = viewModel.LocalImagePaths.ToList(),
             ShowTime = viewModel.ShowTime,
             ShowDate = viewModel.ShowDate,
             ShowYear = viewModel.ShowYear,
             ShowWeekday = viewModel.ShowWeekday,
-            ShowCalendar = viewModel.ShowCalendar,
-            Layout = viewModel.Layout,
-            RotationIntervalMinutes = viewModel.RotationIntervalMinutes,
-            RandomOrder = viewModel.RandomOrder,
-            Transition = viewModel.Transition,
-            TransitionSpeed = viewModel.TransitionSpeed,
-            Readability = viewModel.Readability,
-            BackgroundImageTransparency = viewModel.BackgroundImageTransparency,
-            BackgroundImageOpacity = viewModel.BackgroundImageOpacity,
-            ShowPhotoControlsSetting = viewModel.ShowPhotoControlsSetting,
-            ImageCount = viewModel.ImageCount,
-            CurrentImagePath = viewModel.CurrentImagePath,
-            HasCurrentImage = viewModel.HasCurrentImage,
-            IsCenteredLayout = viewModel.IsCenteredLayout,
-            IsEditorialLayout = viewModel.IsEditorialLayout,
-            ReadabilityOpacity = viewModel.ReadabilityOpacity,
-            ShowPhotoControls = viewModel.ShowPhotoControls
+            ShowWeather = viewModel.ShowWeather,
+            ShowSeconds = viewModel.ShowSeconds,
+            SizeScale = viewModel.SizeScale,
+            SurfaceMaterial = viewModel.SurfaceMaterial,
+            WorldClockCount = viewModel.WorldClockCount,
+            HasWorldClocks = viewModel.HasWorldClocks
         };
     }
 
@@ -277,34 +210,20 @@ public partial class App
             DataContextMatchesViewModel = surface.DataContextMatchesViewModel,
             ActualWidth = surface.ActualWidth,
             ActualHeight = surface.ActualHeight,
-            DecodedImagePath = surface.DecodedImagePath,
-            BackgroundAHasBrush = surface.BackgroundAHasBrush,
-            BackgroundBHasBrush = surface.BackgroundBHasBrush,
-            ActiveBackgroundIsImageBrush = surface.ActiveBackgroundIsImageBrush,
-            ActiveImageUri = surface.ActiveImageUri,
-            ActiveBackgroundOpacity = surface.ActiveBackgroundOpacity,
-            BackgroundImageLayerOpacity = surface.BackgroundImageLayerOpacity,
-            ImageStretch = surface.ImageStretch,
-            ImageAlignmentX = surface.ImageAlignmentX,
-            ImageAlignmentY = surface.ImageAlignmentY,
-            ImmersiveLayoutVisible = surface.ImmersiveLayoutVisible,
-            CenteredLayoutVisible = surface.CenteredLayoutVisible,
-            EditorialLayoutVisible = surface.EditorialLayoutVisible,
-            CalendarLayoutVisible = surface.CalendarLayoutVisible,
-            ReadabilityLayerVisible = surface.ReadabilityLayerVisible,
-            ReadabilityLayerOpacity = surface.ReadabilityLayerOpacity,
-            ActionLayerVisible = surface.ActionLayerVisible
+            ContentVisible = surface.ContentVisible,
+            ClockColumnVisible = surface.ClockColumnVisible,
+            WorldClocksVisible = surface.WorldClocksVisible,
+            WorldClockRowCount = surface.WorldClockRowCount
         };
     }
 
     private static void RequireAotGlanceState(
         AotManagedUiSmokeResult result,
         AotManagedUiGlanceStateEvidence state,
-        string fixturePath,
         bool expectMutation)
     {
         bool valid = expectMutation
-            ? IsAotGlanceMutation(state, fixturePath)
+            ? IsAotGlanceMutation(state)
             : IsAotGlanceBaseline(state);
         RequireAotManagedUi(
             result,
@@ -319,223 +238,111 @@ public partial class App
     {
         return IsAotGlanceStoreBaseline(state.Store) &&
             IsAotGlanceViewModelBaseline(state.ViewModel) &&
-            state.Surface.IsLoaded &&
-            state.Surface.HasXamlRoot &&
-            state.Surface.DataContextMatchesViewModel &&
-            state.Surface.ActualWidth > 0 &&
-            state.Surface.ActualHeight > 0 &&
-            state.Surface.DecodedImagePath is null &&
-            !state.Surface.BackgroundAHasBrush &&
-            !state.Surface.BackgroundBHasBrush &&
-            Math.Abs(state.Surface.BackgroundImageLayerOpacity - 1.0) < 0.001 &&
-            state.Surface.ActiveImageUri is null &&
-            !state.Surface.ImmersiveLayoutVisible &&
-            state.Surface.CenteredLayoutVisible &&
-            !state.Surface.EditorialLayoutVisible &&
-            !state.Surface.CalendarLayoutVisible &&
-            !state.Surface.ReadabilityLayerVisible &&
-            !state.Surface.ActionLayerVisible;
+            IsAotGlanceSurfaceHealthy(state.Surface) &&
+            !state.Surface.WorldClocksVisible &&
+            state.Surface.WorldClockRowCount == 0;
     }
 
-    private static bool IsAotGlanceMutation(
-        AotManagedUiGlanceStateEvidence state,
-        string fixturePath)
+    private static bool IsAotGlanceMutation(AotManagedUiGlanceStateEvidence state)
     {
-        return IsAotGlanceStoreMutation(state.Store, fixturePath) &&
-            IsAotGlanceViewModelMutation(state.ViewModel, fixturePath) &&
-            state.Surface.IsLoaded &&
-            state.Surface.HasXamlRoot &&
-            state.Surface.DataContextMatchesViewModel &&
-            state.Surface.ActualWidth > 0 &&
-            state.Surface.ActualHeight > 0 &&
-            string.Equals(state.Surface.DecodedImagePath, fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            state.Surface.ActiveBackgroundIsImageBrush &&
-            string.Equals(state.Surface.ActiveImageUri, fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            state.Surface.ActiveBackgroundOpacity > 0.99 &&
-            Math.Abs(
-                state.Surface.BackgroundImageLayerOpacity -
-                (1.0 - AotGlanceMutatedBackgroundImageTransparency)) < 0.001 &&
-            string.Equals(state.Surface.ImageStretch, "UniformToFill", StringComparison.Ordinal) &&
-            string.Equals(state.Surface.ImageAlignmentX, "Center", StringComparison.Ordinal) &&
-            string.Equals(state.Surface.ImageAlignmentY, "Center", StringComparison.Ordinal) &&
-            !state.Surface.ImmersiveLayoutVisible &&
-            !state.Surface.CenteredLayoutVisible &&
-            state.Surface.EditorialLayoutVisible &&
-            !state.Surface.CalendarLayoutVisible &&
-            state.Surface.ReadabilityLayerVisible &&
-            Math.Abs(state.Surface.ReadabilityLayerOpacity - 0.5) < 0.001 &&
-            state.Surface.ActionLayerVisible;
+        return IsAotGlanceStoreMutation(state.Store) &&
+            IsAotGlanceViewModelMutation(state.ViewModel) &&
+            IsAotGlanceSurfaceHealthy(state.Surface) &&
+            state.Surface.WorldClocksVisible &&
+            state.Surface.WorldClockRowCount == 1;
+    }
+
+    private static bool IsAotGlanceSurfaceHealthy(AotManagedUiGlanceSurfaceEvidence surface)
+    {
+        return surface.IsLoaded &&
+            surface.HasXamlRoot &&
+            surface.DataContextMatchesViewModel &&
+            surface.ActualWidth > 0 &&
+            surface.ActualHeight > 0 &&
+            surface.ContentVisible &&
+            surface.ClockColumnVisible;
     }
 
     private static bool IsAotGlanceStoreBaseline(AotManagedUiGlanceStoreEvidence store)
     {
         return store.Version == GlanceWidgetData.CurrentVersion &&
-            store.BackgroundSource == nameof(GlanceBackgroundSource.LocalFiles) &&
-            store.LocalImagePaths.Count == 0 &&
-            store.LocalFolderPath is null &&
             store.ShowTime &&
             store.ShowDate &&
             !store.ShowYear &&
             store.ShowWeekday &&
-            !store.ShowCalendar &&
-            store.Layout == nameof(GlanceLayoutMode.Centered) &&
-            Math.Abs(store.RotationIntervalMinutes - AotGlanceBaselineRotationMinutes) < 0.001 &&
-            !store.RandomOrder &&
-            store.Transition == nameof(GlanceTransitionMode.CrossFade) &&
-            store.TransitionSpeed == nameof(GlanceTransitionSpeed.Standard) &&
-            store.Readability == nameof(GlanceReadabilityMode.Soft) &&
-            Math.Abs(store.BackgroundImageTransparency) < 0.001 &&
-            store.ShowPhotoControls;
+            store.ShowWeather &&
+            !store.ShowSeconds &&
+            Math.Abs(store.SizeScale - 1) < 0.001 &&
+            store.SurfaceMaterial == nameof(GlanceSurfaceMaterialMode.FollowSystem) &&
+            store.WorldClockCount == 0;
     }
 
-    private static bool IsAotGlanceStoreMutation(
-        AotManagedUiGlanceStoreEvidence store,
-        string fixturePath)
+    private static bool IsAotGlanceStoreMutation(AotManagedUiGlanceStoreEvidence store)
     {
         return store.Version == GlanceWidgetData.CurrentVersion &&
-            store.BackgroundSource == nameof(GlanceBackgroundSource.LocalFiles) &&
-            store.LocalImagePaths.Count == 1 &&
-            string.Equals(store.LocalImagePaths[0], fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            store.LocalFolderPath is null &&
             store.ShowTime &&
             store.ShowDate &&
             store.ShowYear &&
             !store.ShowWeekday &&
-            !store.ShowCalendar &&
-            store.Layout == nameof(GlanceLayoutMode.Editorial) &&
-            Math.Abs(store.RotationIntervalMinutes - AotGlanceMutatedRotationMinutes) < 0.001 &&
-            !store.RandomOrder &&
-            store.Transition == nameof(GlanceTransitionMode.None) &&
-            store.TransitionSpeed == nameof(GlanceTransitionSpeed.Fast) &&
-            store.Readability == nameof(GlanceReadabilityMode.Strong) &&
-            Math.Abs(
-                store.BackgroundImageTransparency -
-                AotGlanceMutatedBackgroundImageTransparency) < 0.001 &&
-            store.ShowPhotoControls;
+            store.ShowWeather &&
+            store.ShowSeconds &&
+            Math.Abs(store.SizeScale - AotGlanceMutatedSizeScale) < 0.001 &&
+            store.SurfaceMaterial == nameof(GlanceSurfaceMaterialMode.Transparent) &&
+            store.WorldClockCount == 1;
     }
 
-    private static bool IsAotGlanceViewModelBaseline(
-        AotGlanceViewModelSnapshot viewModel)
+    private static bool IsAotGlanceViewModelBaseline(AotGlanceViewModelSnapshot viewModel)
     {
-        return viewModel.BackgroundSource == nameof(GlanceBackgroundSource.LocalFiles) &&
-            viewModel.LocalImagePaths.Count == 0 &&
-            viewModel.ShowTime &&
+        return viewModel.ShowTime &&
             viewModel.ShowDate &&
             !viewModel.ShowYear &&
             viewModel.ShowWeekday &&
-            !viewModel.ShowCalendar &&
-            viewModel.Layout == nameof(GlanceLayoutMode.Centered) &&
-            Math.Abs(viewModel.RotationIntervalMinutes - AotGlanceBaselineRotationMinutes) < 0.001 &&
-            !viewModel.RandomOrder &&
-            viewModel.Transition == nameof(GlanceTransitionMode.CrossFade) &&
-            viewModel.TransitionSpeed == nameof(GlanceTransitionSpeed.Standard) &&
-            viewModel.Readability == nameof(GlanceReadabilityMode.Soft) &&
-            Math.Abs(viewModel.BackgroundImageTransparency) < 0.001 &&
-            Math.Abs(viewModel.BackgroundImageOpacity - 1.0) < 0.001 &&
-            viewModel.ShowPhotoControlsSetting &&
-            viewModel.ImageCount == 0 &&
-            viewModel.CurrentImagePath is null &&
-            !viewModel.HasCurrentImage &&
-            viewModel.IsCenteredLayout &&
-            !viewModel.IsEditorialLayout &&
-            Math.Abs(viewModel.ReadabilityOpacity - 0.28) < 0.001 &&
-            !viewModel.ShowPhotoControls;
+            viewModel.ShowWeather &&
+            !viewModel.ShowSeconds &&
+            Math.Abs(viewModel.SizeScale - 1) < 0.001 &&
+            viewModel.SurfaceMaterial == nameof(GlanceSurfaceMaterialMode.FollowSystem) &&
+            !viewModel.HasWorldClocks;
     }
 
-    private static bool IsAotGlanceViewModelBaseline(
-        AotManagedUiGlanceViewModelEvidence viewModel)
+    private static bool IsAotGlanceViewModelBaseline(AotManagedUiGlanceViewModelEvidence viewModel)
     {
-        return viewModel.BackgroundSource == nameof(GlanceBackgroundSource.LocalFiles) &&
-            viewModel.LocalImagePaths.Count == 0 &&
-            viewModel.ShowTime &&
+        return viewModel.ShowTime &&
             viewModel.ShowDate &&
             !viewModel.ShowYear &&
             viewModel.ShowWeekday &&
-            !viewModel.ShowCalendar &&
-            viewModel.Layout == nameof(GlanceLayoutMode.Centered) &&
-            Math.Abs(viewModel.RotationIntervalMinutes - AotGlanceBaselineRotationMinutes) < 0.001 &&
-            !viewModel.RandomOrder &&
-            viewModel.Transition == nameof(GlanceTransitionMode.CrossFade) &&
-            viewModel.TransitionSpeed == nameof(GlanceTransitionSpeed.Standard) &&
-            viewModel.Readability == nameof(GlanceReadabilityMode.Soft) &&
-            Math.Abs(viewModel.BackgroundImageTransparency) < 0.001 &&
-            Math.Abs(viewModel.BackgroundImageOpacity - 1.0) < 0.001 &&
-            viewModel.ShowPhotoControlsSetting &&
-            viewModel.ImageCount == 0 &&
-            viewModel.CurrentImagePath is null &&
-            !viewModel.HasCurrentImage &&
-            viewModel.IsCenteredLayout &&
-            !viewModel.IsEditorialLayout &&
-            Math.Abs(viewModel.ReadabilityOpacity - 0.28) < 0.001 &&
-            !viewModel.ShowPhotoControls;
+            viewModel.ShowWeather &&
+            !viewModel.ShowSeconds &&
+            Math.Abs(viewModel.SizeScale - 1) < 0.001 &&
+            viewModel.SurfaceMaterial == nameof(GlanceSurfaceMaterialMode.FollowSystem) &&
+            !viewModel.HasWorldClocks;
     }
 
-    private static bool IsAotGlanceViewModelMutation(
-        AotGlanceViewModelSnapshot viewModel,
-        string fixturePath)
+    private static bool IsAotGlanceViewModelMutation(AotGlanceViewModelSnapshot viewModel)
     {
-        return viewModel.BackgroundSource == nameof(GlanceBackgroundSource.LocalFiles) &&
-            viewModel.LocalImagePaths.Count == 1 &&
-            string.Equals(viewModel.LocalImagePaths[0], fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            viewModel.ShowTime &&
+        return viewModel.ShowTime &&
             viewModel.ShowDate &&
             viewModel.ShowYear &&
             !viewModel.ShowWeekday &&
-            !viewModel.ShowCalendar &&
-            viewModel.Layout == nameof(GlanceLayoutMode.Editorial) &&
-            Math.Abs(viewModel.RotationIntervalMinutes - AotGlanceMutatedRotationMinutes) < 0.001 &&
-            !viewModel.RandomOrder &&
-            viewModel.Transition == nameof(GlanceTransitionMode.None) &&
-            viewModel.TransitionSpeed == nameof(GlanceTransitionSpeed.Fast) &&
-            viewModel.Readability == nameof(GlanceReadabilityMode.Strong) &&
-            Math.Abs(
-                viewModel.BackgroundImageTransparency -
-                AotGlanceMutatedBackgroundImageTransparency) < 0.001 &&
-            Math.Abs(
-                viewModel.BackgroundImageOpacity -
-                (1.0 - AotGlanceMutatedBackgroundImageTransparency)) < 0.001 &&
-            viewModel.ShowPhotoControlsSetting &&
-            viewModel.ImageCount == 1 &&
-            string.Equals(viewModel.CurrentImagePath, fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            viewModel.HasCurrentImage &&
-            !viewModel.IsCenteredLayout &&
-            viewModel.IsEditorialLayout &&
-            Math.Abs(viewModel.ReadabilityOpacity - 0.5) < 0.001 &&
-            viewModel.ShowPhotoControls;
+            viewModel.ShowWeather &&
+            viewModel.ShowSeconds &&
+            Math.Abs(viewModel.SizeScale - AotGlanceMutatedSizeScale) < 0.001 &&
+            viewModel.SurfaceMaterial == nameof(GlanceSurfaceMaterialMode.Transparent) &&
+            viewModel.HasWorldClocks &&
+            viewModel.WorldClockCount == 1;
     }
 
-    private static bool IsAotGlanceViewModelMutation(
-        AotManagedUiGlanceViewModelEvidence viewModel,
-        string fixturePath)
+    private static bool IsAotGlanceViewModelMutation(AotManagedUiGlanceViewModelEvidence viewModel)
     {
-        return viewModel.BackgroundSource == nameof(GlanceBackgroundSource.LocalFiles) &&
-            viewModel.LocalImagePaths.Count == 1 &&
-            string.Equals(viewModel.LocalImagePaths[0], fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            viewModel.ShowTime &&
+        return viewModel.ShowTime &&
             viewModel.ShowDate &&
             viewModel.ShowYear &&
             !viewModel.ShowWeekday &&
-            !viewModel.ShowCalendar &&
-            viewModel.Layout == nameof(GlanceLayoutMode.Editorial) &&
-            Math.Abs(viewModel.RotationIntervalMinutes - AotGlanceMutatedRotationMinutes) < 0.001 &&
-            !viewModel.RandomOrder &&
-            viewModel.Transition == nameof(GlanceTransitionMode.None) &&
-            viewModel.TransitionSpeed == nameof(GlanceTransitionSpeed.Fast) &&
-            viewModel.Readability == nameof(GlanceReadabilityMode.Strong) &&
-            Math.Abs(
-                viewModel.BackgroundImageTransparency -
-                AotGlanceMutatedBackgroundImageTransparency) < 0.001 &&
-            Math.Abs(
-                viewModel.BackgroundImageOpacity -
-                (1.0 - AotGlanceMutatedBackgroundImageTransparency)) < 0.001 &&
-            viewModel.ShowPhotoControlsSetting &&
-            viewModel.ImageCount == 1 &&
-            string.Equals(viewModel.CurrentImagePath, fixturePath, StringComparison.OrdinalIgnoreCase) &&
-            viewModel.HasCurrentImage &&
-            !viewModel.IsCenteredLayout &&
-            viewModel.IsEditorialLayout &&
-            Math.Abs(viewModel.ReadabilityOpacity - 0.5) < 0.001 &&
-            viewModel.ShowPhotoControls;
+            viewModel.ShowWeather &&
+            viewModel.ShowSeconds &&
+            Math.Abs(viewModel.SizeScale - AotGlanceMutatedSizeScale) < 0.001 &&
+            viewModel.SurfaceMaterial == nameof(GlanceSurfaceMaterialMode.Transparent) &&
+            viewModel.HasWorldClocks &&
+            viewModel.WorldClockCount == 1;
     }
 }
 
@@ -543,8 +350,6 @@ internal sealed class AotManagedUiGlancePersistenceEvidence
 {
     public string Phase { get; set; } = string.Empty;
     public bool NormalShutdownRequested { get; set; }
-    public string FixturePath { get; set; } = string.Empty;
-    public long FixtureLength { get; set; }
     public long WindowHandle { get; set; }
     public bool HasXamlRoot { get; set; }
     public bool Visible { get; set; }
@@ -562,49 +367,29 @@ internal sealed class AotManagedUiGlanceStateEvidence
 internal sealed class AotManagedUiGlanceStoreEvidence
 {
     public int Version { get; set; }
-    public string BackgroundSource { get; set; } = string.Empty;
-    public List<string> LocalImagePaths { get; set; } = [];
-    public string? LocalFolderPath { get; set; }
     public bool ShowTime { get; set; }
     public bool ShowDate { get; set; }
     public bool ShowYear { get; set; }
     public bool ShowWeekday { get; set; }
-    public bool ShowCalendar { get; set; }
-    public string Layout { get; set; } = string.Empty;
-    public double RotationIntervalMinutes { get; set; }
-    public bool RandomOrder { get; set; }
-    public string Transition { get; set; } = string.Empty;
-    public string TransitionSpeed { get; set; } = string.Empty;
-    public string Readability { get; set; } = string.Empty;
-    public double BackgroundImageTransparency { get; set; }
-    public bool ShowPhotoControls { get; set; }
+    public bool ShowWeather { get; set; }
+    public bool ShowSeconds { get; set; }
+    public double SizeScale { get; set; }
+    public string SurfaceMaterial { get; set; } = string.Empty;
+    public int WorldClockCount { get; set; }
 }
 
 internal sealed class AotManagedUiGlanceViewModelEvidence
 {
-    public string BackgroundSource { get; set; } = string.Empty;
-    public List<string> LocalImagePaths { get; set; } = [];
     public bool ShowTime { get; set; }
     public bool ShowDate { get; set; }
     public bool ShowYear { get; set; }
     public bool ShowWeekday { get; set; }
-    public bool ShowCalendar { get; set; }
-    public string Layout { get; set; } = string.Empty;
-    public double RotationIntervalMinutes { get; set; }
-    public bool RandomOrder { get; set; }
-    public string Transition { get; set; } = string.Empty;
-    public string TransitionSpeed { get; set; } = string.Empty;
-    public string Readability { get; set; } = string.Empty;
-    public double BackgroundImageTransparency { get; set; }
-    public double BackgroundImageOpacity { get; set; }
-    public bool ShowPhotoControlsSetting { get; set; }
-    public int ImageCount { get; set; }
-    public string? CurrentImagePath { get; set; }
-    public bool HasCurrentImage { get; set; }
-    public bool IsCenteredLayout { get; set; }
-    public bool IsEditorialLayout { get; set; }
-    public double ReadabilityOpacity { get; set; }
-    public bool ShowPhotoControls { get; set; }
+    public bool ShowWeather { get; set; }
+    public bool ShowSeconds { get; set; }
+    public double SizeScale { get; set; }
+    public string SurfaceMaterial { get; set; } = string.Empty;
+    public int WorldClockCount { get; set; }
+    public bool HasWorldClocks { get; set; }
 }
 
 internal sealed class AotManagedUiGlanceSurfaceEvidence
@@ -614,22 +399,9 @@ internal sealed class AotManagedUiGlanceSurfaceEvidence
     public bool DataContextMatchesViewModel { get; set; }
     public double ActualWidth { get; set; }
     public double ActualHeight { get; set; }
-    public string? DecodedImagePath { get; set; }
-    public bool BackgroundAHasBrush { get; set; }
-    public bool BackgroundBHasBrush { get; set; }
-    public bool ActiveBackgroundIsImageBrush { get; set; }
-    public string? ActiveImageUri { get; set; }
-    public double ActiveBackgroundOpacity { get; set; }
-    public double BackgroundImageLayerOpacity { get; set; }
-    public string? ImageStretch { get; set; }
-    public string? ImageAlignmentX { get; set; }
-    public string? ImageAlignmentY { get; set; }
-    public bool ImmersiveLayoutVisible { get; set; }
-    public bool CenteredLayoutVisible { get; set; }
-    public bool EditorialLayoutVisible { get; set; }
-    public bool CalendarLayoutVisible { get; set; }
-    public bool ReadabilityLayerVisible { get; set; }
-    public double ReadabilityLayerOpacity { get; set; }
-    public bool ActionLayerVisible { get; set; }
+    public bool ContentVisible { get; set; }
+    public bool ClockColumnVisible { get; set; }
+    public bool WorldClocksVisible { get; set; }
+    public int WorldClockRowCount { get; set; }
 }
 #endif

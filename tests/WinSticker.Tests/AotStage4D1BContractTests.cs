@@ -60,14 +60,14 @@ public sealed class AotStage4D1BContractTests
         // native notice Title/Message properties for the notice cards.
         IReadOnlyDictionary<string, int> usages = ReadLocalizedXamlUsages();
         Assert.Equal(7, usages.Count);
-        Assert.Equal(223, usages["toolkit:SettingsCard|HeaderKey"]);
-        Assert.Equal(191, usages["toolkit:SettingsCard|DescriptionKey"]);
-        Assert.Equal(38, usages["toolkit:SettingsExpander|HeaderKey"]);
+        Assert.Equal(212, usages["toolkit:SettingsCard|HeaderKey"]);
+        Assert.Equal(184, usages["toolkit:SettingsCard|DescriptionKey"]);
+        Assert.Equal(37, usages["toolkit:SettingsExpander|HeaderKey"]);
         Assert.Equal(24, usages["toolkit:SettingsExpander|DescriptionKey"]);
         Assert.Equal(2, usages["TextBox|HeaderKey"]);
         Assert.Equal(6, usages["InfoBar|HeaderKey"]);
         Assert.Equal(6, usages["InfoBar|DescriptionKey"]);
-        Assert.Equal(490, usages.Values.Sum());
+        Assert.Equal(471, usages.Values.Sum());
     }
 
     [Fact]

@@ -22,19 +22,14 @@ public sealed class GlanceWidgetStoreTests : IDisposable
         Assert.True(data.ShowDate);
         Assert.False(data.ShowYear);
         Assert.True(data.ShowWeekday);
-        Assert.False(data.ShowCalendar);
-        Assert.Equal(GlanceLayoutMode.Centered, data.Layout);
-        Assert.Equal(GlanceBackgroundSource.Bing, data.BackgroundSource);
-        Assert.Equal(GlanceOnlineImageCategory.Featured, data.OnlineImageCategory);
+        Assert.True(data.ShowWeather);
+        Assert.False(data.ShowSeconds);
         Assert.Equal(GlanceTimeFormatMode.FollowSystem, data.TimeFormat);
-        Assert.Equal(30d, data.RotationIntervalMinutes);
-        Assert.Equal(GlanceTransitionMode.CrossFade, data.Transition);
-        Assert.Equal(0, data.BackgroundImageTransparency);
-        Assert.Equal(GlanceCalendarMaterialMode.FollowSystem, data.CalendarMaterialMode);
-        Assert.Equal(0.32, data.CalendarImageMaterialTransparency, precision: 2);
-        Assert.Equal(GlanceTraditionalCalendarMode.None, data.TraditionalCalendarMode);
-        Assert.True(data.ShowChineseFestivals);
-        Assert.True(data.ShowPhotoControls);
+        Assert.Equal(1, data.SizeScale);
+        Assert.Empty(data.WorldClocks);
+        Assert.Null(data.TimeFontFamily);
+        Assert.Equal(GlanceSurfaceMaterialMode.FollowSystem, data.SurfaceMaterial);
+        Assert.Equal(GlanceTextContrastMode.Auto, data.TextContrast);
     }
 
     [Fact]
@@ -73,35 +68,40 @@ public sealed class GlanceWidgetStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_PreservesPhotoOnlyModeAndNormalizesPaths()
+    public async Task SaveAsync_ClampsSizeScaleAndDropsInvalidWorldClocks()
     {
         var store = new GlanceWidgetStore(_tempRoot);
         await store.SaveAsync(new GlanceWidgetData
         {
-            ShowTime = false,
-            ShowDate = false,
-            ShowWeekday = false,
-            ShowCalendar = false,
-            BackgroundSource = GlanceBackgroundSource.LocalFiles,
-            OnlineImageCategory = GlanceOnlineImageCategory.Astronomy,
-            LocalImagePaths = [" C:\\Pictures\\one.jpg ", "c:\\pictures\\ONE.jpg", ""],
-            RotationIntervalMinutes = 17,
-            TimeScale = 9,
-            ShowPhotoControls = false
+            SizeScale = 9,
+            WorldClocks =
+            [
+                new GlanceWorldClockData("China Standard Time", "上海"),
+                new GlanceWorldClockData("Mars/Standard_Time", "火星"),
+                new GlanceWorldClockData(" china standard time ", "北京")
+            ]
         });
 
         GlanceWidgetData reloaded = await new GlanceWidgetStore(_tempRoot).LoadAsync();
 
-        Assert.False(reloaded.ShowTime);
-        Assert.False(reloaded.ShowDate);
-        Assert.False(reloaded.ShowWeekday);
-        Assert.False(reloaded.ShowCalendar);
-        Assert.Single(reloaded.LocalImagePaths);
-        Assert.Equal(GlanceOnlineImageCategory.Astronomy, reloaded.OnlineImageCategory);
-        Assert.Equal(@"C:\Pictures\one.jpg", reloaded.LocalImagePaths[0]);
-        Assert.Equal(30d, reloaded.RotationIntervalMinutes);
-        Assert.Equal(1.35, reloaded.TimeScale);
-        Assert.False(reloaded.ShowPhotoControls);
+        Assert.Equal(1.75, reloaded.SizeScale);
+        GlanceWorldClockData clock = Assert.Single(reloaded.WorldClocks);
+        Assert.Equal("China Standard Time", clock.TimeZoneId);
+        Assert.Equal("上海", clock.CityName);
+    }
+
+    [Fact]
+    public async Task SaveAsync_TrimsWorldClockNames()
+    {
+        var store = new GlanceWidgetStore(_tempRoot);
+        await store.SaveAsync(new GlanceWidgetData
+        {
+            WorldClocks = [new GlanceWorldClockData("UTC", " 伦敦 ")]
+        });
+
+        GlanceWidgetData reloaded = await new GlanceWidgetStore(_tempRoot).LoadAsync();
+
+        Assert.Equal("伦敦", reloaded.WorldClocks[0].CityName);
     }
 
     [Fact]
@@ -116,83 +116,6 @@ public sealed class GlanceWidgetStoreTests : IDisposable
         Assert.True(second.ShowTime);
     }
 
-    [Theory]
-    [InlineData(0d)]
-    [InlineData(10d / 60d)]
-    [InlineData(30d / 60d)]
-    [InlineData(1d)]
-    [InlineData(2d)]
-    [InlineData(5d)]
-    [InlineData(10d)]
-    [InlineData(30d)]
-    public async Task SaveAsync_PreservesSupportedShortRotationIntervals(double intervalMinutes)
-    {
-        var store = new GlanceWidgetStore(_tempRoot);
-        await store.SaveAsync(new GlanceWidgetData
-        {
-            RotationIntervalMinutes = intervalMinutes
-        });
-
-        GlanceWidgetData reloaded = await new GlanceWidgetStore(_tempRoot).LoadAsync();
-
-        Assert.Equal(intervalMinutes, reloaded.RotationIntervalMinutes, precision: 6);
-    }
-
-    [Fact]
-    public async Task SaveAsync_PreservesImageMaterialAndClampsTransparency()
-    {
-        var store = new GlanceWidgetStore(_tempRoot);
-        await store.SaveAsync(new GlanceWidgetData
-        {
-            CalendarMaterialMode = GlanceCalendarMaterialMode.FollowImage,
-            BackgroundImageTransparency = 4,
-            CalendarImageMaterialTransparency = 4,
-            TraditionalCalendarMode = GlanceTraditionalCalendarMode.Hebrew,
-            ShowChineseFestivals = false
-        });
-
-        GlanceWidgetData reloaded = await new GlanceWidgetStore(_tempRoot).LoadAsync();
-
-        Assert.Equal(GlanceCalendarMaterialMode.FollowImage, reloaded.CalendarMaterialMode);
-        Assert.Equal(1, reloaded.BackgroundImageTransparency);
-        Assert.Equal(1, reloaded.CalendarImageMaterialTransparency);
-        Assert.Equal(GlanceTraditionalCalendarMode.Hebrew, reloaded.TraditionalCalendarMode);
-        Assert.False(reloaded.ShowChineseFestivals);
-    }
-
-    [Theory]
-    [InlineData(-2, 0)]
-    [InlineData(0, 0)]
-    [InlineData(0.42, 0.42)]
-    [InlineData(1, 1)]
-    [InlineData(3, 1)]
-    public async Task SaveAsync_ClampsBackgroundImageTransparency(
-        double requested,
-        double expected)
-    {
-        var store = new GlanceWidgetStore(_tempRoot);
-        await store.SaveAsync(new GlanceWidgetData
-        {
-            BackgroundImageTransparency = requested
-        });
-
-        GlanceWidgetData reloaded = await new GlanceWidgetStore(_tempRoot).LoadAsync();
-
-        Assert.Equal(expected, reloaded.BackgroundImageTransparency, precision: 6);
-    }
-
-    [Fact]
-    public async Task UpdateAsync_ResetsNonFiniteBackgroundImageTransparency()
-    {
-        var store = new GlanceWidgetStore(_tempRoot);
-        await store.UpdateAsync(settings =>
-            settings.BackgroundImageTransparency = double.NaN);
-
-        GlanceWidgetData reloaded = await new GlanceWidgetStore(_tempRoot).LoadAsync();
-
-        Assert.Equal(0, reloaded.BackgroundImageTransparency);
-    }
-
     [Fact]
     public async Task PerWidgetStores_KeepPreferencesIndependent()
     {
@@ -202,14 +125,11 @@ public sealed class GlanceWidgetStoreTests : IDisposable
         await first.SaveAsync(new GlanceWidgetData
         {
             ShowTime = false,
-            BackgroundSource = GlanceBackgroundSource.LocalFiles,
-            LocalImagePaths = [@"C:\Pictures\first.jpg"],
-            BackgroundImageTransparency = 0.64
+            WorldClocks = [new GlanceWorldClockData("UTC", "伦敦")]
         });
         await second.SaveAsync(new GlanceWidgetData
         {
-            ShowTime = true,
-            BackgroundSource = GlanceBackgroundSource.Bing
+            ShowTime = true
         });
 
         GlanceWidgetData firstReloaded = await new GlanceWidgetStore(
@@ -221,11 +141,49 @@ public sealed class GlanceWidgetStoreTests : IDisposable
 
         Assert.NotEqual(first.StorePath, second.StorePath);
         Assert.False(firstReloaded.ShowTime);
-        Assert.Single(firstReloaded.LocalImagePaths);
-        Assert.Equal(0.64, firstReloaded.BackgroundImageTransparency, precision: 2);
+        Assert.Single(firstReloaded.WorldClocks);
         Assert.True(secondReloaded.ShowTime);
-        Assert.Empty(secondReloaded.LocalImagePaths);
-        Assert.Equal(0, secondReloaded.BackgroundImageTransparency);
+        Assert.Empty(secondReloaded.WorldClocks);
+    }
+
+    [Fact]
+    public async Task LoadAsync_MigratesV11PhotoDocumentWithoutLosingKeptSettings()
+    {
+        string legacyJson = """
+        {
+          "version": 11,
+          "showTime": true,
+          "showDate": false,
+          "showWeekday": true,
+          "showWeather": true,
+          "timeFormat": "Hour24",
+          "layout": "Calendar",
+          "backgroundSource": "Bing",
+          "onlineImageCategory": "Astronomy",
+          "localImagePaths": ["C:\\Pictures\\one.jpg"],
+          "rotationIntervalMinutes": 30,
+          "transition": "SlideFade",
+          "showCalendar": true,
+          "traditionalCalendarMode": "ChineseLunar",
+          "showChineseFestivals": true,
+          "surfaceMaterial": "Transparent",
+          "textContrast": "White"
+        }
+        """;
+        Directory.CreateDirectory(_tempRoot);
+        var store = new GlanceWidgetStore(_tempRoot);
+        await File.WriteAllTextAsync(store.StorePath, legacyJson);
+
+        GlanceWidgetData migrated = await new GlanceWidgetStore(_tempRoot).LoadAsync();
+
+        Assert.Equal(GlanceWidgetData.CurrentVersion, migrated.Version);
+        Assert.True(migrated.ShowTime);
+        Assert.False(migrated.ShowDate);
+        Assert.True(migrated.ShowWeekday);
+        Assert.True(migrated.ShowWeather);
+        Assert.Equal(GlanceTimeFormatMode.Hour24, migrated.TimeFormat);
+        Assert.Equal(GlanceSurfaceMaterialMode.Transparent, migrated.SurfaceMaterial);
+        Assert.Equal(GlanceTextContrastMode.White, migrated.TextContrast);
     }
 
     public void Dispose()

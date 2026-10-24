@@ -282,23 +282,31 @@ public sealed class TodoReminderService : IDisposable, ITodoReminderSession
             }
 
             var store = _storeFactory(widget.Id);
-            var data = await store.LoadAsync();
-            var item = data.Items.FirstOrDefault(item =>
-                string.Equals(item.Id, itemId, StringComparison.Ordinal));
-            if (item is null ||
-                item.IsCompleted ||
-                item.DueDate is null ||
-                TodoReminderOptions.IsReminderOff(item.ReminderOffsetMinutes))
+            bool snoozed = false;
+            await TodoRepository.ForStore(store).MutateAsync(data =>
+            {
+                var item = data.Items.FirstOrDefault(item =>
+                    string.Equals(item.Id, itemId, StringComparison.Ordinal));
+                if (item is null ||
+                    item.IsCompleted ||
+                    item.DueDate is null ||
+                    TodoReminderOptions.IsReminderOff(item.ReminderOffsetMinutes))
+                {
+                    return;
+                }
+
+                item.SnoozedUntil = snoozedUntil;
+                item.SnoozeLastNotifiedAt = null;
+                item.ReminderDismissedForDueDate = item.DueDate;
+                item.UpdatedAt = _clock().ToUniversalTime();
+                snoozed = true;
+            }, this);
+            if (!snoozed)
             {
                 return false;
             }
 
-            item.SnoozedUntil = snoozedUntil;
-            item.SnoozeLastNotifiedAt = null;
-            item.ReminderDismissedForDueDate = item.DueDate;
-            item.UpdatedAt = _clock().ToUniversalTime();
-            await store.SaveAsync(data);
-            App.Log($"[TodoReminder] Snoozed widget={widgetId} item={itemId} until={item.SnoozedUntil:O}");
+            App.Log($"[TodoReminder] Snoozed widget={widgetId} item={itemId}");
             return true;
         }
         catch (Exception ex)
@@ -325,41 +333,50 @@ public sealed class TodoReminderService : IDisposable, ITodoReminderSession
             }
 
             var store = _storeFactory(widget.Id);
-            var data = await store.LoadAsync();
-            int itemIndex = data.Items.FindIndex(item =>
-                string.Equals(item.Id, itemId, StringComparison.Ordinal));
-            if (itemIndex < 0)
+            bool completed = false;
+            await TodoRepository.ForStore(store).MutateAsync(data =>
+            {
+                int itemIndex = data.Items.FindIndex(item =>
+                    string.Equals(item.Id, itemId, StringComparison.Ordinal));
+                if (itemIndex < 0)
+                {
+                    return;
+                }
+
+                var item = data.Items[itemIndex];
+                if (item.IsCompleted)
+                {
+                    completed = true;
+                    return;
+                }
+
+                DateTimeOffset now = _clock().ToUniversalTime();
+                if (item.Recurrence is not null)
+                {
+                    item.RecurrenceSeriesId ??= Guid.NewGuid().ToString("N");
+                }
+
+                item.IsCompleted = true;
+                item.CompletedAt = now;
+                item.UpdatedAt = now;
+                item.GeneratedNextItemId = null;
+                item.SnoozedUntil = null;
+                item.SnoozeLastNotifiedAt = null;
+
+                if (TodoRecurrenceService.TryCreateNextOccurrence(item, now, out TodoItem? nextItem) &&
+                    nextItem is not null)
+                {
+                    item.GeneratedNextItemId = nextItem.Id;
+                    data.Items.Insert(Math.Clamp(itemIndex + 1, 0, data.Items.Count), nextItem);
+                }
+
+                completed = true;
+            }, this);
+            if (!completed)
             {
                 return false;
             }
 
-            var item = data.Items[itemIndex];
-            if (item.IsCompleted)
-            {
-                return true;
-            }
-
-            DateTimeOffset now = _clock().ToUniversalTime();
-            if (item.Recurrence is not null)
-            {
-                item.RecurrenceSeriesId ??= Guid.NewGuid().ToString("N");
-            }
-
-            item.IsCompleted = true;
-            item.CompletedAt = now;
-            item.UpdatedAt = now;
-            item.GeneratedNextItemId = null;
-            item.SnoozedUntil = null;
-            item.SnoozeLastNotifiedAt = null;
-
-            if (TodoRecurrenceService.TryCreateNextOccurrence(item, now, out TodoItem? nextItem) &&
-                nextItem is not null)
-            {
-                item.GeneratedNextItemId = nextItem.Id;
-                data.Items.Insert(Math.Clamp(itemIndex + 1, 0, data.Items.Count), nextItem);
-            }
-
-            await store.SaveAsync(data);
             App.Log($"[TodoReminder] Completed from notification widget={widgetId} item={itemId}");
             return true;
         }
@@ -449,8 +466,11 @@ public sealed class TodoReminderService : IDisposable, ITodoReminderSession
         {
             return;
         }
-        bool changed = false;
 
+        // Match triggers against the (possibly stale) snapshot, then apply
+        // the notified flags to the live repository copy so a concurrent
+        // widget or Quick Panel edit is never clobbered by this save.
+        var triggered = new List<(TodoItem Snapshot, ReminderTriggerKind TriggerKind, int? EffectiveOffsetMinutes)>();
         foreach (var item in data.Items)
         {
             if (!TryGetReminderTrigger(item, now, defaultOffsetMinutes, out ReminderTriggerKind triggerKind, out int? effectiveOffsetMinutes))
@@ -464,25 +484,39 @@ public sealed class TodoReminderService : IDisposable, ITodoReminderSession
                 continue;
             }
 
-            if (triggerKind == ReminderTriggerKind.Snooze)
-            {
-                item.SnoozeLastNotifiedAt = now;
-                item.SnoozedUntil = null;
-            }
-            else
-            {
-                item.ReminderLastNotifiedAt = now;
-                item.ReminderDismissedForDueDate = item.DueDate;
-            }
-
-            changed = true;
-            candidates.Add(new TodoReminderCandidate(widget.Id, widget.Name, item));
+            triggered.Add((item, triggerKind, effectiveOffsetMinutes));
         }
 
-        if (changed)
+        if (triggered.Count == 0)
         {
-            await store.SaveAsync(data);
+            return;
         }
+
+        await TodoRepository.ForStore(store).MutateAsync(liveData =>
+        {
+            foreach (var (snapshotItem, triggerKind, _) in triggered)
+            {
+                var item = liveData.Items.FirstOrDefault(entry =>
+                    string.Equals(entry.Id, snapshotItem.Id, StringComparison.Ordinal));
+                if (item is null)
+                {
+                    continue;
+                }
+
+                if (triggerKind == ReminderTriggerKind.Snooze)
+                {
+                    item.SnoozeLastNotifiedAt = now;
+                    item.SnoozedUntil = null;
+                }
+                else
+                {
+                    item.ReminderLastNotifiedAt = now;
+                    item.ReminderDismissedForDueDate = item.DueDate;
+                }
+
+                candidates.Add(new TodoReminderCandidate(widget.Id, widget.Name, item));
+            }
+        }, this);
     }
 
     private TodoReminderNotification BuildNotification(IReadOnlyList<TodoReminderCandidate> candidates)

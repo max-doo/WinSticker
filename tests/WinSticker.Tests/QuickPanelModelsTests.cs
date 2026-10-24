@@ -18,12 +18,6 @@ public sealed class QuickPanelModelsTests
         Assert.Equal(2, (int)QuickPanelFilter.Images);
         Assert.Equal(3, (int)QuickPanelFilter.Links);
         Assert.Equal(4, (int)QuickPanelFilter.Favorites);
-
-        Assert.Equal(0, (int)QuickPanelTodoViewMode.Today);
-        Assert.Equal(1, (int)QuickPanelTodoViewMode.Overdue);
-        Assert.Equal(2, (int)QuickPanelTodoViewMode.Unscheduled);
-        Assert.Equal(3, (int)QuickPanelTodoViewMode.Timeline);
-        Assert.Equal(4, (int)QuickPanelTodoViewMode.Completed);
     }
 
     [Fact]
@@ -47,5 +41,29 @@ public sealed class QuickPanelModelsTests
         Assert.Equal(0x20, settings.QuickPanelHotkeyKey);
         Assert.Equal(QuickPanelTab.Clipboard, settings.QuickPanelDefaultTab);
         Assert.True(settings.QuickPanelAutoPaste);
+    }
+
+    [Fact]
+    public void QuickPanelWindow_HeaderDraggingContract_UsesXamlPointerInteractionAndDoesNotReturnHtcaption()
+    {
+        string xamlPath = TestPaths.FromRepository("src/WinSticker/Views/QuickPanelWindow.xaml");
+        string csPath = TestPaths.FromRepository("src/WinSticker/Views/QuickPanelWindow.xaml.cs");
+        string xaml = System.IO.File.ReadAllText(xamlPath);
+        string cs = System.IO.File.ReadAllText(csPath);
+
+        // XAML header drag wiring
+        Assert.Contains("PointerPressed=\"Header_PointerPressed\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PointerMoved=\"Header_PointerMoved\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PointerReleased=\"Header_PointerReleased\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PointerCaptureLost=\"Header_PointerCaptureLost\"", xaml, StringComparison.Ordinal);
+
+        // Code-behind pointer capture interaction
+        Assert.Contains("CapturePointer", cs, StringComparison.Ordinal);
+        Assert.Contains("ReleasePointerCapture", cs, StringComparison.Ordinal);
+        Assert.Contains("TryBeginWindowDrag", cs, StringComparison.Ordinal);
+        Assert.Contains("Header_PointerMoved", cs, StringComparison.Ordinal);
+
+        // Never intercept HTCAPTION in SubclassProc (hijacks XAML Island input on borderless WinUI 3 windows)
+        Assert.DoesNotContain("HTCAPTION", cs, StringComparison.Ordinal);
     }
 }

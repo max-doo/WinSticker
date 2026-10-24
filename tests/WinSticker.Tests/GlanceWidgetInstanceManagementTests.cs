@@ -1,4 +1,4 @@
-using WinSticker.Models;
+﻿using WinSticker.Models;
 using WinSticker.Services;
 using System.Text.Json;
 
@@ -112,7 +112,13 @@ public sealed class GlanceWidgetInstanceManagementTests
             "src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml.cs"));
 
         Assert.DoesNotContain("DisplayMemberPath=", xaml, StringComparison.Ordinal);
+        // ComboBox items are added as real ComboBoxItem controls; the only
+        // ItemsSource assignment allowed is the world-clock list's typed XAML
+        // binding to GlanceWorldClockRow (never a raw string collection).
         Assert.DoesNotContain(".ItemsSource =", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{x:Bind WorldClockRows}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:GlanceWorldClockRow\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{x:Bind SettingsDisplayName}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("private sealed partial class SelectionItem : ComboBoxItem", codeBehind, StringComparison.Ordinal);
         Assert.Contains("comboBox.Items.Add(new SelectionItem(label, value))", codeBehind, StringComparison.Ordinal);
         Assert.Contains("SynchronizeInstanceOptions", codeBehind, StringComparison.Ordinal);
@@ -154,26 +160,35 @@ public sealed class GlanceWidgetInstanceManagementTests
                 "SettingsExpander",
                 StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(4, expanders.Length);
+        Assert.Equal(3, expanders.Length);
         System.Xml.Linq.XElement typography = Assert.Single(expanders.Where(element =>
             element.Attributes().Any(attribute =>
                 attribute.Name.LocalName == "Localized.HeaderKey" &&
                 attribute.Value == "Glance.Typography.Font")));
-        System.Xml.Linq.XElement background = Assert.Single(expanders.Where(element =>
+        System.Xml.Linq.XElement worldClock = Assert.Single(expanders.Where(element =>
             element.Attributes().Any(attribute =>
                 attribute.Name.LocalName == "Localized.HeaderKey" &&
-                attribute.Value == "Glance.Background.Title")));
+                attribute.Value == "Glance.WorldClock.Title")));
+        System.Xml.Linq.XElement surface = Assert.Single(expanders.Where(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Localized.HeaderKey" &&
+                attribute.Value == "Glance.SurfaceGroup.Title")));
         Assert.True(ContainsNamedElement(typography, "TimeScaleSlider"));
-        Assert.True(ContainsNamedElement(background, "RotationComboBox"));
-        Assert.True(ContainsNamedElement(background, "RandomOrderToggle"));
-        Assert.True(ContainsNamedElement(background, "CacheSizeText"));
+        Assert.True(ContainsNamedElement(typography, "ShowSecondsToggle"));
+        Assert.True(ContainsNamedElement(worldClock, "WorldClockList"));
+        Assert.True(ContainsNamedElement(worldClock, "WorldClockZoneComboBox"));
+        Assert.True(ContainsNamedElement(worldClock, "AddWorldClockButton"));
+        Assert.True(ContainsNamedElement(surface, "SurfaceOpacitySlider"));
+        Assert.True(ContainsNamedElement(surface, "TextContrastComboBox"));
 
+        // Size scale first, then typography, then display, world clock, surface.
         string[] orderedControlNames =
         [
-            "BackgroundSourceComboBox",
+            "SizeScaleSlider",
             "FontComboBox",
             "DisplayContentDropDownButton",
-            "LayoutComboBox",
+            "AddWorldClockButton",
+            "SurfaceMaterialComboBox",
         ];
         int previousControlIndex = -1;
         foreach (string controlName in orderedControlNames)
@@ -186,16 +201,10 @@ public sealed class GlanceWidgetInstanceManagementTests
         string[] fixedWidthSelectorNames =
         [
             "DisplayContentDropDownButton",
-            "BackgroundSourceComboBox",
-            "OnlineImageCategoryComboBox",
-            "RotationComboBox",
             "FontComboBox",
-            "LayoutComboBox",
-            "CalendarMaterialComboBox",
-            "TraditionalCalendarComboBox",
-            "TransitionComboBox",
-            "SpeedComboBox",
-            "ReadabilityComboBox",
+            "TimeFormatComboBox",
+            "SurfaceMaterialComboBox",
+            "TextContrastComboBox",
         ];
         foreach (string controlName in fixedWidthSelectorNames)
         {
@@ -208,8 +217,9 @@ public sealed class GlanceWidgetInstanceManagementTests
 
         Assert.Contains("svc:Localized.HeaderKey=\"Glance.Typography.Font\"", xaml, StringComparison.Ordinal);
         Assert.Contains("svc:Localized.HeaderKey=\"Glance.Typography.Title\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("svc:Localized.HeaderKey=\"Glance.Background.Title\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("svc:Localized.HeaderKey=\"Glance.Speed.Title\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("svc:Localized.HeaderKey=\"Glance.WorldClock.Title\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("svc:Localized.HeaderKey=\"Glance.Size.Title\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Glance.Background.Title", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Glance.LayoutGroup.Title", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Glance.AppearanceGroup.Title", xaml, StringComparison.Ordinal);
         Assert.Contains("SettingsChanged += OnAppSettingsChanged", codeBehind, StringComparison.Ordinal);

@@ -83,10 +83,13 @@ public sealed partial class TodoWidgetViewModel
             .ToList();
         _tombstones.Clear();
         _tombstones.AddRange(persistedTombstones);
-        await _store.SaveAsync(new TodoWidgetData
+        // Merge (not replace): tombstones in the snapshot delete items this
+        // view removed, while items another surface added after our last
+        // reload survive the save.
+        await _repository.MergeAsync(new TodoWidgetData
         {
             Items = Items.Select(item => item.Item).Concat(persistedTombstones).ToList()
-        });
+        }, this);
     }
 
     private void RefreshVisibleItems(TodoItemViewModel? preferredMovedItem = null)

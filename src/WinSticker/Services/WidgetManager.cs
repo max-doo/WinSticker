@@ -1,4 +1,4 @@
-﻿﻿using WinSticker.Models;
+﻿using WinSticker.Models;
 using WinSticker.Helpers;
 using WinSticker.Contracts;
 using WinSticker.Controls.WidgetContents;
@@ -2718,7 +2718,7 @@ public sealed partial class WidgetManager
                 Math.Max(_settingsService.Settings.DefaultWidgetHeight, 420)),
             WidgetKind.Music => (380, 190),
             WidgetKind.Weather => (200, 200),
-            WidgetKind.Glance => (360, 260),
+            WidgetKind.Glance => (GlanceWindowDefaults.BaseWidth, GlanceWindowDefaults.BaseHeight),
             _ => (
                 _settingsService.Settings.DefaultWidgetWidth,
                 _settingsService.Settings.DefaultWidgetHeight)

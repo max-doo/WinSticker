@@ -4,34 +4,6 @@ namespace WinSticker.Services;
 
 internal static class GlanceWidgetSettingsPolicy
 {
-    public static void SetLocalImageFiles(
-        GlanceWidgetData settings,
-        IEnumerable<string> imagePaths)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(imagePaths);
-
-        settings.BackgroundSource = GlanceBackgroundSource.LocalFiles;
-        settings.LocalImagePaths = imagePaths
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(path => path.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    public static void ClearLocalSource(GlanceWidgetData settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        if (settings.BackgroundSource == GlanceBackgroundSource.LocalFolder)
-        {
-            settings.LocalFolderPath = null;
-        }
-        else
-        {
-            settings.LocalImagePaths.Clear();
-        }
-    }
-
     public static bool IsDisplayElementVisible(
         GlanceWidgetData settings,
         GlanceDisplayElement element)
@@ -43,7 +15,6 @@ internal static class GlanceWidgetSettingsPolicy
             GlanceDisplayElement.Date => settings.ShowDate,
             GlanceDisplayElement.Year => settings.ShowYear,
             GlanceDisplayElement.Weekday => settings.ShowWeekday,
-            GlanceDisplayElement.Calendar => settings.ShowCalendar,
             GlanceDisplayElement.Weather => settings.ShowWeather,
             _ => false
         };
@@ -77,48 +48,10 @@ internal static class GlanceWidgetSettingsPolicy
             case GlanceDisplayElement.Weekday:
                 settings.ShowWeekday = isVisible;
                 break;
-            case GlanceDisplayElement.Calendar:
-                settings.ShowCalendar = isVisible;
-                if (isVisible)
-                {
-                    settings.Layout = GlanceLayoutMode.Calendar;
-                }
-                else if (settings.Layout == GlanceLayoutMode.Calendar)
-                {
-                    settings.Layout = GlanceLayoutMode.Centered;
-                }
-                break;
             case GlanceDisplayElement.Weather:
                 settings.ShowWeather = isVisible;
                 break;
         }
-    }
-
-    public static void SetLayout(
-        GlanceWidgetData settings,
-        GlanceLayoutMode layout)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        settings.Layout = layout;
-        settings.ShowCalendar = layout == GlanceLayoutMode.Calendar;
-    }
-
-    public static void SetPhotoPlayback(
-        GlanceWidgetData settings,
-        double rotationIntervalMinutes,
-        bool randomOrder,
-        GlanceTransitionMode transition,
-        GlanceTransitionSpeed transitionSpeed,
-        GlanceReadabilityMode readability,
-        bool showPhotoControls)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        settings.RotationIntervalMinutes = rotationIntervalMinutes;
-        settings.RandomOrder = randomOrder;
-        settings.Transition = transition;
-        settings.TransitionSpeed = transitionSpeed;
-        settings.Readability = readability;
-        settings.ShowPhotoControls = showPhotoControls;
     }
 
     /// <summary>

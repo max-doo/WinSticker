@@ -117,7 +117,10 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     protected override FrameworkElement RootElement => RootGrid;
     protected override WidgetShell WidgetShellControl => ContentWidgetShell;
     protected override string LogPrefix => "Content";
-    protected override bool IsSizeLocked => _config.IsSizeLocked;
+    protected override bool IsSizeLocked =>
+        // The Glance patch is sized exclusively by its settings (SizeScale):
+        // manual edge resizing is not part of its interaction model.
+        _config.IsSizeLocked;
     protected override bool IsPositionLocked => _config.IsPositionLocked;
     protected override bool IsCompactExpansionWarmupContentReady =>
         _contentHost.CurrentContent is not null;
@@ -182,9 +185,7 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
                 ? viewModel.DateText
                 : viewModel.ShowWeekday && !string.IsNullOrWhiteSpace(viewModel.WeekdayText)
                     ? viewModel.WeekdayText
-                    : viewModel.HasTraditionalCalendar
-                        ? viewModel.TraditionalCalendarTitle
-                        : string.Empty;
+                    : string.Empty;
 
         var summaryParts = new List<string>(3);
         if (viewModel.ShowDate &&
@@ -193,67 +194,25 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
         {
             summaryParts.Add(viewModel.DateText);
         }
-        if (viewModel.ShowWeekday && !string.IsNullOrWhiteSpace(viewModel.WeekdayText))
+        if (viewModel.ShowWeekday && !string.IsNullOrWhiteSpace(viewModel.WeekdayText) &&
+            !string.Equals(title, viewModel.WeekdayText, StringComparison.Ordinal))
         {
-            if (!string.Equals(title, viewModel.WeekdayText, StringComparison.Ordinal))
-            {
-                summaryParts.Add(viewModel.WeekdayText);
-            }
-        }
-        if (viewModel.HasTraditionalCalendar &&
-            !string.IsNullOrWhiteSpace(viewModel.TraditionalCalendarTitle) &&
-            !string.Equals(title, viewModel.TraditionalCalendarTitle, StringComparison.Ordinal))
-        {
-            summaryParts.Add(viewModel.TraditionalCalendarTitle);
+            summaryParts.Add(viewModel.WeekdayText);
         }
 
         string summary = string.Join(" · ", summaryParts);
-        bool hasText = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(summary);
-        ImageSource? backgroundImage = viewModel.HasVisibleCurrentImage
-            ? glance.GetCompactBackgroundImage(
-                ResolveGlanceCompactBackgroundDecodeWidth())
-            : null;
         return new WidgetCompactPresentation(
             title,
             summary,
             _descriptor.DefaultGlyph,
             string.Empty,
-            Thumbnail: backgroundImage,
             UseStackedText: true,
             EnableMarquee: true,
-            UseFullBleedBackground: backgroundImage is not null,
             LiveStateKey: string.Join(
                 "|",
                 viewModel.TimeText,
                 viewModel.DateText,
-                viewModel.WeekdayText,
-                viewModel.TraditionalCalendarTitle,
-                viewModel.CurrentImagePath),
-            FullBleedOverlayOpacity: hasText ? viewModel.ReadabilityStrengthOpacity : 0,
-            UseUniformFullBleedOverlay: true,
-            FullBleedBackgroundOpacity: viewModel.BackgroundImageOpacity);
-    }
-
-    /// <summary>
-    /// Physical decode width for the glance capsule's full-bleed background:
-    /// the capsule's actual logical width (aligned mode tracks the panel,
-    /// otherwise the compact width) at the current DPI, with the same 1.25
-    /// headroom the expanded surface uses. The old fixed 768 under-decoded
-    /// wide capsules and paid ~3x on narrow ones.
-    /// </summary>
-    private int ResolveGlanceCompactBackgroundDecodeWidth()
-    {
-        double logicalWidth = UsesAlignedCompactWidth()
-            ? Config.Width
-            : Config.CompactWidth ?? WidgetCompactBoundsCalculator.SummaryWidth;
-        double scale = RootElement.XamlRoot?.RasterizationScale ?? 1;
-        if (!double.IsFinite(scale) || scale <= 0)
-        {
-            scale = 1;
-        }
-
-        double physicalWidth = logicalWidth * scale * GlanceImageDecodeSizeCalculator.CompactBackgroundSupersamplingFactor;
-        return (int)Math.Clamp(Math.Ceiling(physicalWidth), 320, 1600);
+                viewModel.WeekdayText));
     }
 
     private WidgetCompactPresentation CreateSearchCompactPresentation(
@@ -713,12 +672,6 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
 
     protected override void OnCustomWidgetBackgroundChanged(bool active)
     {
-        // User-set background wins over the Glance surface's own background
-        // image (per-widget customization rule).
-        if (CurrentContent?.View is WinSticker.Controls.WidgetContents.GlanceWidgetContent glance)
-        {
-            glance.SetShellCustomBackgroundActive(active);
-        }
     }
 
     // ── IDesktopWidgetWindow implementation ────────────────────
@@ -1095,6 +1048,8 @@ IsHideAnimationRunning = true;
             return;
         }
 
+        AttachGlanceSurfaceDrag(content.View);
+        AttachGlanceScaleEnforcement(content);
         AttachCompactPresentationSource(content);
         AttachFeedbackSource(content);
         AttachHostContextMenuSource(content);
@@ -1343,13 +1298,6 @@ IsHideAnimationRunning = true;
                 nameof(GlanceWidgetViewModel.TimeText) or
                 nameof(GlanceWidgetViewModel.DateText) or
                 nameof(GlanceWidgetViewModel.WeekdayText) or
-                nameof(GlanceWidgetViewModel.TraditionalCalendarTitle) or
-                nameof(GlanceWidgetViewModel.HasTraditionalCalendar) or
-                nameof(GlanceWidgetViewModel.CurrentImagePath) or
-                nameof(GlanceWidgetViewModel.BackgroundImageOpacity) or
-                nameof(GlanceWidgetViewModel.HasVisibleCurrentImage) or
-                nameof(GlanceWidgetViewModel.ReadabilityStrengthOpacity) or
-                nameof(GlanceWidgetViewModel.ReadabilityOpacity) or
                 nameof(GlanceWidgetViewModel.ShowTime) or
                 nameof(GlanceWidgetViewModel.ShowDate) or
                 nameof(GlanceWidgetViewModel.ShowWeekday),
@@ -1421,6 +1369,8 @@ IsHideAnimationRunning = true;
             AppWindow.Changed -= OnAppWindowChanged;
             ContentWidgetShell.RightTapped -= ContentWidgetShell_RightTapped;
             ContentWidgetShell.TitleDoubleTapped -= ContentWidgetShell_TitleDoubleTapped;
+            AttachGlanceSurfaceDrag(null);
+            AttachGlanceScaleEnforcement(null);
             if (_compactPresentationSource is not null)
             {
                 _compactPresentationSource.PropertyChanged -= CompactPresentationSource_PropertyChanged;

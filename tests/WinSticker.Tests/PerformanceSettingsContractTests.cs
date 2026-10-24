@@ -156,8 +156,12 @@ public sealed class PerformanceSettingsContractTests
         Assert.Contains("TextMarqueeAnimationsEnabled()", shell, StringComparison.Ordinal);
         Assert.Contains("VinylRotationAnimationsEnabled()", shell, StringComparison.Ordinal);
         Assert.Contains("CompactAmbientAnimationsEnabled()", shell, StringComparison.Ordinal);
-        Assert.Contains("AllowGlanceImageAutoRotation", glance, StringComparison.Ordinal);
-        Assert.Contains("UpdateRotationTimer();", glance, StringComparison.Ordinal);
+        // The v12 clock patch replaced the rotating image with a clock timer
+        // that only runs while the surface is visible.
+        Assert.Contains("_clockTimer.Start();", glance, StringComparison.Ordinal);
+        Assert.Contains("ClockTimer_Tick", glance, StringComparison.Ordinal);
+        Assert.DoesNotContain("AllowGlanceImageAutoRotation", glance, StringComparison.Ordinal);
+        Assert.DoesNotContain("UpdateRotationTimer", glance, StringComparison.Ordinal);
         Assert.Contains(
             "IWidgetPerformanceAwareContent",
             musicAdapter,

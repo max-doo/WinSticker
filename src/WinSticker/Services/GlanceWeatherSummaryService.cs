@@ -6,17 +6,20 @@ using Microsoft.UI.Xaml.Media.Imaging;
 namespace WinSticker.Services;
 
 /// <summary>
-/// The compact weather line under the clock: icon + temperature + today's range.
+/// The compact weather block beside the clock: icon + temperature + condition +
+/// range + location.
 /// </summary>
 /// <param name="Description">Localized condition text ("晴").</param>
 /// <param name="TemperatureText">Current temperature with a degree sign, already unit-converted.</param>
 /// <param name="RangeText">Today's low–high, empty when the forecast has none.</param>
+/// <param name="LocationName">Resolved location display name ("洛杉矶").</param>
 /// <param name="Icon">Vector icon source resolved from the user's icon style.</param>
 /// <param name="IsStale">True when the value came from cache past its TTL.</param>
 internal sealed record GlanceWeatherSummary(
     string Description,
     string TemperatureText,
     string RangeText,
+    string LocationName,
     ImageSource Icon,
     bool IsStale)
 {
@@ -111,6 +114,7 @@ internal sealed class GlanceWeatherSummaryService : IDisposable
                 description,
                 temperature,
                 range,
+                resolved.Name,
                 new SvgImageSource(WeatherCodeMapper.GetIconUri(
                     current.WeatherCode,
                     isDay,

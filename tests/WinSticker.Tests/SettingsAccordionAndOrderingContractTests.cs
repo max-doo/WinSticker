@@ -548,16 +548,22 @@ public sealed class SettingsAccordionAndOrderingContractTests
             StringComparison.Ordinal);
     }
 
-    // Spec L3: the glance section exposes a 切换-related SettingsExpander
-    // (Glance.Transition.Title = 切换动效).
+    // Spec L3 (v12): the clock patch no longer rotates wallpapers, so the
+    // 切换动效 expander is gone. The 世界时钟 (world clock) expander replaces it
+    // as the third accordion after size and typography.
     [Fact]
-    public void GlanceSection_HasATransitionExpander()
+    public void GlanceSection_HasAWorldClockExpanderInsteadOfTransition()
     {
         string xaml = ReadRepositoryFile(
             "src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml");
 
         Assert.NotNull(FindOpeningTag(
-            xaml, "toolkit:SettingsExpander", "HeaderKey=\"Glance.Transition.Title\""));
+            xaml, "toolkit:SettingsExpander", "HeaderKey=\"Glance.WorldClock.Title\""));
+        Assert.DoesNotContain("Glance.Transition.Title", xaml, StringComparison.Ordinal);
+        Assert.True(
+            IndexOfOrFail(xaml, "HeaderKey=\"Glance.Typography.Font\"", "Glance section") <
+            IndexOfOrFail(xaml, "HeaderKey=\"Glance.WorldClock.Title\"", "Glance section"),
+            "Glance section: the world-clock expander must follow the typography expander.");
     }
 
     // Spec L4: the desktop-organization auto card is an expander hosting the

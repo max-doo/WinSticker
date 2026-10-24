@@ -39,30 +39,30 @@ public sealed class SearchResultActionService
             }
 
             var store = new TodoWidgetStore(todoWidget.Id);
-            var data = await store.LoadAsync();
-
-            string fileName = Path.GetFileName(path);
-            var item = new TodoItem
+            await TodoRepository.ForStore(store).MutateAsync(data =>
             {
-                Text = fileName,
-                Notes = path,
-                SortOrder = data.Items.Count,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-            item.Attachments.Add(new TodoAttachment
-            {
-                FilePath = path,
-                DisplayName = fileName,
-                Type = "file",
-                StorageMode = TodoAttachment.LinkedStorageMode,
-                AddedAt = DateTimeOffset.UtcNow
-            });
+                string fileName = Path.GetFileName(path);
+                var item = new TodoItem
+                {
+                    Text = fileName,
+                    Notes = path,
+                    SortOrder = data.Items.Count,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+                item.Attachments.Add(new TodoAttachment
+                {
+                    FilePath = path,
+                    DisplayName = fileName,
+                    Type = "file",
+                    StorageMode = TodoAttachment.LinkedStorageMode,
+                    AddedAt = DateTimeOffset.UtcNow
+                });
 
-            data.Items.Add(item);
-            await store.SaveAsync(data);
+                data.Items.Add(item);
+            }, this);
 
-            App.Log($"[SearchAction] Attached '{fileName}' to todo widget '{todoWidget.Id}'.");
+            App.Log($"[SearchAction] Attached '{Path.GetFileName(path)}' to todo widget '{todoWidget.Id}'.");
             return true;
         }
         catch (Exception ex)

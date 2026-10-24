@@ -219,39 +219,11 @@ public sealed class GlanceWidgetStore
     {
         data ??= new GlanceWidgetData();
         data.Version = GlanceWidgetData.CurrentVersion;
-        data.LocalImagePaths ??= [];
-        data.LocalImagePaths = data.LocalImagePaths
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(path => path.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        data.LocalFolderPath = string.IsNullOrWhiteSpace(data.LocalFolderPath)
-            ? null
-            : data.LocalFolderPath.Trim();
+        data.WorldClocks = GlanceWorldClockPolicy.NormalizeWorldClocks(data.WorldClocks);
         if (!data.ShowDate)
         {
             data.ShowYear = false;
         }
-        double[] supportedRotationIntervals =
-        [
-            0,
-            10d / 60d,
-            30d / 60d,
-            1,
-            2,
-            5,
-            10,
-            30,
-            60,
-            360,
-            1440
-        ];
-        double normalizedRotationInterval = supportedRotationIntervals.FirstOrDefault(
-            interval => Math.Abs(interval - data.RotationIntervalMinutes) < 0.0001,
-            double.NaN);
-        data.RotationIntervalMinutes = double.IsNaN(normalizedRotationInterval)
-            ? 30
-            : normalizedRotationInterval;
         data.TimeScale = Math.Clamp(data.TimeScale, 0.75, 1.35);
         data.TimeFontFamily = string.IsNullOrWhiteSpace(data.TimeFontFamily)
             ? null
@@ -259,30 +231,7 @@ public sealed class GlanceWidgetStore
         data.TimeFormat = Enum.IsDefined(data.TimeFormat)
             ? data.TimeFormat
             : GlanceTimeFormatMode.FollowSystem;
-        data.Layout = Enum.IsDefined(data.Layout) ? data.Layout : GlanceLayoutMode.Centered;
-        data.BackgroundSource = Enum.IsDefined(data.BackgroundSource)
-            ? data.BackgroundSource
-            : GlanceBackgroundSource.Bing;
-        data.OnlineImageCategory = Enum.IsDefined(data.OnlineImageCategory)
-            ? data.OnlineImageCategory
-            : GlanceOnlineImageCategory.Featured;
-        data.Transition = Enum.IsDefined(data.Transition) ? data.Transition : GlanceTransitionMode.CrossFade;
-        data.TransitionSpeed = Enum.IsDefined(data.TransitionSpeed) ? data.TransitionSpeed : GlanceTransitionSpeed.Standard;
-        data.Readability = Enum.IsDefined(data.Readability) ? data.Readability : GlanceReadabilityMode.Soft;
-        data.BackgroundImageTransparency = double.IsFinite(data.BackgroundImageTransparency)
-            ? Math.Clamp(data.BackgroundImageTransparency, 0.0, 1.0)
-            : 0.0;
-        data.CalendarMaterialMode = Enum.IsDefined(data.CalendarMaterialMode)
-            ? data.CalendarMaterialMode
-            : GlanceCalendarMaterialMode.FollowSystem;
-        data.CalendarImageMaterialTransparency = double.IsFinite(data.CalendarImageMaterialTransparency)
-            ? Math.Clamp(data.CalendarImageMaterialTransparency, 0.0, 1.0)
-            : 0.32;
-        data.TraditionalCalendarMode = Enum.IsDefined(data.TraditionalCalendarMode)
-            ? data.TraditionalCalendarMode
-            : GlanceTraditionalCalendarMode.None;
-        data.ImageFit = Enum.IsDefined(data.ImageFit) ? data.ImageFit : GlanceImageFitMode.Fill;
-        data.ImageFocus = Enum.IsDefined(data.ImageFocus) ? data.ImageFocus : GlanceImageFocus.Center;
+        GlanceWorldClockPolicy.SetSizeScale(data, data.SizeScale);
         data.SurfaceMaterial = Enum.IsDefined(data.SurfaceMaterial)
             ? data.SurfaceMaterial
             : GlanceSurfaceMaterialMode.FollowSystem;

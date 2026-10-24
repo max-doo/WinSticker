@@ -70,8 +70,6 @@ public partial class App
     private const string AotManagedUiTodoAttachmentsPostflightPhase = "Postflight";
     private const string AotManagedUiGlancePhaseEnvironmentVariable =
         "WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE";
-    private const string AotManagedUiGlanceFixtureEnvironmentVariable =
-        "WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE";
     private const string AotManagedUiGlanceMutatePhase = "Mutate";
     private const string AotManagedUiGlanceVerifyRestorePhase = "VerifyRestore";
     private const string AotManagedUiGlancePostflightPhase = "Postflight";

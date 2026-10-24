@@ -423,7 +423,7 @@ public sealed partial class WidgetManager
                 WidgetKind.Music => 380,
                 WidgetKind.Weather => 200,
                 WidgetKind.Search => 280,
-                WidgetKind.Glance => 360,
+                WidgetKind.Glance => (int)GlanceWindowDefaults.BaseWidth,
                 _ => Math.Max(_settingsService.Settings.DefaultWidgetWidth, 320)
             },
             Height = kind switch
@@ -431,7 +431,7 @@ public sealed partial class WidgetManager
                 WidgetKind.Music => 190,
                 WidgetKind.Weather => 200,
                 WidgetKind.Search => 90,
-                WidgetKind.Glance => 260,
+                WidgetKind.Glance => (int)GlanceWindowDefaults.BaseHeight,
                 _ => Math.Max(_settingsService.Settings.DefaultWidgetHeight, 360)
             }
         };
@@ -1138,7 +1138,6 @@ public sealed partial class WidgetManager
                 {
                     await GlanceWidgetStore.ForWidget(glanceConfig.Id).ResetAsync();
                 }
-                await new GlanceImageService().ClearCacheAsync();
             }
 
             await CommitFeatureWidgetStateAsync(kind, false);

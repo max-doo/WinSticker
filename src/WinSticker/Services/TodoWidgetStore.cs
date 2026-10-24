@@ -190,6 +190,9 @@ public sealed class TodoWidgetStore
 
     public Task ClearAsync()
     {
+        // Drop the repository cache first: a stale cache would write the old
+        // items back on the next mutation and resurrect the cleared data.
+        TodoRepository.TryRemove(_storePath);
         return SaveAsync(new TodoWidgetData());
     }
 
@@ -213,6 +216,9 @@ public sealed class TodoWidgetStore
         ArgumentException.ThrowIfNullOrWhiteSpace(widgetId);
         string dataDir = Path.Combine(widgetsDataRoot, SanitizeWidgetId(widgetId));
         string storePath = Path.Combine(dataDir, "todo.json");
+        // The repository cache must go with the file, or the next write for
+        // this widget id would recreate the deleted data on disk.
+        TodoRepository.TryRemove(storePath);
         TryDeleteFile(storePath);
         TryDeleteFile(ResilientJsonStore.GetBackupPath(storePath));
         TryDeleteDirectory(Path.Combine(dataDir, "attachments"));

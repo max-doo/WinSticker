@@ -12,16 +12,7 @@ internal static class GlanceWidgetContextMenuBuilder
         GlanceDisplayElement.Date,
         GlanceDisplayElement.Year,
         GlanceDisplayElement.Weekday,
-        GlanceDisplayElement.Calendar,
         GlanceDisplayElement.Weather
-    ];
-
-    private static readonly GlanceLayoutMode[] Layouts =
-    [
-        GlanceLayoutMode.Immersive,
-        GlanceLayoutMode.Centered,
-        GlanceLayoutMode.Editorial,
-        GlanceLayoutMode.Calendar
     ];
 
     private static readonly GlanceSurfaceMaterialMode[] SurfaceMaterials =
@@ -41,7 +32,6 @@ internal static class GlanceWidgetContextMenuBuilder
         ArgumentNullException.ThrowIfNull(localizationService);
 
         flyout.Items.Add(CreateDisplayMenu(viewModel, localizationService));
-        flyout.Items.Add(CreateLayoutMenu(viewModel, localizationService));
         flyout.Items.Add(CreateSurfaceMaterialMenu(viewModel, localizationService));
         flyout.Items.Add(new MenuFlyoutSeparator());
     }
@@ -53,7 +43,7 @@ internal static class GlanceWidgetContextMenuBuilder
         var menu = new MenuFlyoutSubItem
         {
             Text = localizationService.T("Glance.Display.Title"),
-            Icon = new FontIcon { Glyph = "\uE7B3" }
+            Icon = new FontIcon { Glyph = "" }
         };
 
         foreach (GlanceDisplayElement element in DisplayElements)
@@ -72,31 +62,14 @@ internal static class GlanceWidgetContextMenuBuilder
             menu.Items.Add(item);
         }
 
-        return menu;
-    }
-
-    private static MenuFlyoutSubItem CreateLayoutMenu(
-        GlanceWidgetViewModel viewModel,
-        LocalizationService localizationService)
-    {
-        var menu = new MenuFlyoutSubItem
+        var secondsItem = new ToggleMenuFlyoutItem
         {
-            Text = localizationService.T("Glance.Layout.Title"),
-            Icon = new FontIcon { Glyph = "\uE80A" }
+            Text = localizationService.T("Glance.Display.Seconds"),
+            IsChecked = viewModel.Settings.ShowSeconds
         };
-
-        foreach (GlanceLayoutMode layout in Layouts)
-        {
-            var item = new RadioMenuFlyoutItem
-            {
-                Text = localizationService.T(GetLayoutTextKey(layout)),
-                GroupName = "GlanceLayout",
-                IsChecked = viewModel.Settings.Layout == layout
-            };
-            item.Click += (_, _) =>
-                _ = RunAsync(() => viewModel.SetLayoutAsync(layout));
-            menu.Items.Add(item);
-        }
+        secondsItem.Click += (_, _) =>
+            _ = RunAsync(() => viewModel.SetShowSecondsAsync(secondsItem.IsChecked));
+        menu.Items.Add(secondsItem);
 
         return menu;
     }
@@ -108,7 +81,7 @@ internal static class GlanceWidgetContextMenuBuilder
         var menu = new MenuFlyoutSubItem
         {
             Text = localizationService.T("Glance.Surface.Title"),
-            Icon = new FontIcon { Glyph = "\uE790" }
+            Icon = new FontIcon { Glyph = "" }
         };
 
         foreach (GlanceSurfaceMaterialMode mode in SurfaceMaterials)
@@ -142,18 +115,8 @@ internal static class GlanceWidgetContextMenuBuilder
             GlanceDisplayElement.Date => "Glance.Display.Date",
             GlanceDisplayElement.Year => "Glance.Display.Year",
             GlanceDisplayElement.Weekday => "Glance.Display.Weekday",
-            GlanceDisplayElement.Calendar => "Glance.Display.Calendar",
             GlanceDisplayElement.Weather => "Glance.Display.Weather",
             _ => "Glance.Display.Title"
-        };
-
-    private static string GetLayoutTextKey(GlanceLayoutMode layout) =>
-        layout switch
-        {
-            GlanceLayoutMode.Centered => "Glance.Layout.Centered",
-            GlanceLayoutMode.Editorial => "Glance.Layout.Editorial",
-            GlanceLayoutMode.Calendar => "Glance.Layout.Calendar",
-            _ => "Glance.Layout.Immersive"
         };
 
     private static async Task RunAsync(Func<Task> action)

@@ -40,7 +40,6 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             ["src/WinSticker/Services/DesktopOrganizationHistoryStore.cs"] = 2,
             ["src/WinSticker/Services/DesktopOrganizationRecoveryStore.cs"] = 2,
             ["src/WinSticker/Services/FeedbackService.cs"] = 4,
-            ["src/WinSticker/Services/GlanceImageService.cs"] = 2,
             ["src/WinSticker/Services/GlanceWidgetStore.cs"] = 7,
             ["src/WinSticker/Services/LocalizationService.cs"] = 1,
             ["src/WinSticker/Services/ManagedStorageMigrationService.cs"] = 2,
@@ -84,8 +83,8 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             Assert.Equal(expectedCount, actual[path]);
         }
 
-        Assert.Equal(41, actual.Count);
-        Assert.Equal(96, actual.Values.Sum());
+        Assert.Equal(40, actual.Count);
+        Assert.Equal(94, actual.Values.Sum());
 
         string[] expectedContextOwners =
         [
@@ -105,7 +104,6 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             "src/WinSticker/Services/DesktopOrganizationHistoryStore.cs",
             "src/WinSticker/Services/DesktopOrganizationRecoveryStore.cs",
             "src/WinSticker/Services/FeedbackService.cs",
-            "src/WinSticker/Services/GlanceImageService.cs",
             "src/WinSticker/Services/GlanceWidgetStore.cs",
             "src/WinSticker/Services/LocalizationService.cs",
             "src/WinSticker/Services/ManagedStorageMigrationModels.cs",
@@ -135,7 +133,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             .Order()
             .ToArray();
 
-        Assert.Equal(37, actualContextOwners.Length);
+        Assert.Equal(36, actualContextOwners.Length);
         Assert.Equal(expectedContextOwners, actualContextOwners);
     }
 
@@ -223,7 +221,6 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
         string quickCapture = ReadSource("src/WinSticker/Services/QuickCaptureStore.cs");
         string todo = ReadSource("src/WinSticker/Services/TodoWidgetStore.cs");
         string glancePreferences = ReadSource("src/WinSticker/Services/GlanceWidgetStore.cs");
-        string glanceCatalog = ReadSource("src/WinSticker/Services/GlanceImageService.cs");
         string widgetMetadata = ReadSource(
             "src/WinSticker/Services/WidgetFileStackSettings.cs");
         string allPhaseTwoSources = string.Join(
@@ -232,7 +229,6 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             quickCapture,
             todo,
             glancePreferences,
-            glanceCatalog,
             widgetMetadata);
 
         var expectedTypeInfoReferences = new Dictionary<string, int>(StringComparer.Ordinal)
@@ -241,7 +237,6 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             ["QuickCaptureJsonContext.Default.StoreData"] = 2,
             ["TodoJsonContext.Default.StoreData"] = 3,
             ["GlancePreferencesJsonContext.Default.Preferences"] = 7,
-            ["GlanceImageCatalogJsonContext.Default.ImageCatalog"] = 2,
             ["WidgetMetadataJsonContext.Default.StringMap"] = 2,
             ["WidgetMetadataJsonContext.Default.StringListMap"] = 2,
             ["WidgetMetadataJsonContext.Default.StringList"] = 3
@@ -255,7 +250,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
                     Regex.Escape(reference) + @"\b").Count);
         }
 
-        Assert.Equal(24, expectedTypeInfoReferences.Values.Sum());
+        Assert.Equal(22, expectedTypeInfoReferences.Values.Sum());
         Assert.DoesNotContain("JsonSerializerOptions", allPhaseTwoSources, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "new JsonStringEnumConverter()",
@@ -273,12 +268,6 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             Assert.Contains("WriteIndented = true", stringEnumStore, StringComparison.Ordinal);
         }
 
-        Assert.Contains(
-            "PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase",
-            glanceCatalog,
-            StringComparison.Ordinal);
-        Assert.Contains("WriteIndented = true", glanceCatalog, StringComparison.Ordinal);
-        Assert.DoesNotContain("UseStringEnumConverter", glanceCatalog, StringComparison.Ordinal);
         Assert.DoesNotContain("PropertyNamingPolicy", widgetMetadata, StringComparison.Ordinal);
         Assert.DoesNotContain("DictionaryKeyPolicy", widgetMetadata, StringComparison.Ordinal);
         Assert.DoesNotContain("UseStringEnumConverter", widgetMetadata, StringComparison.Ordinal);
@@ -636,68 +625,34 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
         var glanceStore = new GlanceWidgetStore(Path.Combine(_tempRoot, "glance"));
         await glanceStore.SaveAsync(new GlanceWidgetData
         {
-            Layout = GlanceLayoutMode.Editorial,
-            Transition = GlanceTransitionMode.SlideFade
+            TimeFormat = GlanceTimeFormatMode.Hour24,
+            WorldClocks = [new GlanceWorldClockData("UTC", "伦敦")]
         });
 
         using (JsonDocument glanceJson = JsonDocument.Parse(
                    await File.ReadAllTextAsync(glanceStore.StorePath)))
         {
-            Assert.Equal("Editorial", glanceJson.RootElement.GetProperty("layout").GetString());
-            Assert.Equal("SlideFade", glanceJson.RootElement.GetProperty("transition").GetString());
-            Assert.Equal(JsonValueKind.String, glanceJson.RootElement.GetProperty("layout").ValueKind);
+            Assert.Equal("Hour24", glanceJson.RootElement.GetProperty("timeFormat").GetString());
+            Assert.Equal(
+                JsonValueKind.String,
+                glanceJson.RootElement.GetProperty("timeFormat").ValueKind);
+            Assert.Equal(
+                "伦敦",
+                glanceJson.RootElement.GetProperty("worldClocks")[0].GetProperty("cityName").GetString());
         }
 
         await File.WriteAllTextAsync(
             glanceStore.StorePath,
             """
             {
-              "layout": 2,
-              "transition": 2,
+              "timeFormat": 2,
               "futurePreferenceField": true
             }
             """);
         GlanceWidgetData legacyGlance = await new GlanceWidgetStore(
             Path.Combine(_tempRoot, "glance")).LoadAsync();
-        Assert.Equal(GlanceLayoutMode.Editorial, legacyGlance.Layout);
-        Assert.Equal(GlanceTransitionMode.SlideFade, legacyGlance.Transition);
+        Assert.Equal(GlanceTimeFormatMode.Hour12, legacyGlance.TimeFormat);
         Assert.Equal(GlanceWidgetData.CurrentVersion, legacyGlance.Version);
-    }
-
-    [Fact]
-    public async Task GlanceImageCatalogGolden_ReadsNumericEnumsWithMissingAndUnknownFields()
-    {
-        string cacheDirectory = Path.Combine(_tempRoot, "glance-cache");
-        string imageDirectory = Directory.CreateDirectory(
-            Path.Combine(cacheDirectory, "images")).FullName;
-        string imagePath = Path.Combine(imageDirectory, "legacy.jpg");
-        await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
-        string escapedImagePath = JsonSerializer.Serialize(imagePath);
-        await File.WriteAllTextAsync(
-            Path.Combine(cacheDirectory, "catalog.json"),
-            $$"""
-            [
-              {
-                "id": "legacy-cities",
-                "localPath": {{escapedImagePath}},
-                "cachedAtUtc": "2026-08-20T00:00:00+00:00",
-                "onlineCategory": 2,
-                "onlineProvider": 0,
-                "futureCatalogField": { "ignored": true }
-              }
-            ]
-            """);
-
-        var service = new GlanceImageService(cacheDirectory);
-        IReadOnlyList<GlanceImageInfo> images = await service.LoadCachedOnlineImagesAsync(
-            GlanceOnlineImageProvider.Wikimedia,
-            GlanceOnlineImageCategory.Cities);
-
-        GlanceImageInfo image = Assert.Single(images);
-        Assert.Equal("legacy-cities", image.Id);
-        Assert.Equal(GlanceOnlineImageProvider.Wikimedia, image.OnlineProvider);
-        Assert.Equal(GlanceOnlineImageCategory.Cities, image.OnlineCategory);
-        Assert.Null(image.Title);
     }
 
     private static string[] GenericTypeArguments(string source, string methodName) =>

@@ -1,4 +1,4 @@
-﻿using WinSticker.Contracts;
+using WinSticker.Contracts;
 using WinSticker.Controls;
 using WinSticker.Controls.WidgetContents;
 using WinSticker.Helpers;
@@ -285,6 +285,134 @@ public sealed partial class ContentWidgetWindow
         var properties = e.GetCurrentPoint(ContentWidgetShell.DragHandleElement).Properties;
         if (!properties.IsLeftButtonPressed) return;
         BeginWindowDragCore(e, ContentWidgetShell.DragHandleElement);
+    }
+
+    // ── Glance whole-surface drag ──────────────────────────────
+    // The Glance clock is a bare transparent patch: it has no meaningful
+    // interactive children, so the entire surface doubles as the drag handle —
+    // the phone-clock feel the widget is modeled on.
+
+    private WinSticker.Controls.WidgetContents.GlanceWidgetContent? _glanceDragSurface;
+
+    private void AttachGlanceSurfaceDrag(FrameworkElement? view)
+    {
+        if (ReferenceEquals(_glanceDragSurface, view))
+        {
+            return;
+        }
+
+        if (_glanceDragSurface is not null)
+        {
+            _glanceDragSurface.PointerPressed -= GlanceSurface_PointerPressed;
+            _glanceDragSurface.PointerMoved -= GlanceSurface_PointerMoved;
+            _glanceDragSurface.PointerReleased -= GlanceSurface_PointerReleased;
+            _glanceDragSurface.PointerCaptureLost -= DragPointerCaptureLostCore;
+            _glanceDragSurface = null;
+        }
+
+        if (view is not WinSticker.Controls.WidgetContents.GlanceWidgetContent glance)
+        {
+            return;
+        }
+
+        _glanceDragSurface = glance;
+        glance.PointerPressed += GlanceSurface_PointerPressed;
+        glance.PointerMoved += GlanceSurface_PointerMoved;
+        glance.PointerReleased += GlanceSurface_PointerReleased;
+        glance.PointerCaptureLost += DragPointerCaptureLostCore;
+    }
+
+    private void GlanceSurface_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (_glanceDragSurface is null ||
+            IsGroupNavigationInput(e.OriginalSource) ||
+            HasBlockingFlyoutOpen())
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(_glanceDragSurface).Properties.IsLeftButtonPressed ||
+            _config.IsPositionLocked ||
+            IsCompactTransitionActive)
+        {
+            return;
+        }
+
+        BeginWindowDragCore(e, _glanceDragSurface);
+    }
+
+    private void GlanceSurface_PointerMoved(object sender, PointerRoutedEventArgs e)
+        => ContinueWindowDragCore(e);
+
+    private void GlanceSurface_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        EndWindowDragCore(e);
+        App.Current.WidgetManager?.RestoreTemporarilyRaisedWidgetsToDesktopLayer(
+            "glance-surface-released");
+    }
+
+    // ── Glance settings-driven size ─────────────────────────────
+    // Manual resizing is supported for Glance; when SizeScale changes
+    // in settings, the window follows it.
+
+    private System.ComponentModel.INotifyPropertyChanged? _glanceScaleSource;
+
+    private void AttachGlanceScaleEnforcement(Contracts.IWidgetContent? content)
+    {
+        if (_glanceScaleSource is not null)
+        {
+            _glanceScaleSource.PropertyChanged -= GlanceScaleSource_PropertyChanged;
+            _glanceScaleSource = null;
+        }
+
+        if (content is WinSticker.Controls.WidgetContents.GlanceWidgetContentAdapter glanceAdapter)
+        {
+            var viewModel = glanceAdapter.ViewModel;
+            _glanceScaleSource = viewModel;
+            viewModel.PropertyChanged += GlanceScaleSource_PropertyChanged;
+            if (_config.Width <= 0 || _config.Height <= 0 || (_config.Width >= 340 && _config.Height >= 180))
+            {
+                ApplyGlanceWindowScale(viewModel.SizeScale);
+            }
+        }
+    }
+
+    private void GlanceScaleSource_PropertyChanged(
+        object? sender,
+        System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.GlanceWidgetViewModel.SizeScale) &&
+            sender is ViewModels.GlanceWidgetViewModel viewModel)
+        {
+            ApplyGlanceWindowScale(viewModel.SizeScale);
+        }
+    }
+
+    private void ApplyGlanceWindowScale(double sizeScale)
+    {
+        if (IsCompactBoundsStateActive || IsDragging || IsResizing)
+        {
+            return;
+        }
+
+        double scale = Math.Clamp(
+            sizeScale,
+            Services.GlanceWorldClockPolicy.MinimumSizeScale,
+            Services.GlanceWorldClockPolicy.MaximumSizeScale);
+        RectInt32 bounds = GetActualWindowBounds();
+        int targetWidth = (int)Math.Round(Services.GlanceWindowDefaults.BaseWidth * scale);
+        int targetHeight = (int)Math.Round(Services.GlanceWindowDefaults.BaseHeight * scale);
+        if (bounds.Width == targetWidth && bounds.Height == targetHeight)
+        {
+            return;
+        }
+
+        ApplyWindowBounds(
+            bounds.X,
+            bounds.Y,
+            targetWidth,
+            targetHeight,
+            persist: true);
     }
 
     private void DragHandle_PointerMoved(object sender, PointerRoutedEventArgs e)

@@ -27,8 +27,6 @@ $managedUiTodoAttachmentsPhaseEnvironmentVariable =
     "WINSTICKER_AOT_MANAGED_UI_TODO_ATTACHMENTS_PHASE"
 $managedUiGlancePhaseEnvironmentVariable =
     "WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE"
-$managedUiGlanceFixtureEnvironmentVariable =
-    "WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE"
 $managedUiWeatherSettingsPhaseEnvironmentVariable =
     "WINSTICKER_AOT_MANAGED_UI_WEATHER_SETTINGS_PHASE"
 $managedUiWeatherSurfacePhaseEnvironmentVariable =
@@ -936,9 +934,6 @@ function Assert-GlanceEvidenceState {
         [bool]$ExpectMutation,
 
         [Parameter(Mandatory)]
-        [string]$FixturePath,
-
-        [Parameter(Mandatory)]
         [string]$Name
     )
 
@@ -946,27 +941,23 @@ function Assert-GlanceEvidenceState {
     $viewModel = $State.viewModel
     $surface = $State.surface
     $commonStoreValid =
-        [int]$store.version -eq 10 -and
-        [string]$store.backgroundSource -ceq "LocalFiles" -and
-        $null -eq $store.localFolderPath -and
+        [int]$store.version -eq 12 -and
         [bool]$store.showTime -and
         [bool]$store.showDate -and
-        -not [bool]$store.showCalendar -and
-        -not [bool]$store.randomOrder -and
-        [bool]$store.showPhotoControls
+        [bool]$store.showWeather -and
+        [bool]$store.showWeekday
     $commonViewModelValid =
-        [string]$viewModel.backgroundSource -ceq "LocalFiles" -and
         [bool]$viewModel.showTime -and
         [bool]$viewModel.showDate -and
-        -not [bool]$viewModel.showCalendar -and
-        -not [bool]$viewModel.randomOrder -and
-        [bool]$viewModel.showPhotoControlsSetting
+        [bool]$viewModel.showWeather
     $commonSurfaceValid =
         [bool]$surface.isLoaded -and
         [bool]$surface.hasXamlRoot -and
         [bool]$surface.dataContextMatchesViewModel -and
         [double]$surface.actualWidth -gt 0 -and
-        [double]$surface.actualHeight -gt 0
+        [double]$surface.actualHeight -gt 0 -and
+        [bool]$surface.contentVisible -and
+        [bool]$surface.clockColumnVisible
     if (-not $commonStoreValid -or
         -not $commonViewModelValid -or
         -not $commonSurfaceValid) {
@@ -974,83 +965,38 @@ function Assert-GlanceEvidenceState {
     }
 
     if ($ExpectMutation) {
-        $storePaths = @($store.localImagePaths)
-        $viewModelPaths = @($viewModel.localImagePaths)
-        if ($storePaths.Count -ne 1 -or
-            $viewModelPaths.Count -ne 1 -or
-            -not (Test-PathEqual -Left ([string]$storePaths[0]) -Right $FixturePath) -or
-            -not (Test-PathEqual -Left ([string]$viewModelPaths[0]) -Right $FixturePath) -or
-            -not [bool]$store.showYear -or
+        if (-not [bool]$store.showYear -or
             [bool]$store.showWeekday -or
-            [string]$store.layout -cne "Editorial" -or
-            [double]$store.rotationIntervalMinutes -ne 0 -or
-            [string]$store.transition -cne "None" -or
-            [string]$store.transitionSpeed -cne "Fast" -or
-            [string]$store.readability -cne "Strong" -or
+            -not [bool]$store.showSeconds -or
+            [Math]::Abs([double]$store.sizeScale - 1.25) -gt 0.001 -or
+            [string]$store.surfaceMaterial -cne "Transparent" -or
+            [int]$store.worldClockCount -ne 1 -or
             -not [bool]$viewModel.showYear -or
             [bool]$viewModel.showWeekday -or
-            [string]$viewModel.layout -cne "Editorial" -or
-            [double]$viewModel.rotationIntervalMinutes -ne 0 -or
-            [string]$viewModel.transition -cne "None" -or
-            [string]$viewModel.transitionSpeed -cne "Fast" -or
-            [string]$viewModel.readability -cne "Strong" -or
-            [int]$viewModel.imageCount -ne 1 -or
-            -not [bool]$viewModel.hasCurrentImage -or
-            -not (Test-PathEqual -Left ([string]$viewModel.currentImagePath) -Right $FixturePath) -or
-            [bool]$viewModel.isCenteredLayout -or
-            -not [bool]$viewModel.isEditorialLayout -or
-            [Math]::Abs([double]$viewModel.readabilityOpacity - 0.5) -gt 0.001 -or
-            -not [bool]$viewModel.showPhotoControls -or
-            -not (Test-PathEqual -Left ([string]$surface.decodedImagePath) -Right $FixturePath) -or
-            -not [bool]$surface.activeBackgroundIsImageBrush -or
-            -not (Test-PathEqual -Left ([string]$surface.activeImageUri) -Right $FixturePath) -or
-            [double]$surface.activeBackgroundOpacity -lt 0.99 -or
-            [string]$surface.imageStretch -cne "UniformToFill" -or
-            [string]$surface.imageAlignmentX -cne "Center" -or
-            [string]$surface.imageAlignmentY -cne "Center" -or
-            [bool]$surface.immersiveLayoutVisible -or
-            [bool]$surface.centeredLayoutVisible -or
-            -not [bool]$surface.editorialLayoutVisible -or
-            [bool]$surface.calendarLayoutVisible -or
-            -not [bool]$surface.readabilityLayerVisible -or
-            [Math]::Abs([double]$surface.readabilityLayerOpacity - 0.5) -gt 0.001 -or
-            -not [bool]$surface.actionLayerVisible) {
-            throw "$Name Glance mutation did not reach the store, ViewModel, decoded image brush, and editorial surface."
+            -not [bool]$viewModel.showSeconds -or
+            [Math]::Abs([double]$viewModel.sizeScale - 1.25) -gt 0.001 -or
+            [string]$viewModel.surfaceMaterial -cne "Transparent" -or
+            [int]$viewModel.worldClockCount -ne 1 -or
+            -not [bool]$viewModel.hasWorldClocks -or
+            -not [bool]$surface.worldClocksVisible -or
+            [int]$surface.worldClockRowCount -ne 1) {
+            throw "$Name Glance mutation did not reach the store, ViewModel, and world-clock surface."
         }
     }
-    elseif (@($store.localImagePaths).Count -ne 0 -or
-        @($viewModel.localImagePaths).Count -ne 0 -or
-        [bool]$store.showYear -or
+    elseif ([bool]$store.showYear -or
         -not [bool]$store.showWeekday -or
-        [string]$store.layout -cne "Centered" -or
-        [double]$store.rotationIntervalMinutes -ne 30 -or
-        [string]$store.transition -cne "CrossFade" -or
-        [string]$store.transitionSpeed -cne "Standard" -or
-        [string]$store.readability -cne "Soft" -or
+        [bool]$store.showSeconds -or
+        [Math]::Abs([double]$store.sizeScale - 1) -gt 0.001 -or
+        [string]$store.surfaceMaterial -cne "FollowSystem" -or
+        [int]$store.worldClockCount -ne 0 -or
         [bool]$viewModel.showYear -or
         -not [bool]$viewModel.showWeekday -or
-        [string]$viewModel.layout -cne "Centered" -or
-        [double]$viewModel.rotationIntervalMinutes -ne 30 -or
-        [string]$viewModel.transition -cne "CrossFade" -or
-        [string]$viewModel.transitionSpeed -cne "Standard" -or
-        [string]$viewModel.readability -cne "Soft" -or
-        [int]$viewModel.imageCount -ne 0 -or
-        $null -ne $viewModel.currentImagePath -or
-        [bool]$viewModel.hasCurrentImage -or
-        -not [bool]$viewModel.isCenteredLayout -or
-        [bool]$viewModel.isEditorialLayout -or
-        [Math]::Abs([double]$viewModel.readabilityOpacity - 0.28) -gt 0.001 -or
-        [bool]$viewModel.showPhotoControls -or
-        $null -ne $surface.decodedImagePath -or
-        [bool]$surface.backgroundAHasBrush -or
-        [bool]$surface.backgroundBHasBrush -or
-        $null -ne $surface.activeImageUri -or
-        [bool]$surface.immersiveLayoutVisible -or
-        -not [bool]$surface.centeredLayoutVisible -or
-        [bool]$surface.editorialLayoutVisible -or
-        [bool]$surface.calendarLayoutVisible -or
-        [bool]$surface.readabilityLayerVisible -or
-        [bool]$surface.actionLayerVisible) {
+        [bool]$viewModel.showSeconds -or
+        [Math]::Abs([double]$viewModel.sizeScale - 1) -gt 0.001 -or
+        [string]$viewModel.surfaceMaterial -cne "FollowSystem" -or
+        [bool]$viewModel.hasWorldClocks -or
+        [bool]$surface.worldClocksVisible -or
+        [int]$surface.worldClockRowCount -ne 0) {
         throw "$Name Glance baseline is not clean across the store, ViewModel, and real surface."
     }
 }
@@ -2492,10 +2438,7 @@ function Invoke-GlancePersistencePhase {
         [string]$Phase,
 
         [Parameter(Mandatory)]
-        [string]$ResultPath,
-
-        [Parameter(Mandatory)]
-        [string]$FixturePath
+        [string]$ResultPath
     )
 
     $phaseVariables = @(
@@ -2506,7 +2449,6 @@ function Invoke-GlancePersistencePhase {
         $managedUiTodoStepsPhaseEnvironmentVariable,
         $managedUiTodoAttachmentsPhaseEnvironmentVariable,
         $managedUiGlancePhaseEnvironmentVariable,
-        $managedUiGlanceFixtureEnvironmentVariable,
         $managedUiWeatherSettingsPhaseEnvironmentVariable,
         $managedUiWeatherSurfacePhaseEnvironmentVariable,
         $musicSessionMutationSmokeEnvironmentVariable,
@@ -2533,10 +2475,6 @@ function Invoke-GlancePersistencePhase {
         [Environment]::SetEnvironmentVariable(
             $managedUiGlancePhaseEnvironmentVariable,
             $Phase,
-            "Process")
-        [Environment]::SetEnvironmentVariable(
-            $managedUiGlanceFixtureEnvironmentVariable,
-            $FixturePath,
             "Process")
 
         $null = @(
@@ -2603,9 +2541,8 @@ function Invoke-GlancePersistencePhase {
     if ([int]$phaseResult.processId -ne [int]$phaseSession.primaryProcessId -or
         -not (Test-PathEqual -Left ([string]$phaseResult.executablePath) -Right ([string]$phaseSession.executablePath)) -or
         -not (Test-PathEqual -Left ([string]$phaseResult.previewDataRoot) -Right $DataRoot) -or
-        -not (Test-PathEqual -Left ([string]$phaseResult.resultPath) -Right $ResultPath) -or
-        -not (Test-PathEqual -Left ([string]$phaseResult.glancePersistence.fixturePath) -Right $FixturePath)) {
-        throw "Glance persistence phase '$Phase' evidence does not match its audited process, root, and fixture."
+        -not (Test-PathEqual -Left ([string]$phaseResult.resultPath) -Right $ResultPath)) {
+        throw "Glance persistence phase '$Phase' evidence does not match its audited process and root."
     }
     if (-not [bool]$phaseResult.trayIconCreated -or
         [long]$phaseResult.trayIconWindowHandle -eq 0 -or
@@ -2614,8 +2551,7 @@ function Invoke-GlancePersistencePhase {
         [int]$phaseResult.visibleSurfaceCount -ne 2 -or
         [long]$phaseResult.glancePersistence.windowHandle -eq 0 -or
         -not [bool]$phaseResult.glancePersistence.hasXamlRoot -or
-        -not [bool]$phaseResult.glancePersistence.visible -or
-        [long]$phaseResult.glancePersistence.fixtureLength -le 0) {
+        -not [bool]$phaseResult.glancePersistence.visible) {
         throw "Glance persistence phase '$Phase' did not restore the tray, fixed widgets, and real Glance host."
     }
     Assert-StringSequence `
@@ -2632,12 +2568,10 @@ function Invoke-GlancePersistencePhase {
     Assert-GlanceEvidenceState `
         -State $phaseResult.glancePersistence.before `
         -ExpectMutation $beforeMutation `
-        -FixturePath $FixturePath `
         -Name "$Phase.before"
     Assert-GlanceEvidenceState `
         -State $phaseResult.glancePersistence.after `
         -ExpectMutation $afterMutation `
-        -FixturePath $FixturePath `
         -Name "$Phase.after"
 
     $requiredSteps = @(
@@ -2647,16 +2581,15 @@ function Invoke-GlancePersistencePhase {
         "SeededWidgetsRestored",
         "AllLocaleResourcesLoaded",
         "GlanceHostReady",
-        "GlanceFixtureOwned",
         "GlanceBaselineVerified")
     $requiredSteps += switch ($Phase) {
-        "Mutate" { @("GlanceMutationApplied", "GlanceOwnedImageRetained") }
+        "Mutate" { @("GlanceMutationApplied", "GlanceWorldClockPersisted") }
         "VerifyRestore" {
             @(
                 "GlanceMutationApplied",
-                "GlanceOwnedImagePreservedAfterRestore")
+                "GlanceBaselineRestoredAfterRestart")
         }
-        default { @("GlancePostflightFixtureRetained") }
+        default { @("GlancePostflightBaselineRetained") }
     }
     $missingSteps = @($requiredSteps | Where-Object { $_ -notin @($phaseResult.steps) })
     if ($missingSteps.Count -gt 0) {
@@ -2690,7 +2623,6 @@ function Invoke-WeatherSettingsPersistencePhase {
         $managedUiTodoStepsPhaseEnvironmentVariable,
         $managedUiTodoAttachmentsPhaseEnvironmentVariable,
         $managedUiGlancePhaseEnvironmentVariable,
-        $managedUiGlanceFixtureEnvironmentVariable,
         $managedUiWeatherSettingsPhaseEnvironmentVariable,
         $managedUiWeatherSurfacePhaseEnvironmentVariable,
         $musicSessionMutationSmokeEnvironmentVariable,
@@ -2863,7 +2795,6 @@ function Invoke-WeatherSurfacePersistencePhase {
         $managedUiTodoStepsPhaseEnvironmentVariable,
         $managedUiTodoAttachmentsPhaseEnvironmentVariable,
         $managedUiGlancePhaseEnvironmentVariable,
-        $managedUiGlanceFixtureEnvironmentVariable,
         $managedUiWeatherSettingsPhaseEnvironmentVariable,
         $managedUiWeatherSurfacePhaseEnvironmentVariable,
         $musicSessionMutationSmokeEnvironmentVariable,
@@ -3041,7 +2972,6 @@ function Invoke-LocalFilePersistencePhase {
         $managedUiTodoStepsPhaseEnvironmentVariable,
         $managedUiTodoAttachmentsPhaseEnvironmentVariable,
         $managedUiGlancePhaseEnvironmentVariable,
-        $managedUiGlanceFixtureEnvironmentVariable,
         $managedUiWeatherSettingsPhaseEnvironmentVariable,
         $managedUiWeatherSurfacePhaseEnvironmentVariable,
         $managedUiLocalFilePhaseEnvironmentVariable,
@@ -3256,7 +3186,6 @@ function Invoke-RecycleBinPhase {
         $managedUiTodoStepsPhaseEnvironmentVariable,
         $managedUiTodoAttachmentsPhaseEnvironmentVariable,
         $managedUiGlancePhaseEnvironmentVariable,
-        $managedUiGlanceFixtureEnvironmentVariable,
         $managedUiWeatherSettingsPhaseEnvironmentVariable,
         $managedUiWeatherSurfacePhaseEnvironmentVariable,
         $managedUiLocalFilePhaseEnvironmentVariable,
@@ -3576,9 +3505,6 @@ $quickCaptureAttachmentFixturePath = Join-Path `
 $todoAttachmentFixturePath = Join-Path `
     $DataRoot `
     "fixtures\todo-managed-attachment.txt"
-$glanceImageFixturePath = Join-Path `
-    $DataRoot `
-    "fixtures\glance-local.png"
 $localFileFixtureRoot = Join-Path $DataRoot "fixtures\local-file-surface"
 $localFileWidgetRoot = Join-Path $localFileFixtureRoot "widget-root"
 $localFileNestedRoot = Join-Path $localFileWidgetRoot "nested"
@@ -3977,31 +3903,31 @@ elseif ($scenario -ceq "GlancePersistenceRestart") {
         },
         $searchWidget)
 
-    New-Item `
-        -ItemType Directory `
-        -Path (Split-Path -Parent $glanceImageFixturePath) `
-        -Force | Out-Null
-    $glancePngBase64 =
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-    [System.IO.File]::WriteAllBytes(
-        $glanceImageFixturePath,
-        [Convert]::FromBase64String($glancePngBase64))
-
     $glanceStoreDirectory = Join-Path $dataDirectory "glance\widgets"
     New-Item -ItemType Directory -Path $glanceStoreDirectory -Force | Out-Null
     $glanceStorePath = Join-Path `
         $glanceStoreDirectory `
         "aot-5b4b2c1-glance.json"
-    # Seed the fixture at an old schema form (version 8). The evidence gate
-    # below expects version 10, so the scenario verifies that the glance
-    # preference store's Normalize pass stamps the current schema version on
-    # load instead of echoing whatever the fixture shipped.
+    # Seed the fixture at the previous schema form (version 11, still carrying
+    # the retired wallpaper/calendar fields). The evidence gate below expects
+    # version 12, so the scenario verifies that the glance preference store's
+    # Normalize pass stamps the current schema version and drops the legacy
+    # surfaces on load instead of echoing whatever the fixture shipped.
     $glanceBaseline = [ordered]@{
-        version = 8
+        version = 11
         showTime = $true
         showDate = $true
         showYear = $false
         showWeekday = $true
+        showWeather = $true
+        showSeconds = $false
+        timeFormat = "TwentyFourHour"
+        timeFontFamily = ""
+        timeScale = 1.0
+        surfaceMaterial = "FollowSystem"
+        surfaceMaterialOpacity = 0.45
+        textContrast = "Auto"
+        showTextPlate = $true
         showCalendar = $false
         layout = "Centered"
         backgroundSource = "LocalFiles"
@@ -5135,7 +5061,7 @@ if ($scenario -ceq "GlancePersistenceRestart") {
         "glance-persistence-restart"
     $productionDataFingerprintBefore =
         Get-DirectoryStateFingerprint -Path $productionDataRoot
-    $fixtureSha256Before = Get-FileSha256 -Path $glanceImageFixturePath
+    $storeSha256Before = Get-FileSha256 -Path $glanceStorePath
     $glanceExecutablePath = $null
     $runtimeFailureLogLines = @()
     $previewRootCleaned = $false
@@ -5143,21 +5069,18 @@ if ($scenario -ceq "GlancePersistenceRestart") {
     try {
         $mutatePhase = Invoke-GlancePersistencePhase `
             -Phase "Mutate" `
-            -ResultPath $mutateResultPath `
-            -FixturePath $glanceImageFixturePath
+            -ResultPath $mutateResultPath
         $glanceExecutablePath = [string]$mutatePhase.session.executablePath
         $mutate = $mutatePhase.result
 
         $verifyRestorePhase = Invoke-GlancePersistencePhase `
             -Phase "VerifyRestore" `
-            -ResultPath $verifyRestoreResultPath `
-            -FixturePath $glanceImageFixturePath
+            -ResultPath $verifyRestoreResultPath
         $verifyRestore = $verifyRestorePhase.result
 
         $postflightPhase = Invoke-GlancePersistencePhase `
             -Phase "Postflight" `
-            -ResultPath $postflightResultPath `
-            -FixturePath $glanceImageFixturePath
+            -ResultPath $postflightResultPath
         $postflight = $postflightPhase.result
 
         Assert-GlanceStateEqual `
@@ -5200,12 +5123,12 @@ if ($scenario -ceq "GlancePersistenceRestart") {
         if (@($phaseExecutableHashes | Sort-Object -Unique).Count -ne 1) {
             throw "Glance persistence phases did not use one identical audited executable."
         }
-        $fixtureSha256After = Get-FileSha256 -Path $glanceImageFixturePath
-        if (-not [string]::Equals(
-                $fixtureSha256Before,
-                $fixtureSha256After,
+        $storeSha256After = Get-FileSha256 -Path $glanceStorePath
+        if ([string]::Equals(
+                $storeSha256Before,
+                $storeSha256After,
                 [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "Glance persistence matrix changed its owned image fixture."
+            throw "Glance persistence matrix never rewrote its per-widget preferences store."
         }
 
         $glancePreviewProcessesAfter = @(
@@ -5223,7 +5146,8 @@ if ($scenario -ceq "GlancePersistenceRestart") {
                 Where-Object {
                     $_.IndexOf("Unhandled exception:", [StringComparison]::Ordinal) -ge 0 -or
                     $_.IndexOf("[DataBackup] Snapshot inventory failed:", [StringComparison]::Ordinal) -ge 0 -or
-                    $_.IndexOf("[GlanceWidgetContent] Image decode failed", [StringComparison]::Ordinal) -ge 0
+                    $_.IndexOf("[GlanceWidgetViewModel]", [StringComparison]::Ordinal) -ge 0 -and
+                    $_.IndexOf("failed", [StringComparison]::OrdinalIgnoreCase) -ge 0
                 })
         if ($runtimeFailureLogLines.Count -gt 0) {
             throw "Glance persistence runtime log contains a failure: $($runtimeFailureLogLines -join ' | ')"
@@ -5263,7 +5187,6 @@ if ($scenario -ceq "GlancePersistenceRestart") {
         $archivedRuntimeLogPath = Join-Path $glanceArchiveRoot "WinSticker.log"
         $archivedFinalStorePath = Join-Path $glanceArchiveRoot "final-glance.json"
         $archivedFinalSettingsPath = Join-Path $glanceArchiveRoot "final-settings.json"
-        $archivedFixturePath = Join-Path $glanceArchiveRoot "glance-local.png"
         if (-not (Test-Path -LiteralPath $glanceStorePath -PathType Leaf)) {
             throw "Glance persistence matrix did not leave final per-widget store evidence."
         }
@@ -5277,7 +5200,6 @@ if ($scenario -ceq "GlancePersistenceRestart") {
         Copy-Item -LiteralPath $runtimeLogPath -Destination $archivedRuntimeLogPath
         Copy-Item -LiteralPath $glanceStorePath -Destination $archivedFinalStorePath
         Copy-Item -LiteralPath $settingsPath -Destination $archivedFinalSettingsPath
-        Copy-Item -LiteralPath $glanceImageFixturePath -Destination $archivedFixturePath
 
         $resolvedDataRoot = [System.IO.Path]::GetFullPath($DataRoot)
         if (-not (Test-Path -LiteralPath $ownedMarkerPath -PathType Leaf) -or
@@ -5301,9 +5223,8 @@ if ($scenario -ceq "GlancePersistenceRestart") {
             postflightResultPath = $archivedPostflightResultPath
             finalStorePath = $archivedFinalStorePath
             finalSettingsPath = $archivedFinalSettingsPath
-            fixturePath = $archivedFixturePath
-            fixtureSha256Before = $fixtureSha256Before
-            fixtureSha256After = $fixtureSha256After
+            storeSha256Before = $storeSha256Before
+            storeSha256After = $storeSha256After
             runtimeLogPath = $archivedRuntimeLogPath
             mutate = $mutate.glancePersistence
             verifyRestore = $verifyRestore.glancePersistence

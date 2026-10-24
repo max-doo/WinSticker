@@ -3,34 +3,59 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
-using WinSticker.Contracts;
-using WinSticker.Helpers;
 using WinSticker.Models;
 using WinSticker.Platform;
 using WinSticker.Services;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Launcher = Windows.System.Launcher;
 
 namespace WinSticker.ViewModels;
 
+/// <summary>
+/// One world-clock row under the main clock: city name plus its current time.
+/// Refreshed wholesale on each clock tick; the rows are plain display state.
+/// </summary>
+public sealed partial class GlanceWorldClockRow : ObservableObject
+{
+    public GlanceWorldClockRow(string timeZoneId, string cityName)
+    {
+        TimeZoneId = timeZoneId;
+        CityName = cityName;
+    }
+
+    public string TimeZoneId { get; }
+    public string CityName { get; }
+
+    /// <summary>Settings-only row: the city plus its zone id, for list disambiguation.</summary>
+    public string? SettingsDisplayName
+    {
+        get => _settingsDisplayName;
+        set => SetProperty(ref _settingsDisplayName, value);
+    }
+
+    private string? _settingsDisplayName;
+
+    [ObservableProperty]
+    public partial string TimeText { get; set; }
+
+    /// <summary>Relative day against the local date: "明天" / "昨天", empty when equal.</summary>
+    [ObservableProperty]
+    public partial string RelativeDayText { get; set; }
+
+    /// <summary>Whether the city is in its local daytime (6:00–18:00); night rows dim.</summary>
+    [ObservableProperty]
+    public partial bool IsDaytime { get; set; }
+}
+
 public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposable
 {
-    private const double CalendarPanelMaximumWidth = 360;
-    private const double CalendarPanelHorizontalInset = 28;
-
     private readonly GlanceWidgetStore _store;
-    private readonly GlanceImageService _imageService;
-    private readonly ICalendarPresentationSource _calendarSource;
-    private readonly GlanceTraditionalCalendarService _traditionalCalendarService = new();
-    private readonly GlanceFestivalService _festivalService = new();
     private readonly GlanceWeatherSummaryService _weatherSummaryService;
     private readonly LocalizationService _localizationService;
     private readonly SettingsService? _settingsService;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherQueueTimer _clockTimer;
-    private readonly DispatcherQueueTimer _rotationTimer;
     private readonly CancellationTokenSource _lifetimeCts = new();
     private GlanceWidgetData _settings = new();
     private GlanceTextContrastDecision _contrastDecision = GlanceTextContrastDecision.Unknown;
@@ -40,37 +65,18 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private DateTimeOffset _weatherFetchedUtc = DateTimeOffset.MinValue;
     private bool _isWeatherRefreshRunning;
     private bool _isDisposedWeather;
-    private IReadOnlyList<GlanceImageInfo> _images = [];
-    private GlanceImageInfo? _currentImage;
     private string _timeText = string.Empty;
     private string _dateText = string.Empty;
-    private string _compactCalendarDateText = string.Empty;
     private string _weekdayText = string.Empty;
-    private string _traditionalCalendarTitle = string.Empty;
-    private string _statusText = string.Empty;
-    private bool _isLoading;
-    private bool _isPaused;
     private bool _isWindowVisible = true;
-    private bool _isCompact;
-    private bool _onlineRefreshCompletedForSession;
-    private CancellationTokenSource? _onlineRefreshCts;
     private bool _isDisposed;
     private double _availableWidth = 360;
-    private double _availableHeight = 260;
-    private int _currentIndex = -1;
-    private int _calendarLoadVersion;
-    private DateOnly _displayedCalendarMonth = new(
-        DateTime.Today.Year,
-        DateTime.Today.Month,
-        1);
-    private DateOnly _lastObservedDate = DateOnly.FromDateTime(DateTime.Today);
+    private double _availableHeight = 200;
 
     public GlanceWidgetViewModel(
         WidgetConfig config,
         LocalizationService localizationService,
         GlanceWidgetStore? store = null,
-        GlanceImageService? imageService = null,
-        ICalendarPresentationSource? calendarSource = null,
         DispatcherQueue? dispatcherQueue = null,
         SettingsService? settingsService = null)
     {
@@ -82,8 +88,6 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         Config = config;
         _localizationService = localizationService;
         _store = store ?? GlanceWidgetStore.ForWidget(config.Id);
-        _imageService = imageService ?? new GlanceImageService();
-        _calendarSource = calendarSource ?? new LocalCalendarPresentationSource();
         _settingsService = settingsService;
         _dispatcherQueue = dispatcherQueue ?? DispatcherQueue.GetForCurrentThread()
             ?? throw new InvalidOperationException("Glance content must be created on a UI thread.");
@@ -92,9 +96,6 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         _clockTimer = _dispatcherQueue.CreateTimer();
         _clockTimer.IsRepeating = false;
         _clockTimer.Tick += ClockTimer_Tick;
-        _rotationTimer = _dispatcherQueue.CreateTimer();
-        _rotationTimer.IsRepeating = true;
-        _rotationTimer.Tick += RotationTimer_Tick;
 
         _store.Changed += Store_Changed;
         _localizationService.LanguageChanged += LocalizationService_LanguageChanged;
@@ -105,138 +106,47 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     }
 
     public WidgetConfig Config { get; }
-    public ObservableCollection<string> WeekdayHeaders { get; } = [];
-    public ObservableCollection<GlanceCalendarDay> CalendarDays { get; } = [];
-    public DateOnly DisplayedCalendarMonth => _displayedCalendarMonth;
-    public string CalendarLanguage => GetCulture().Name;
 
     public GlanceWidgetData Settings => _settings;
+    public ObservableCollection<GlanceWorldClockRow> WorldClockRows { get; } = [];
+
     public string TimeText { get => _timeText; private set => SetProperty(ref _timeText, value); }
     public string DateText { get => _dateText; private set => SetProperty(ref _dateText, value); }
-    public string CompactCalendarDateText { get => _compactCalendarDateText; private set => SetProperty(ref _compactCalendarDateText, value); }
     public string WeekdayText { get => _weekdayText; private set => SetProperty(ref _weekdayText, value); }
-    public string TraditionalCalendarTitle
-    {
-        get => _traditionalCalendarTitle;
-        private set
-        {
-            if (SetProperty(ref _traditionalCalendarTitle, value))
-            {
-                OnPropertyChanged(nameof(HasTraditionalCalendar));
-                OnPropertyChanged(nameof(ShowCalendarTraditionalDetails));
-                OnPropertyChanged(nameof(CalendarPanelHeight));
-            }
-        }
-    }
-    public bool HasTraditionalCalendar => !string.IsNullOrWhiteSpace(TraditionalCalendarTitle);
-    public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
-    public bool IsLoading
-    {
-        get => _isLoading;
-        private set
-        {
-            if (SetProperty(ref _isLoading, value))
-            {
-                OnPropertyChanged(nameof(CanAdvanceImage));
-            }
-        }
-    }
-    public bool IsPaused { get => _isPaused; private set { if (SetProperty(ref _isPaused, value)) { OnPropertyChanged(nameof(PauseToolTip)); UpdateRotationTimer(); } } }
-    public string PauseToolTip => _localizationService.T(IsPaused ? "Glance.Actions.Resume" : "Glance.Actions.Pause");
-    public string NextToolTip => _localizationService.T("Glance.Actions.Next");
-    public GlanceImageInfo? CurrentImage
-    {
-        get => _currentImage;
-        private set
-        {
-            if (SetProperty(ref _currentImage, value))
-            {
-                OnPropertyChanged(nameof(CurrentImagePath));
-                OnPropertyChanged(nameof(PhotoInfoText));
-                OnPropertyChanged(nameof(HasPhotoInfo));
-                OnPropertyChanged(nameof(HasCurrentImageContextAction));
-                OnPropertyChanged(nameof(IsCurrentImageOnline));
-                OnPropertyChanged(nameof(HasCurrentImage));
-                OnPropertyChanged(nameof(HasVisibleCurrentImage));
-                OnPropertyChanged(nameof(ForegroundTheme));
-                OnPropertyChanged(nameof(ShowContrastPlate));
-                OnPropertyChanged(nameof(ShowPhotoControls));
-                OnPropertyChanged(nameof(ShowNonCalendarImageReadability));
-                OnPropertyChanged(nameof(ShowCalendarImageReadability));
-                OnPropertyChanged(nameof(ShowExpandedCalendarImageReadability));
-            }
-        }
-    }
-    public string? CurrentImagePath => CurrentImage?.LocalPath;
-    public string PhotoInfoText => string.Join(" · ", new[] { CurrentImage?.Author, CurrentImage?.License }.Where(value => !string.IsNullOrWhiteSpace(value)));
-    public bool HasPhotoInfo => CurrentImage?.IsOnline == true;
-    public int ImageCount => _images.Count;
-    public bool CanAdvanceImage => !IsLoading && ImageCount > 1;
-    public bool CanPauseRotation => _settings.RotationIntervalMinutes > 0 && ImageCount > 1;
-    public bool IsCurrentImageOnline => CurrentImage?.IsOnline == true;
-    public bool HasCurrentImage => CurrentImage is not null;
-    public double BackgroundImageTransparency =>
-        Math.Clamp(_settings.BackgroundImageTransparency, 0.0, 1.0);
-    /// <summary>
-    /// The widget's own photo is suppressed on a transparent surface: the point
-    /// of that material is the desktop wallpaper showing through, and a Bing
-    /// frame behind it would just look like a borderless picture card.
-    /// </summary>
-    public double BackgroundImageOpacity =>
-        IsTransparentSurface ? 0.0 : 1.0 - BackgroundImageTransparency;
-    public bool HasVisibleCurrentImage => HasCurrentImage && BackgroundImageOpacity > 0.001;
-    public bool HasCurrentImageContextAction => IsCurrentImageOnline ||
-        (!string.IsNullOrWhiteSpace(CurrentImagePath) && File.Exists(CurrentImagePath));
 
     public bool ShowTime => _settings.ShowTime;
     public bool ShowDate => _settings.ShowDate;
     public bool ShowYear => _settings.ShowYear;
     public bool ShowWeekday => _settings.ShowWeekday;
-    public bool ShowCalendar => _settings.ShowCalendar && _availableWidth >= 300 && _availableHeight >= 280;
-    public bool ShowPhotoControls => _settings.ShowPhotoControls && HasCurrentImage && !IsTransparentSurface;
+    public bool ShowSeconds => _settings.ShowSeconds;
+    public double SizeScale => _settings.SizeScale;
+    public bool HasWorldClocks => WorldClockRows.Count > 0;
 
-    // ─── Weather summary line ──────────────────────────────────────
+    // ─── Weather block ────────────────────────────────────────────
     public bool ShowWeather => _settings.ShowWeather;
     public bool HasWeatherSummary => _weatherSummary is not null;
-    public bool ShowWeatherRow => ShowWeather && HasWeatherSummary && _availableWidth >= 140;
+    public bool ShowWeatherBlock => ShowWeather && HasWeatherSummary;
     public ImageSource? WeatherIcon => _weatherSummary?.Icon;
-
-    /// <summary>
-    /// Progressively trimmed with the available width: a narrow tile keeps only
-    /// the temperature, the standard tile adds the condition, and a wide one
-    /// adds today's range — the same three-step compression phone clock widgets
-    /// use, so the line never wraps.
-    /// </summary>
-    public string WeatherText
+    public string WeatherTemperatureText => _weatherSummary?.TemperatureText ?? string.Empty;
+    public string WeatherDescription => _weatherSummary?.Description ?? string.Empty;
+    public string WeatherRangeText => _weatherSummary?.RangeText ?? string.Empty;
+    public bool HasWeatherRange => _weatherSummary?.HasRange == true;
+    public string WeatherLocationName
     {
         get
         {
-            if (_weatherSummary is not { } summary)
+            string raw = _weatherSummary?.LocationName ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(raw))
             {
                 return string.Empty;
             }
 
-            var text = new StringBuilder(summary.TemperatureText);
-            if (_availableWidth >= 200 && !string.IsNullOrEmpty(summary.Description))
-            {
-                text.Append(' ').Append(summary.Description);
-            }
-
-            if (_availableWidth >= 280 && summary.HasRange)
-            {
-                text.Append(' ').Append(summary.RangeText);
-            }
-
-            return text.ToString();
+            int commaIndex = raw.IndexOfAny([',', '，']);
+            return commaIndex > 0 ? raw[..commaIndex].Trim() : raw.Trim();
         }
     }
 
-
     // ─── Surface material (per-widget transparency) ────────────────
-    // The host window chrome is global by design; these members are what the
-    // Glance adapter hands to it through IWidgetSurfaceAppearanceSource, so a
-    // transparent clock never changes what the file or weather widgets look
-    // like.
     public event EventHandler? SurfaceAppearanceChanged;
 
     public GlanceSurfaceMaterialMode SurfaceMaterial => _settings.SurfaceMaterial;
@@ -266,19 +176,13 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public bool SuppressSurfaceChrome => IsTransparentSurface;
 
     /// <summary>
-    /// Theme the text scope adopts. A visible photo keeps the existing
-    /// light-text-over-image rule; a transparent surface resolves against the
-    /// sampled wallpaper instead.
+    /// Theme the text scope adopts. A transparent surface resolves against the
+    /// sampled wallpaper; every other surface follows the window theme.
     /// </summary>
     public ElementTheme ForegroundTheme
     {
         get
         {
-            if (HasVisibleCurrentImage)
-            {
-                return ElementTheme.Dark;
-            }
-
             if (!IsTransparentSurface)
             {
                 return ElementTheme.Default;
@@ -296,12 +200,10 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
     /// <summary>
     /// Whether the faint plate behind the text is needed right now. Only the
-    /// transparent surface without a photo uses it — a photo already carries the
-    /// widget's readability layer.
+    /// transparent surface without a photo uses it.
     /// </summary>
     public bool ShowContrastPlate =>
         IsTransparentSurface &&
-        !HasVisibleCurrentImage &&
         _settings.TextContrast != GlanceTextContrastMode.Off &&
         _settings.ShowTextPlate &&
         // High contrast owns the palette: the system colours already guarantee
@@ -319,116 +221,44 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         $"{_settings.SurfaceMaterial}|{_settings.SurfaceMaterialOpacity:F3}");
 
     public bool IsForegroundVisible =>
-        ShowTime || ShowDate || ShowWeekday || ShowCalendar || ShowWeather;
-    public bool IsImmersiveLayout => _settings.Layout == GlanceLayoutMode.Immersive ||
-        (_settings.Layout == GlanceLayoutMode.Calendar && !ShowCalendar);
-    public bool IsCenteredLayout => _settings.Layout == GlanceLayoutMode.Centered;
-    public bool IsEditorialLayout => _settings.Layout == GlanceLayoutMode.Editorial;
-    public bool IsCalendarLayout => _settings.Layout == GlanceLayoutMode.Calendar && ShowCalendar;
-    public bool IsNonCalendarForeground => IsForegroundVisible && !IsCalendarLayout;
-    public bool IsCompactCalendarPresentation =>
-        IsCalendarLayout && GlanceCalendarLayoutCalculator.IsCompact(_availableHeight);
-    public bool IsExpandedCalendarPresentation => IsCalendarLayout && !IsCompactCalendarPresentation;
-    public bool ShowNonCalendarImageReadability => HasVisibleCurrentImage && IsNonCalendarForeground;
-    public bool ShowCalendarImageReadability => HasVisibleCurrentImage && IsCalendarLayout;
-    public bool ShowExpandedCalendarImageReadability => HasVisibleCurrentImage && IsExpandedCalendarPresentation;
-    public double ReadabilityStrengthOpacity => _settings.Readability switch
-    {
-        GlanceReadabilityMode.None => 0,
-        GlanceReadabilityMode.Strong => 0.5,
-        _ => 0.28
-    };
-    public double ReadabilityOpacity => IsForegroundVisible ? ReadabilityStrengthOpacity : 0;
+        ShowTime || ShowDate || ShowWeekday || ShowWeather || HasWorldClocks;
     public FontFamily TimeFontFamily => new(string.IsNullOrWhiteSpace(_settings.TimeFontFamily)
         ? "XamlAutoFontFamily"
         : _settings.TimeFontFamily);
+
+    private double BaseUnitScale => Math.Clamp(
+        Math.Min(_availableWidth > 0 ? _availableWidth / 280.0 : 1.0,
+                 _availableHeight > 0 ? _availableHeight / 110.0 : 1.0),
+        0.6, 3.0);
+
     public double TimeFontSize => RoundFontSize(
-        Math.Clamp(Math.Min(_availableWidth * 0.18, _availableHeight * 0.28), 38, 78) * _settings.TimeScale);
-    public double CompactTimeFontSize => RoundFontSize(
-        Math.Clamp(Math.Min(_availableWidth * 0.13, _availableHeight * 0.2), 30, 60) * _settings.TimeScale);
-    public double CalendarCompactTimeFontSize => RoundFontSize(Math.Clamp(
-        Math.Min(_availableWidth * 0.078, _availableHeight * 0.095),
-        22,
-        28) * _settings.TimeScale);
-    public double CalendarPanelHeight
-        => Math.Round(GlanceCalendarLayoutCalculator.CalculatePanelHeight(
-            _availableHeight,
-            IsCompactCalendarPresentation,
-            HasTraditionalCalendar));
-    public double CalendarPanelMaxWidth => CalendarPanelMaximumWidth;
-    public double CalendarPanelWidth => Math.Round(Math.Clamp(
-        _availableWidth - CalendarPanelHorizontalInset,
-        272,
-        CalendarPanelMaximumWidth));
-    public double CalendarDayItemMinimumHeight =>
-        Math.Round(GlanceCalendarLayoutCalculator.CalculateDayHeight(
-            CalendarPanelHeight,
-            IsCompactCalendarPresentation,
-            HasTraditionalCalendar) * 2) / 2;
-    public bool ShowCalendarTraditionalDetails =>
-        GlanceCalendarLayoutCalculator.ShouldShowTraditionalDetails(
-            CalendarPanelWidth,
-            CalendarDayItemMinimumHeight,
-            IsCompactCalendarPresentation,
-            HasTraditionalCalendar);
-    public CornerRadius CalendarCornerRadius => new(
-        WidgetCompactBoundsCalculator.ResolveOuterCornerRadius(
-            WindowsCompatibilityService.ResolveEffectiveWidgetCornerPreference(
-                _settingsService?.Settings.WidgetCornerPreference)));
-    public string CalendarMaterialType =>
-        WindowsCompatibilityService.ResolveWidgetMaterialType(
-            _settingsService?.Settings.WidgetMaterialType ??
-            SettingsService.WidgetMaterialTypeMica);
-    public double CalendarMaterialOpacity => Math.Clamp(
-        _settingsService?.Settings.WidgetOpacity ?? SettingsService.DefaultWidgetOpacity,
-        SettingsService.MinWidgetOpacity,
-        SettingsService.MaxWidgetOpacity);
-    public double CalendarMaterialIntensity => Math.Clamp(
-        _settingsService?.Settings.WidgetMaterialIntensity ?? SettingsService.DefaultWidgetMaterialIntensity,
-        SettingsService.MinWidgetMaterialIntensity,
-        SettingsService.MaxWidgetMaterialIntensity);
-    public GlanceCalendarMaterialMode CalendarMaterialMode => _settings.CalendarMaterialMode;
-    public double CalendarImageMaterialTransparency =>
-        Math.Clamp(_settings.CalendarImageMaterialTransparency, 0.0, 1.0);
-    public GlanceTraditionalCalendarMode TraditionalCalendarMode =>
-        _settings.TraditionalCalendarMode;
-    public bool ShowChineseFestivals => _settings.ShowChineseFestivals;
-    public GlanceTransitionMode Transition => _settings.Transition;
-    public GlanceTransitionSpeed TransitionSpeed => _settings.TransitionSpeed;
-    public GlanceImageFitMode ImageFit => _settings.ImageFit;
-    public GlanceImageFocus ImageFocus => _settings.ImageFocus;
+        Math.Clamp(48 * BaseUnitScale, 24, 120) * _settings.TimeScale);
+
+    public double DateFontSize => RoundFontSize(Math.Clamp(13 * BaseUnitScale, 10, 26));
+
+    public double WeatherTempFontSize => RoundFontSize(Math.Clamp(24 * BaseUnitScale, 16, 52));
+
+    public double WeatherSubFontSize => RoundFontSize(Math.Clamp(12 * BaseUnitScale, 9, 22));
+
+    public double WeatherIconSize => RoundFontSize(Math.Clamp(30 * BaseUnitScale, 20, 68));
 
     public async Task InitializeAsync()
     {
         _settings = await _store.LoadAsync();
         ApplySettingsProperties();
         UpdateDateAndTime();
-        await UpdateCalendarAsync();
-        await ReloadImagesAsync(refreshOnline: false);
         UpdateTimers();
         _appliedSurfaceSignature = SurfaceSignature;
         await RefreshContrastAsync();
-        // The weather line must not delay widget construction — it reads the
+        // The weather block must not delay widget construction — it reads the
         // shared weather cache and only reaches the network when that is cold.
         _ = RefreshWeatherAsync();
-
-        if (IsOnlineSource(_settings.BackgroundSource))
-        {
-            _ = RefreshOnlineInBackgroundAsync();
-        }
-    }
-
-    public async Task RefreshAsync()
-    {
-        await ReloadImagesAsync(refreshOnline: IsOnlineSource(_settings.BackgroundSource));
     }
 
     public void ApplyAppearance()
     {
-        OnPropertyChanged(nameof(ReadabilityStrengthOpacity));
-        OnPropertyChanged(nameof(ReadabilityOpacity));
-        OnPropertyChanged(nameof(CalendarCornerRadius));
-        RaiseCalendarMaterialProperties();
+        OnPropertyChanged(nameof(ForegroundTheme));
+        OnPropertyChanged(nameof(ShowContrastPlate));
     }
 
     public void OnActivated()
@@ -448,50 +278,23 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public void OnWindowVisibilityChanged(bool visible)
     {
         _isWindowVisible = visible;
-        if (!visible)
-        {
-            CancelOnlineRefresh();
-        }
         UpdateTimers();
         if (visible)
         {
             UpdateDateAndTime();
-            // The clock timer stops while hidden; catch up on any day change
-            // missed across midnight so the calendar is not stale on reveal.
-            RefreshIfObservedDateChanged(DateOnly.FromDateTime(DateTime.Now));
-            if (!_isCompact && IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
-            {
-                _ = RefreshOnlineInBackgroundAsync();
-            }
         }
     }
 
     public void OnCompactStateChanged(bool collapsed)
     {
-        _isCompact = collapsed;
-        if (collapsed)
-        {
-            CancelOnlineRefresh();
-        }
         UpdateTimers();
-        if (!collapsed && _isWindowVisible)
-        {
-            RefreshIfObservedDateChanged(DateOnly.FromDateTime(DateTime.Now));
-            if (IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
-            {
-                _ = RefreshOnlineInBackgroundAsync();
-            }
-        }
     }
 
     public void OnWindowRevealCompleted()
     {
-        if (_isWindowVisible && !_isCompact &&
-            IsOnlineSource(_settings.BackgroundSource) &&
-            !_onlineRefreshCompletedForSession &&
-            _images.Count == 0)
+        if (_isWindowVisible && _weatherSummary is null)
         {
-            _ = RefreshOnlineInBackgroundAsync();
+            _ = RefreshWeatherAsync();
         }
     }
 
@@ -508,136 +311,16 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             return;
         }
 
-        bool oldShowCalendar = ShowCalendar;
-        bool oldCompactCalendar = IsCompactCalendarPresentation;
-        double oldTimeFontSize = TimeFontSize;
-        double oldCompactTimeFontSize = CompactTimeFontSize;
-        double oldCalendarCompactTimeFontSize = CalendarCompactTimeFontSize;
-        double oldPanelHeight = CalendarPanelHeight;
-        double oldPanelWidth = CalendarPanelWidth;
-        double oldDayItemHeight = CalendarDayItemMinimumHeight;
-        bool oldShowTraditionalDetails = ShowCalendarTraditionalDetails;
-        string oldWeatherText = WeatherText;
-        bool oldShowWeatherRow = ShowWeatherRow;
         _availableWidth = width;
         _availableHeight = height;
-        if (!string.Equals(oldWeatherText, WeatherText, StringComparison.Ordinal))
-        {
-            OnPropertyChanged(nameof(WeatherText));
-        }
-        if (oldShowWeatherRow != ShowWeatherRow)
-        {
-            OnPropertyChanged(nameof(ShowWeatherRow));
-            OnPropertyChanged(nameof(IsForegroundVisible));
-        }
-        if (oldTimeFontSize != TimeFontSize)
-        {
-            OnPropertyChanged(nameof(TimeFontSize));
-        }
-        if (oldCompactTimeFontSize != CompactTimeFontSize)
-        {
-            OnPropertyChanged(nameof(CompactTimeFontSize));
-        }
-        if (oldCalendarCompactTimeFontSize != CalendarCompactTimeFontSize)
-        {
-            OnPropertyChanged(nameof(CalendarCompactTimeFontSize));
-        }
-        if (oldPanelHeight != CalendarPanelHeight)
-        {
-            OnPropertyChanged(nameof(CalendarPanelHeight));
-        }
-        if (oldPanelWidth != CalendarPanelWidth)
-        {
-            OnPropertyChanged(nameof(CalendarPanelWidth));
-        }
-        if (oldDayItemHeight != CalendarDayItemMinimumHeight)
-        {
-            OnPropertyChanged(nameof(CalendarDayItemMinimumHeight));
-        }
-        if (oldShowTraditionalDetails != ShowCalendarTraditionalDetails)
-        {
-            OnPropertyChanged(nameof(ShowCalendarTraditionalDetails));
-        }
-        if (oldShowCalendar != ShowCalendar)
-        {
-            OnPropertyChanged(nameof(ShowCalendar));
-            OnPropertyChanged(nameof(IsForegroundVisible));
-        }
-        if (oldShowCalendar != ShowCalendar || oldCompactCalendar != IsCompactCalendarPresentation)
-        {
-            RaiseLayoutProperties();
-        }
+        OnPropertyChanged(nameof(TimeFontSize));
+        OnPropertyChanged(nameof(DateFontSize));
+        OnPropertyChanged(nameof(WeatherTempFontSize));
+        OnPropertyChanged(nameof(WeatherSubFontSize));
+        OnPropertyChanged(nameof(WeatherIconSize));
     }
 
     private static double RoundFontSize(double value) => Math.Round(value * 2) / 2;
-
-    public async Task SetDisplayedCalendarMonthAsync(DateOnly month)
-    {
-        DateOnly normalized = new(month.Year, month.Month, 1);
-        if (_displayedCalendarMonth == normalized)
-        {
-            return;
-        }
-
-        _displayedCalendarMonth = normalized;
-        OnPropertyChanged(nameof(DisplayedCalendarMonth));
-        await UpdateCalendarAsync();
-    }
-
-    internal GlanceCalendarDay? FindCalendarDay(DateOnly date) =>
-        CalendarDays.FirstOrDefault(day => day.Date == date);
-
-    public void NextImage() => AdvanceImage(resetRotationTimer: true);
-
-    private void AdvanceImage(bool resetRotationTimer)
-    {
-        if (_images.Count == 0)
-        {
-            if (IsOnlineSource(_settings.BackgroundSource))
-            {
-                _ = RefreshOnlineInBackgroundAsync();
-            }
-            return;
-        }
-
-        int nextIndex;
-        if (_images.Count == 1)
-        {
-            nextIndex = 0;
-        }
-        else if (_settings.RandomOrder)
-        {
-            do
-            {
-                nextIndex = Random.Shared.Next(_images.Count);
-            }
-            while (nextIndex == _currentIndex);
-        }
-        else
-        {
-            nextIndex = (_currentIndex + 1 + _images.Count) % _images.Count;
-        }
-
-        _currentIndex = nextIndex;
-        CurrentImage = _images[nextIndex];
-        if (resetRotationTimer)
-        {
-            UpdateRotationTimer();
-        }
-    }
-
-    public void TogglePause()
-    {
-        IsPaused = !IsPaused;
-    }
-
-    public async Task OpenPhotoInfoAsync()
-    {
-        if (Uri.TryCreate(CurrentImage?.SourcePageUrl, UriKind.Absolute, out Uri? uri))
-        {
-            await Launcher.LaunchUriAsync(uri);
-        }
-    }
 
     public Task SetDisplayElementAsync(
         GlanceDisplayElement element,
@@ -650,17 +333,33 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
                 isVisible));
     }
 
-    public Task SetLayoutAsync(GlanceLayoutMode layout)
+    public Task SetShowSecondsAsync(bool showSeconds)
     {
-        return _store.UpdateAsync(settings =>
-            GlanceWidgetSettingsPolicy.SetLayout(settings, layout));
+        return _store.UpdateAsync(settings => settings.ShowSeconds = showSeconds);
     }
 
     /// <summary>
-    /// Switches this widget's window material between the global appearance,
-    /// a fully transparent surface, and faint glass. Store.UpdateAsync raises
-    /// the change notification, which re-applies the host backdrop.
+    /// Overall patch scale. The window is sized from this value because the
+    /// Glance patch is not manually resizable.
     /// </summary>
+    public Task SetSizeScaleAsync(double scale)
+    {
+        return _store.UpdateAsync(settings =>
+            GlanceWorldClockPolicy.SetSizeScale(settings, scale));
+    }
+
+    public Task AddWorldClockAsync(string timeZoneId, string? cityName)
+    {
+        return _store.UpdateAsync(settings =>
+            GlanceWorldClockPolicy.AddWorldClock(settings, timeZoneId, cityName));
+    }
+
+    public Task RemoveWorldClockAsync(string timeZoneId)
+    {
+        return _store.UpdateAsync(settings =>
+            GlanceWorldClockPolicy.RemoveWorldClock(settings, timeZoneId));
+    }
+
     public Task SetSurfaceMaterialAsync(GlanceSurfaceMaterialMode mode)
     {
         return _store.UpdateAsync(settings =>
@@ -684,52 +383,11 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         return _store.UpdateAsync(settings => settings.ShowTextPlate = enabled);
     }
 
-    public Task SetLocalImageFilesAsync(IEnumerable<string> imagePaths)
-    {
-        return _store.UpdateAsync(settings =>
-            GlanceWidgetSettingsPolicy.SetLocalImageFiles(settings, imagePaths));
-    }
-
-    public Task SetBackgroundImageTransparencyAsync(double transparency)
-    {
-        return _store.UpdateAsync(settings =>
-            settings.BackgroundImageTransparency = Math.Clamp(transparency, 0.0, 1.0));
-    }
-
-    public Task SetPhotoPlaybackAsync(
-        double rotationIntervalMinutes,
-        bool randomOrder,
-        GlanceTransitionMode transition,
-        GlanceTransitionSpeed transitionSpeed,
-        GlanceReadabilityMode readability,
-        bool showPhotoControls)
-    {
-        return _store.UpdateAsync(settings =>
-            GlanceWidgetSettingsPolicy.SetPhotoPlayback(
-                settings,
-                rotationIntervalMinutes,
-                randomOrder,
-                transition,
-                transitionSpeed,
-                readability,
-                showPhotoControls));
-    }
-
     private async Task ReloadSettingsAsync()
     {
-        GlanceBackgroundSource previousSource = _settings.BackgroundSource;
-        GlanceOnlineImageCategory previousOnlineCategory = _settings.OnlineImageCategory;
         _settings = await _store.LoadAsync();
-        if (previousSource != _settings.BackgroundSource ||
-            previousOnlineCategory != _settings.OnlineImageCategory)
-        {
-            CancelOnlineRefresh();
-            _onlineRefreshCompletedForSession = false;
-        }
         ApplySettingsProperties();
         UpdateDateAndTime();
-        await UpdateCalendarAsync();
-        await ReloadImagesAsync(refreshOnline: false);
         UpdateTimers();
         await RefreshContrastAsync();
         if (_settings.ShowWeather && _weatherSummary is null)
@@ -740,16 +398,13 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         {
             RaiseWeatherProperties();
         }
+
         string signature = SurfaceSignature;
         if (!string.Equals(signature, _appliedSurfaceSignature, StringComparison.Ordinal))
         {
             _appliedSurfaceSignature = signature;
             // The host owns the backdrop; it re-applies it only when this fires.
             SurfaceAppearanceChanged?.Invoke(this, EventArgs.Empty);
-        }
-        if (IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
-        {
-            _ = RefreshOnlineInBackgroundAsync();
         }
     }
 
@@ -804,163 +459,6 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(ShowContrastPlate));
     }
 
-    private async Task ReloadImagesAsync(bool refreshOnline)
-    {
-        IsLoading = true;
-        try
-        {
-            string? previousId = CurrentImage?.Id;
-            _images = refreshOnline
-                ? await _imageService.RefreshOnlineImagesAsync(_settings, _lifetimeCts.Token)
-                : await _imageService.GetAvailableImagesAsync(_settings, _lifetimeCts.Token);
-            _images = _images.Where(image => File.Exists(image.LocalPath)).ToArray();
-            RaiseImageCollectionProperties();
-            if (_images.Count == 0)
-            {
-                _currentIndex = -1;
-                CurrentImage = null;
-                StatusText = IsOnlineSource(_settings.BackgroundSource)
-                    ? _localizationService.T("Glance.Status.OnlineFallback")
-                    : _localizationService.T("Glance.Status.NoLocalImages");
-                return;
-            }
-
-            _currentIndex = previousId is null
-                ? -1
-                : _images.ToList().FindIndex(image => string.Equals(image.Id, previousId, StringComparison.Ordinal));
-            if (_currentIndex < 0)
-            {
-                _currentIndex = _settings.RandomOrder ? Random.Shared.Next(_images.Count) : 0;
-            }
-
-            CurrentImage = _images[_currentIndex];
-            StatusText = string.Empty;
-        }
-        catch (OperationCanceledException) when (_isDisposed || _lifetimeCts.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            App.Log($"[GlanceWidgetViewModel] Image reload failed: {ex}");
-            StatusText = _localizationService.T(IsOnlineSource(_settings.BackgroundSource)
-                ? "Glance.Status.OnlineFallback"
-                : "Glance.Status.NoLocalImages");
-        }
-        finally
-        {
-            IsLoading = false;
-            UpdateRotationTimer();
-        }
-    }
-
-    private async Task RefreshOnlineInBackgroundAsync()
-    {
-        if (_isDisposed)
-        {
-            return;
-        }
-
-        CancelOnlineRefresh();
-        GlanceBackgroundSource requestedSource = _settings.BackgroundSource;
-        GlanceOnlineImageCategory requestedCategory = _settings.OnlineImageCategory;
-        if (!IsOnlineSource(requestedSource))
-        {
-            return;
-        }
-
-        var refreshSettings = new GlanceWidgetData
-        {
-            BackgroundSource = requestedSource,
-            OnlineImageCategory = requestedCategory
-        };
-        var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
-        _onlineRefreshCts = refreshCts;
-        bool showLoading = _images.Count == 0;
-        if (showLoading)
-        {
-            IsLoading = true;
-        }
-
-        try
-        {
-            IReadOnlyList<GlanceImageInfo> refreshed = await _imageService.RefreshOnlineImagesAsync(
-                refreshSettings,
-                refreshCts.Token);
-            if (_isDisposed ||
-                !MatchesOnlineRequest(requestedSource, requestedCategory) ||
-                refreshed.Count == 0)
-            {
-                return;
-            }
-
-            void Apply()
-            {
-                if (_isDisposed || !MatchesOnlineRequest(requestedSource, requestedCategory))
-                {
-                    return;
-                }
-
-                string? previousId = CurrentImage?.Id;
-                _images = refreshed.Where(image => File.Exists(image.LocalPath)).ToArray();
-                RaiseImageCollectionProperties();
-                int existingIndex = previousId is null
-                    ? -1
-                    : _images.ToList().FindIndex(image => string.Equals(image.Id, previousId, StringComparison.Ordinal));
-                if (existingIndex >= 0)
-                {
-                    _currentIndex = existingIndex;
-                }
-                else if (_images.Count > 0)
-                {
-                    _currentIndex = _settings.RandomOrder ? Random.Shared.Next(_images.Count) : 0;
-                    CurrentImage = _images[_currentIndex];
-                }
-                StatusText = string.Empty;
-                IsLoading = false;
-                UpdateRotationTimer();
-            }
-            if (MatchesOnlineRequest(requestedSource, requestedCategory))
-            {
-                _onlineRefreshCompletedForSession = refreshed.Count > 0;
-            }
-
-            if (_dispatcherQueue.HasThreadAccess)
-            {
-                Apply();
-            }
-            else
-            {
-                _dispatcherQueue.TryEnqueue(Apply);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            App.Log($"[GlanceWidgetViewModel] Background refresh failed: {ex}");
-        }
-        finally
-        {
-            if (showLoading && !_isDisposed)
-            {
-                if (_dispatcherQueue.HasThreadAccess)
-                {
-                    IsLoading = false;
-                }
-                else
-                {
-                    _dispatcherQueue.TryEnqueue(() => IsLoading = false);
-                }
-            }
-            if (ReferenceEquals(_onlineRefreshCts, refreshCts))
-            {
-                _onlineRefreshCts = null;
-            }
-            refreshCts.Dispose();
-        }
-    }
-
     private void ApplySettingsProperties()
     {
         OnPropertyChanged(nameof(Settings));
@@ -968,37 +466,19 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(ShowDate));
         OnPropertyChanged(nameof(ShowYear));
         OnPropertyChanged(nameof(ShowWeekday));
-        OnPropertyChanged(nameof(ShowCalendar));
-        OnPropertyChanged(nameof(ShowPhotoControls));
-        OnPropertyChanged(nameof(IsForegroundVisible));
-        OnPropertyChanged(nameof(BackgroundImageTransparency));
-        OnPropertyChanged(nameof(BackgroundImageOpacity));
-        OnPropertyChanged(nameof(HasVisibleCurrentImage));
-        OnPropertyChanged(nameof(ReadabilityStrengthOpacity));
-        OnPropertyChanged(nameof(ReadabilityOpacity));
-        OnPropertyChanged(nameof(TimeFontFamily));
-        OnPropertyChanged(nameof(TimeFontSize));
-        OnPropertyChanged(nameof(CompactTimeFontSize));
-        OnPropertyChanged(nameof(CalendarCompactTimeFontSize));
-        OnPropertyChanged(nameof(CalendarPanelHeight));
-        OnPropertyChanged(nameof(CalendarPanelWidth));
-        OnPropertyChanged(nameof(CalendarDayItemMinimumHeight));
-        OnPropertyChanged(nameof(ShowCalendarTraditionalDetails));
-        OnPropertyChanged(nameof(Transition));
-        OnPropertyChanged(nameof(TransitionSpeed));
-        OnPropertyChanged(nameof(ImageFit));
-        OnPropertyChanged(nameof(ImageFocus));
-        OnPropertyChanged(nameof(CalendarMaterialMode));
-        OnPropertyChanged(nameof(CalendarImageMaterialTransparency));
-        OnPropertyChanged(nameof(TraditionalCalendarMode));
-        OnPropertyChanged(nameof(ShowChineseFestivals));
-        OnPropertyChanged(nameof(CanPauseRotation));
+        OnPropertyChanged(nameof(ShowSeconds));
+        OnPropertyChanged(nameof(SizeScale));
         OnPropertyChanged(nameof(ShowWeather));
         OnPropertyChanged(nameof(HasWeatherSummary));
-        OnPropertyChanged(nameof(ShowWeatherRow));
-        OnPropertyChanged(nameof(WeatherIcon));
-        OnPropertyChanged(nameof(WeatherText));
+        OnPropertyChanged(nameof(ShowWeatherBlock));
         OnPropertyChanged(nameof(IsForegroundVisible));
+        OnPropertyChanged(nameof(HasWorldClocks));
+        OnPropertyChanged(nameof(TimeFontFamily));
+        OnPropertyChanged(nameof(TimeFontSize));
+        OnPropertyChanged(nameof(DateFontSize));
+        OnPropertyChanged(nameof(WeatherTempFontSize));
+        OnPropertyChanged(nameof(WeatherSubFontSize));
+        OnPropertyChanged(nameof(WeatherIconSize));
         OnPropertyChanged(nameof(SurfaceMaterial));
         OnPropertyChanged(nameof(IsTransparentSurface));
         OnPropertyChanged(nameof(IsGlassSurface));
@@ -1007,45 +487,102 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(SuppressSurfaceChrome));
         OnPropertyChanged(nameof(ForegroundTheme));
         OnPropertyChanged(nameof(ShowContrastPlate));
-        RaiseLayoutProperties();
+        SyncWorldClockRows();
     }
 
-    private void RaiseLayoutProperties()
+    /// <summary>
+    /// Rebuilds the row collection from settings. Rows are keyed by zone id so
+    /// an unchanged list keeps its row objects (and their tick-updated text).
+    /// </summary>
+    private void SyncWorldClockRows()
     {
-        OnPropertyChanged(nameof(IsImmersiveLayout));
-        OnPropertyChanged(nameof(IsCenteredLayout));
-        OnPropertyChanged(nameof(IsEditorialLayout));
-        OnPropertyChanged(nameof(IsCalendarLayout));
-        OnPropertyChanged(nameof(IsNonCalendarForeground));
-        OnPropertyChanged(nameof(IsCompactCalendarPresentation));
-        OnPropertyChanged(nameof(IsExpandedCalendarPresentation));
-        OnPropertyChanged(nameof(CalendarDayItemMinimumHeight));
-        OnPropertyChanged(nameof(ShowCalendarTraditionalDetails));
-        OnPropertyChanged(nameof(ShowNonCalendarImageReadability));
-        OnPropertyChanged(nameof(ShowCalendarImageReadability));
-        OnPropertyChanged(nameof(ShowExpandedCalendarImageReadability));
+        var desired = GlanceWorldClockPolicy.NormalizeWorldClocks(_settings.WorldClocks);
+        for (int index = WorldClockRows.Count - 1; index >= 0; index--)
+        {
+            if (desired.All(clock => !string.Equals(
+                    clock.TimeZoneId,
+                    WorldClockRows[index].TimeZoneId,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                WorldClockRows.RemoveAt(index);
+            }
+        }
+
+        for (int index = 0; index < desired.Count; index++)
+        {
+            GlanceWorldClockData clock = desired[index];
+            int existingIndex = WorldClockRows.ToList().FindIndex(row => string.Equals(
+                row.TimeZoneId,
+                clock.TimeZoneId,
+                StringComparison.OrdinalIgnoreCase));
+            if (existingIndex < 0)
+            {
+                WorldClockRows.Insert(
+                    index,
+                    new GlanceWorldClockRow(clock.TimeZoneId, GlanceWorldClockPolicy.ResolveCityName(clock)));
+            }
+            else if (existingIndex != index)
+            {
+                GlanceWorldClockRow row = WorldClockRows[existingIndex];
+                WorldClockRows.RemoveAt(existingIndex);
+                WorldClockRows.Insert(index, row);
+            }
+        }
+
+        UpdateWorldClockRows();
     }
 
-    private void RaiseImageCollectionProperties()
+    private void UpdateWorldClockRows()
     {
-        OnPropertyChanged(nameof(ImageCount));
-        OnPropertyChanged(nameof(CanAdvanceImage));
-        OnPropertyChanged(nameof(CanPauseRotation));
+        DateTimeOffset utcNow = DateTimeOffset.UtcNow;
+        DateOnly localDate = DateOnly.FromDateTime(DateTime.Now);
+        CultureInfo culture = GetCulture();
+        foreach (GlanceWorldClockRow row in WorldClockRows)
+        {
+            if (!GlanceWorldClockPolicy.TryResolveZone(row.TimeZoneId, out TimeZoneInfo zone))
+            {
+                continue;
+            }
+
+            DateTimeOffset zoneNow = TimeZoneInfo.ConvertTime(utcNow, zone);
+            row.TimeText = GlanceWorldClockPolicy.FormatCityTime(
+                utcNow,
+                zone,
+                _settings.TimeFormat,
+                culture);
+            int dayDiff = DateOnly.FromDateTime(zoneNow.DateTime).DayNumber - localDate.DayNumber;
+            row.RelativeDayText = dayDiff switch
+            {
+                1 => _localizationService.T("Glance.WorldClock.Tomorrow"),
+                -1 => _localizationService.T("Glance.WorldClock.Yesterday"),
+                int diff when diff > 1 => string.Format(
+                    culture,
+                    _localizationService.T("Glance.WorldClock.DaysAhead"),
+                    diff),
+                int diff when diff < -1 => string.Format(
+                    culture,
+                    _localizationService.T("Glance.WorldClock.DaysBehind"),
+                    -diff),
+                _ => string.Empty
+            };
+            row.IsDaytime = zoneNow.Hour is >= 6 and < 18;
+        }
     }
 
     private void UpdateDateAndTime()
     {
         CultureInfo culture = GetCulture();
         DateTime now = DateTime.Now;
-        TimeText = FormatTimeText(now, _settings.TimeFormat, culture);
+        TimeText = FormatTimeText(now, _settings.TimeFormat, _settings.ShowSeconds, culture);
         DateText = FormatDateText(now, culture, _settings.ShowYear);
-        CompactCalendarDateText = FormatCompactCalendarDateText(now, culture);
         WeekdayText = now.ToString("dddd", culture);
+        UpdateWorldClockRows();
     }
 
     internal static string FormatTimeText(
         DateTime date,
         GlanceTimeFormatMode mode,
+        bool includeSeconds,
         CultureInfo displayCulture,
         CultureInfo? systemCulture = null)
     {
@@ -1062,7 +599,34 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             _ => RemoveAmPmDesignator(
                 CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern)
         };
+        if (includeSeconds)
+        {
+            pattern = WithSeconds(pattern);
+        }
+
         return date.ToString(pattern, timeCulture);
+    }
+
+    /// <summary>Inserts a seconds token after the minute token of a time pattern.</summary>
+    internal static string WithSeconds(string pattern)
+    {
+        int minuteStart = pattern.IndexOf('m');
+        if (minuteStart < 0)
+        {
+            return pattern;
+        }
+
+        int minuteEnd = minuteStart;
+        while (minuteEnd + 1 < pattern.Length && pattern[minuteEnd + 1] == 'm')
+        {
+            minuteEnd++;
+        }
+
+        string minuteToken = pattern[minuteStart..(minuteEnd + 1)];
+        return pattern.Replace(
+            minuteToken,
+            $"{minuteToken}:ss",
+            StringComparison.Ordinal);
     }
 
     private static string RemoveAmPmDesignator(string pattern)
@@ -1108,20 +672,6 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         return result.ToString().Trim();
     }
 
-    internal static string FormatCompactCalendarDateText(
-        DateTime date,
-        CultureInfo culture)
-    {
-        ArgumentNullException.ThrowIfNull(culture);
-        string day = date.Day.ToString(culture);
-        return culture.TwoLetterISOLanguageName switch
-        {
-            "zh" or "ja" => $"{day}日",
-            "ko" => $"{day}일",
-            _ => day
-        };
-    }
-
     internal static string FormatDateText(
         DateTime date,
         CultureInfo culture,
@@ -1145,57 +695,6 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         return date.ToString(pattern, culture);
     }
 
-    private async Task UpdateCalendarAsync()
-    {
-        int loadVersion = Interlocked.Increment(ref _calendarLoadVersion);
-        CultureInfo culture = GetCulture();
-        DateOnly today = DateOnly.FromDateTime(DateTime.Today);
-        DateOnly requestedMonth = _displayedCalendarMonth;
-        try
-        {
-            GlanceCalendarMonth month = await _calendarSource.GetMonthAsync(
-                requestedMonth,
-                culture,
-                _lifetimeCts.Token);
-            DateOnly currentMonth = new(today.Year, today.Month, 1);
-            DateOnly traditionalTitleDate = requestedMonth == currentMonth
-                ? today
-                : requestedMonth.AddDays(14);
-            month = _traditionalCalendarService.Apply(
-                month,
-                _settings.TraditionalCalendarMode,
-                culture,
-                traditionalTitleDate);
-            month = _festivalService.Apply(
-                month,
-                _settings.ShowChineseFestivals,
-                _settings.TraditionalCalendarMode,
-                culture);
-            if (loadVersion != _calendarLoadVersion || requestedMonth != _displayedCalendarMonth)
-            {
-                return;
-            }
-
-            TraditionalCalendarTitle = month.TraditionalTitle;
-            WeekdayHeaders.Clear();
-            foreach (string header in month.WeekdayHeaders)
-            {
-                WeekdayHeaders.Add(header);
-            }
-
-            CalendarDays.Clear();
-            foreach (GlanceCalendarDay day in month.Days)
-            {
-                CalendarDays.Add(day);
-            }
-
-            OnPropertyChanged(nameof(CalendarDays));
-        }
-        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
-        {
-        }
-    }
-
     private CultureInfo GetCulture()
     {
         try
@@ -1211,64 +710,33 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private void UpdateTimers()
     {
         UpdateClockTimer();
-        UpdateRotationTimer();
     }
 
     private void UpdateClockTimer()
     {
         _clockTimer.Stop();
-        bool needsCalendarClock = _settings.ShowDate ||
-            _settings.ShowWeekday ||
-            _settings.ShowCalendar ||
-            _settings.TraditionalCalendarMode != GlanceTraditionalCalendarMode.None;
-        if (!_isWindowVisible || (!_settings.ShowTime && !needsCalendarClock) || _isDisposed)
+        bool needsClockForRows = HasWorldClocks || ShowWeather;
+        if (!_isWindowVisible || (!_settings.ShowTime && !ShowDate && !ShowWeekday && !needsClockForRows) || _isDisposed)
         {
             return;
         }
 
         DateTime now = DateTime.Now;
-        _clockTimer.Interval = _settings.ShowTime
-            ? TimeSpan.FromSeconds(Math.Max(1, 60 - now.Second)) - TimeSpan.FromMilliseconds(now.Millisecond)
-            : now.Date.AddDays(1).AddMilliseconds(100) - now;
+        _clockTimer.Interval = _settings.ShowTime && _settings.ShowSeconds
+            ? TimeSpan.FromSeconds(1)
+            : TimeSpan.FromSeconds(Math.Max(1, 60 - now.Second)) - TimeSpan.FromMilliseconds(now.Millisecond);
         _clockTimer.Start();
-    }
-
-    private void UpdateRotationTimer()
-    {
-        _rotationTimer.Stop();
-        if (!_isWindowVisible ||
-            _isCompact ||
-            IsPaused ||
-            _isDisposed ||
-            !GlanceImageAutoRotationEnabled() ||
-            _settings.RotationIntervalMinutes <= 0 ||
-            _images.Count < 2)
-        {
-            return;
-        }
-
-        _rotationTimer.Interval = TimeSpan.FromMinutes(_settings.RotationIntervalMinutes);
-        _rotationTimer.Start();
-    }
-
-    private bool GlanceImageAutoRotationEnabled()
-    {
-        return _settingsService is null ||
-            PerformanceSettingsPolicy.Resolve(_settingsService.Settings)
-                .AllowGlanceImageAutoRotation;
     }
 
     private void ClockTimer_Tick(DispatcherQueueTimer sender, object args)
     {
-        DateOnly currentDate = DateOnly.FromDateTime(DateTime.Now);
         UpdateDateAndTime();
-        RefreshIfObservedDateChanged(currentDate);
         UpdateClockTimer();
         EnsureWeatherFresh();
     }
 
     /// <summary>
-    /// Piggybacks on the minute tick instead of owning a second timer: the
+    /// Piggybacks on the clock tick instead of owning a second timer: the
     /// summary only needs refreshing every few minutes, so a cheap age check on
     /// a tick that already runs is the whole schedule.
     /// </summary>
@@ -1288,8 +756,8 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     }
 
     /// <summary>
-    /// Loads or refreshes the one-line weather summary. Failures are silent by
-    /// design: the row simply disappears rather than showing a placeholder that
+    /// Loads or refreshes the weather summary. Failures are silent by design:
+    /// the block simply disappears rather than showing a placeholder that
     /// claims a temperature nobody measured.
     /// </summary>
     public async Task RefreshWeatherAsync(bool forceRefresh = false)
@@ -1329,47 +797,14 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         }
 
         OnPropertyChanged(nameof(HasWeatherSummary));
-        OnPropertyChanged(nameof(ShowWeatherRow));
+        OnPropertyChanged(nameof(ShowWeatherBlock));
         OnPropertyChanged(nameof(WeatherIcon));
-        OnPropertyChanged(nameof(WeatherText));
+        OnPropertyChanged(nameof(WeatherTemperatureText));
+        OnPropertyChanged(nameof(WeatherDescription));
+        OnPropertyChanged(nameof(WeatherRangeText));
+        OnPropertyChanged(nameof(HasWeatherRange));
+        OnPropertyChanged(nameof(WeatherLocationName));
         OnPropertyChanged(nameof(IsForegroundVisible));
-    }
-
-    /// <summary>
-    /// Single cross-day path: the midnight tick and every re-show/expand after
-    /// the window was hidden or compact across midnight funnel through here.
-    /// Calendar data, the text highlight and the today background all hang off
-    /// this refresh, so none of them can lag the others.
-    /// </summary>
-    private void RefreshIfObservedDateChanged(DateOnly currentDate)
-    {
-        if (currentDate == _lastObservedDate)
-        {
-            return;
-        }
-
-        GlanceCalendarDayChangeDecision decision = GlanceCalendarDayChangePolicy.Evaluate(
-            _lastObservedDate,
-            currentDate,
-            _displayedCalendarMonth);
-        _lastObservedDate = currentDate;
-        if (!decision.CalendarRefreshRequired)
-        {
-            return;
-        }
-
-        if (decision.DisplayedMonth != _displayedCalendarMonth)
-        {
-            _displayedCalendarMonth = decision.DisplayedMonth;
-            OnPropertyChanged(nameof(DisplayedCalendarMonth));
-        }
-
-        _ = UpdateCalendarAsync();
-    }
-
-    private void RotationTimer_Tick(DispatcherQueueTimer sender, object args)
-    {
-        AdvanceImage(resetRotationTimer: false);
     }
 
     private void Store_Changed(object? sender, EventArgs e)
@@ -1396,14 +831,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             return;
         }
 
-        _dispatcherQueue.TryEnqueue(() =>
-        {
-            UpdateDateAndTime();
-            OnPropertyChanged(nameof(CalendarLanguage));
-            _ = UpdateCalendarAsync();
-            OnPropertyChanged(nameof(PauseToolTip));
-            OnPropertyChanged(nameof(NextToolTip));
-        });
+        _dispatcherQueue.TryEnqueue(UpdateDateAndTime);
     }
 
     private void SettingsService_SettingsChanged()
@@ -1415,39 +843,12 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
         if (_dispatcherQueue.HasThreadAccess)
         {
-            UpdateRotationTimer();
-            OnPropertyChanged(nameof(CalendarCornerRadius));
-            RaiseCalendarMaterialProperties();
+            _ = RefreshWeatherAsync(forceRefresh: true);
         }
         else
         {
-            _dispatcherQueue.TryEnqueue(() =>
-            {
-                UpdateRotationTimer();
-                OnPropertyChanged(nameof(CalendarCornerRadius));
-                RaiseCalendarMaterialProperties();
-            });
+            _dispatcherQueue.TryEnqueue(() => _ = RefreshWeatherAsync(forceRefresh: true));
         }
-    }
-
-    private void RaiseCalendarMaterialProperties()
-    {
-        OnPropertyChanged(nameof(CalendarMaterialType));
-        OnPropertyChanged(nameof(CalendarMaterialOpacity));
-        OnPropertyChanged(nameof(CalendarMaterialIntensity));
-    }
-
-    private static bool IsOnlineSource(GlanceBackgroundSource source)
-    {
-        return source is GlanceBackgroundSource.Online or GlanceBackgroundSource.Bing;
-    }
-
-    private bool MatchesOnlineRequest(
-        GlanceBackgroundSource source,
-        GlanceOnlineImageCategory category)
-    {
-        return _settings.BackgroundSource == source &&
-            (source != GlanceBackgroundSource.Online || _settings.OnlineImageCategory == category);
     }
 
     public void Dispose()
@@ -1466,23 +867,9 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         }
         _clockTimer.Stop();
         _clockTimer.Tick -= ClockTimer_Tick;
-        _rotationTimer.Stop();
-        _rotationTimer.Tick -= RotationTimer_Tick;
-        CancelOnlineRefresh();
         _lifetimeCts.Cancel();
         _lifetimeCts.Dispose();
         _isDisposedWeather = true;
         _weatherSummaryService.Dispose();
-    }
-
-    private void CancelOnlineRefresh()
-    {
-        try
-        {
-            _onlineRefreshCts?.Cancel();
-        }
-        catch
-        {
-        }
     }
 }

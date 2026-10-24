@@ -68,7 +68,11 @@
             </Grid.RowDefinitions>
 
             <!-- Window Header -->
-            <Grid Grid.Row="0" Background="Transparent" PointerPressed="Header_PointerPressed">
+            <Grid x:Name="HeaderGrid" Grid.Row="0" Background="Transparent"
+                  PointerPressed="Header_PointerPressed"
+                  PointerMoved="Header_PointerMoved"
+                  PointerReleased="Header_PointerReleased"
+                  PointerCaptureLost="Header_PointerCaptureLost">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -83,8 +87,9 @@
                     <TextBlock Text="快捷面板" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Header Actions: Pin, Settings, Close -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                <!-- Header Actions: Pin, Settings, Close (excluded from the
+                     native caption drag region) -->
+                <StackPanel x:Name="HeaderActionsPanel" Grid.Column="2" Orientation="Horizontal" Spacing="4">
                     <ToggleButton
                         x:Name="PinButton"
                         Width="32" Height="32" Padding="0"
@@ -125,10 +130,12 @@
                 <toolkit:SegmentedItem Content="便签" Tag="Notes"/>
             </toolkit:Segmented>
 
-            <!-- View Presenter -->
+            <!-- View Presenter: the Todo tab hosts the SAME TodoWidgetContent
+                 component used by the desktop widget (one todo UI codebase;
+                 both instances stay in sync through TodoRepository). -->
             <Grid Grid.Row="2">
                 <controls:QuickPanelClipboardView x:Name="ClipboardView" Visibility="Visible"/>
-                <controls:QuickPanelTodoView x:Name="TodoView" Visibility="Collapsed"/>
+                <ContentPresenter x:Name="TodoViewHost" Visibility="Collapsed"/>
                 <controls:QuickPanelNotesView x:Name="NotesView" Visibility="Collapsed"/>
             </Grid>
 

@@ -146,27 +146,6 @@ internal static class WidgetMaterialVisualCalculator
             Math.Clamp(surfaceOpacity, 0.0, 1.0));
     }
 
-    public static WidgetMaterialGradientProfile BuildImagePaletteGradient(
-        bool isDark,
-        GlanceImagePalette palette)
-    {
-        var startBase = isDark
-            ? Windows.UI.Color.FromArgb(0xFF, 0x20, 0x22, 0x26)
-            : Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-        var endBase = isDark
-            ? Windows.UI.Color.FromArgb(0xFF, 0x16, 0x18, 0x1C)
-            : Windows.UI.Color.FromArgb(0xFF, 0xF3, 0xF3, 0xF3);
-        var startColor = BlendColors(
-            startBase,
-            palette.Primary,
-            isDark ? 0.44 : 0.34);
-        var endColor = BlendColors(
-            endBase,
-            palette.Secondary,
-            isDark ? 0.34 : 0.24);
-        return new WidgetMaterialGradientProfile(startColor, endColor);
-    }
-
     private static double NormalizeMaterialIntensity(double value) =>
         double.IsFinite(value)
             ? Math.Clamp(

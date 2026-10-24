@@ -10,7 +10,7 @@ public sealed partial class TodoWidgetViewModel
 {
     public async Task InitializeAsync()
     {
-        var data = await _store.LoadAsync();
+        var data = await _repository.LoadAsync();
 
         SelectedDetailItem = null;
         IsCreatingDetailItem = false;

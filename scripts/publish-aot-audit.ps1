@@ -4990,11 +4990,37 @@ $stage5B4B2C1SourceFiles = @(
     "src/WinSticker/Services/GlanceWidgetSettingsPolicy.cs",
     "src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml.cs",
     "src/WinSticker/Services/GlanceWidgetStore.cs",
-    "src/WinSticker/Services/GlanceImageService.cs",
+    # v12 replaced the owned-image service with the world-clock policy.
+    "src/WinSticker/Services/GlanceWorldClockPolicy.cs",
+    "src/WinSticker/Services/GlanceWeatherSummaryService.cs",
+    "src/WinSticker/Controls/WidgetContents/GlanceWidgetContentAdapter.cs",
     "src/WinSticker/Services/WidgetManager.AotGlancePersistenceSmoke.cs",
     "scripts/run-aot-managed-ui-smoke.ps1",
     "src/WinSticker/Models/GlanceWidgetData.cs"
 )
+# @(
+#  0 App.AotManagedUiSmoke.cs
+#  1 App.AotGlancePersistenceSmoke.cs
+#  2 GlanceWidgetContent.AotPersistenceSmoke.cs
+#  3 GlanceWidgetContent.xaml
+#  4 GlanceWidgetContent.xaml.cs
+#  5 GlanceWidgetViewModel.cs
+#  6 GlanceWidgetViewModel.AotBindableProperties.cs
+#  7 GlanceWidgetViewModel.AotPersistenceSmoke.cs
+#  8 GlanceWidgetSettingsPolicy.cs
+#  9 GlanceWidgetSettingsSection.xaml.cs
+# 10 GlanceWidgetStore.cs
+# 11 GlanceWorldClockPolicy.cs
+# 12 GlanceWeatherSummaryService.cs
+# 13 GlanceWidgetContentAdapter.cs
+# 14 WidgetManager.AotGlancePersistenceSmoke.cs
+# 15 run-aot-managed-ui-smoke.ps1
+# 16 GlanceWidgetData.cs
+# )
+$stage5B4B2C1ProductFiles = @(3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 16)
+$stage5B4B2C1SurfaceFile = 2
+$stage5B4B2C1ManagerFile = 14
+$stage5B4B2C1SmokeScriptFile = 15
 $stage5B4B2C1Sources = [ordered]@{}
 foreach ($sourceFile in $stage5B4B2C1SourceFiles) {
     $stage5B4B2C1Sources[$sourceFile] =
@@ -5006,7 +5032,6 @@ $stage5B4B2C1RunnerSource =
 $stage5B4B2C1RequiredRunnerPatterns = @(
     'GlancePersistenceRestart',
     'WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE',
-    'WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE',
     'AotManagedUiGlanceMutatePhase',
     'AotManagedUiGlanceVerifyRestorePhase',
     'AotManagedUiGlancePostflightPhase',
@@ -5018,13 +5043,15 @@ $stage5B4B2C1RequiredRunnerPatterns = @(
     'CaptureAotManagedUiGlancePersistenceAsync',
     'ApplyAotGlanceMutationAsync',
     'RestoreAotGlanceBaselineAsync',
-    'SetLocalImageFilesAsync',
+    'AddWorldClockAsync(',
+    'SetSizeScaleAsync(',
     'SetDisplayElementAsync',
-    'SetLayoutAsync',
-    'SetPhotoPlaybackAsync',
     'AotManagedUiGlancePersistenceEvidence',
-    'state.Surface.ActiveImageUri',
+    'state.Surface.WorldClockRowCount',
     'GlanceMutationApplied',
+    'GlanceWorldClockPersisted',
+    'GlanceBaselineRestoredAfterRestart',
+    'GlancePostflightBaselineRetained',
     'GlanceBaselineVerified',
     'NormalShutdownRequested',
     'ShutdownApplicationAsync()',
@@ -5042,61 +5069,52 @@ $stage5B4B2C1MissingRunnerPatterns = @(
 $stage5B4B2C1RequiredSurfacePatterns = @(
     'WaitForAotGlanceSurfaceAsync',
     'CaptureAotGlanceSurface',
-    '_decodedImagePath',
-    'BackgroundA.Background is not null',
-    'BackgroundB.Background is not null',
-    'active.Background as ImageBrush',
-    'ActiveBackgroundIsImageBrush',
-    'UriSource?.LocalPath',
-    'ImmersiveLayoutRoot.Visibility',
-    'CenteredLayoutRoot.Visibility',
-    'EditorialLayoutRoot.Visibility',
-    'CalendarLayoutRoot.Visibility',
-    'ReadabilityLayer.Visibility',
-    'ActionLayer.Visibility',
+    'ClockColumn.Visibility',
+    'WorldClocksVisible',
+    'WorldClockRowCount',
+    '_viewModel.WorldClockRows.Count',
     'DataContextMatchesViewModel'
 )
 $stage5B4B2C1MissingSurfacePatterns = @(
     foreach ($pattern in $stage5B4B2C1RequiredSurfacePatterns) {
-        if ($stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[2]].IndexOf(
+        if ($stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[$stage5B4B2C1SurfaceFile]].IndexOf(
                 $pattern,
                 [StringComparison]::Ordinal) -lt 0) {
-            "$($stage5B4B2C1SourceFiles[2])::$pattern"
+            "$($stage5B4B2C1SourceFiles[$stage5B4B2C1SurfaceFile])::$pattern"
         }
     }
 )
-$stage5B4B2C1ProductSource =
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[3]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[4]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[5]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[6]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[8]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[9]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[10]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[11]] +
-    $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[14]]
+$stage5B4B2C1ProductSourceParts =
+    foreach ($productFile in $stage5B4B2C1ProductFiles) {
+        $stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[$productFile]]
+    }
+$stage5B4B2C1ProductSource = $stage5B4B2C1ProductSourceParts -join "`n"
 $stage5B4B2C1RequiredProductPatterns = @(
-    'public static void SetLocalImageFiles',
-    'GlanceWidgetSettingsPolicy.SetLocalImageFiles(',
-    'GlanceWidgetSettingsPolicy.ClearLocalSource(',
-    'public Task SetLocalImageFilesAsync',
-    'public Task SetPhotoPlaybackAsync',
-    'GlanceWidgetSettingsPolicy.SetPhotoPlayback(',
+    'public static void SetDisplayElement',
+    'GlanceWidgetSettingsPolicy.SetDisplayElement(',
+    'GlanceWidgetSettingsPolicy.SetSurfaceMaterial(',
+    'public Task AddWorldClockAsync',
+    'public Task SetSizeScaleAsync',
+    'public static bool TryResolveZone',
+    'TimeZoneInfo.FindSystemTimeZoneById',
+    'GlanceWorldClockPolicy.NormalizeWorldClocks',
+    'GlanceWorldClockPolicy.SetSizeScale',
     'return _store.UpdateAsync',
     '[JsonSerializable(',
     'typeof(GlanceWidgetData)',
     'GlancePreferencesJsonContext.Default.Preferences',
-    'GlanceBackgroundSource.LocalFiles',
-    'CreateLocalImages',
-    'File.Exists',
-    'new BitmapImage',
-    'DecodePixelType.Physical',
-    'x:Name="ImmersiveLayoutRoot"',
-    'x:Name="CenteredLayoutRoot"',
-    'x:Name="EditorialLayoutRoot"',
-    'x:Name="CalendarLayoutRoot"',
-    'x:Name="ReadabilityLayer"',
-    'x:Name="ActionLayer"',
+    'nameof(GlanceWorldClockData)',
+    'x:Name="ClockColumn"',
+    'x:Name="WeatherColumn"',
+    'x:Name="WorldClockRowTemplate"',
+    'ItemsSource="{Binding WorldClockRows}"',
+    'Bind WeatherTemperatureText',
+    'Bind WeatherRangeText',
+    'Bind WeatherLocationName',
+    'Bind WeatherIcon',
+    'SurfaceMaterialTypeOverride',
+    'IWidgetSurfaceAppearanceSource',
+    'RefreshWeatherAsync',
     '[WinRT.GeneratedBindableCustomProperty([',
     'public sealed partial class GlanceWidgetViewModel'
 )
@@ -5129,20 +5147,17 @@ $stage5B4B2C1RequiredManagerPatterns = @(
 )
 $stage5B4B2C1MissingManagerPatterns = @(
     foreach ($pattern in $stage5B4B2C1RequiredManagerPatterns) {
-        if ($stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[12]].IndexOf(
+        if ($stage5B4B2C1Sources[$stage5B4B2C1SourceFiles[$stage5B4B2C1ManagerFile]].IndexOf(
                 $pattern,
                 [StringComparison]::Ordinal) -lt 0) {
-            "$($stage5B4B2C1SourceFiles[12])::$pattern"
+            "$($stage5B4B2C1SourceFiles[$stage5B4B2C1ManagerFile])::$pattern"
         }
     }
 )
 $stage5B4B2C1RequiredSmokeScriptPatterns = @(
     'GlancePersistenceRestart',
     'WINSTICKER_AOT_MANAGED_UI_GLANCE_PHASE',
-    'WINSTICKER_AOT_MANAGED_UI_GLANCE_FIXTURE',
     'Invoke-GlancePersistencePhase',
-    'glance-local.png',
-    '[System.IO.File]::WriteAllBytes',
     'glance\widgets',
     'aot-5b4b2c1-glance.json',
     '$mutate.glancePersistence.after',
@@ -5150,12 +5165,14 @@ $stage5B4B2C1RequiredSmokeScriptPatterns = @(
     '$postflight.glancePersistence.before',
     'Assert-GlanceStateEqual',
     'Assert-GlanceEvidenceState',
-    'surface.activeImageUri',
-    'surface.immersiveLayoutVisible',
-    'surface.calendarLayoutVisible',
+    'surface.worldClocksVisible',
+    'surface.worldClockRowCount',
+    'GlanceWorldClockPersisted',
+    'GlanceBaselineRestoredAfterRestart',
+    'GlancePostflightBaselineRetained',
     'Get-FileSha256',
-    'fixtureSha256Before',
-    'fixtureSha256After',
+    'storeSha256Before',
+    'storeSha256After',
     'glanceNaturalExit',
     'Sort-Object -Unique',
     'phaseExecutableHashes',
@@ -5164,7 +5181,7 @@ $stage5B4B2C1RequiredSmokeScriptPatterns = @(
     'productionDataFingerprintBefore',
     'productionDataFingerprintAfter',
     'runtimeFailureLogLines',
-    'Image decode failed',
+    '[GlanceWidgetViewModel]',
     'previewRootCleaned',
     'Stop-ExactPreviewProcess',
     '.winsticker-aot-managed-ui-owned.json'
@@ -5183,7 +5200,7 @@ $stage5B4B2C1ForbiddenScopePatterns = @(
             $stage5B4B2C1SourceFiles[1],
             $stage5B4B2C1SourceFiles[2],
             $stage5B4B2C1SourceFiles[7],
-            $stage5B4B2C1SourceFiles[12])) {
+            $stage5B4B2C1SourceFiles[$stage5B4B2C1ManagerFile])) {
         foreach ($pattern in @(
                 'FileOpenPicker',
                 'FolderPicker',
@@ -5214,7 +5231,7 @@ $stage5B4B2C1SourceWarningMessages = @(
             $line = $_
             $warningCodeRegex.IsMatch($line) -and
                 $line -notmatch "warning WMC1510:" -and
-                $line -match "(?:App\.Aot(?:ManagedUi|GlancePersistence)Smoke|GlanceWidgetContent(?:\.AotPersistenceSmoke)?|GlanceWidgetViewModel(?:\.AotBindableProperties|\.AotPersistenceSmoke)?|GlanceWidgetSettingsPolicy|GlanceWidgetSettingsSection\.xaml|GlanceWidgetStore|GlanceImageService|WidgetManager\.AotGlancePersistenceSmoke|GlanceWidgetData)\.(?:cs|xaml)\("
+                $line -match "(?:App\.Aot(?:ManagedUi|GlancePersistence)Smoke|GlanceWidgetContent(?:\.AotPersistenceSmoke)?|GlanceWidgetViewModel(?:\.AotBindableProperties|\.AotPersistenceSmoke)?|GlanceWidgetSettingsPolicy|GlanceWidgetSettingsSection\.xaml|GlanceWidgetStore|GlanceWorldClockPolicy|GlanceWeatherSummaryService|GlanceWidgetContentAdapter|WidgetManager\.AotGlancePersistenceSmoke|GlanceWidgetData)\.(?:cs|xaml)\("
         } |
         ForEach-Object { $_.Trim() } |
         Sort-Object -Unique
@@ -10038,20 +10055,20 @@ if ($stage5B4B2C1MissingRunnerPatterns.Count -gt 0 -or
     $stage5B4B2C1MissingSurfacePatterns.Count -gt 0 -or
     $stage5B4B2C1MissingProductPatterns.Count -gt 0 -or
     $stage5B4B2C1MissingManagerPatterns.Count -gt 0) {
-    $auditFailures.Add("Stage 5B-4B2C1 Glance runner, product policy, ViewModel, decoded image surface, or host contracts are incomplete. See '$summaryPath'.")
+    $auditFailures.Add("Stage 5B-4B2C1 Glance runner, product policy, ViewModel, clock/weather surface, or host contracts are incomplete. See '$summaryPath'.")
 }
 
 if ($stage5B4B2C1MissingSmokeScriptPatterns.Count -gt 0) {
-    $auditFailures.Add("Stage 5B-4B2C1 three-process outer-runner, image hash, process, cleanup, or postflight gates are missing. See '$summaryPath'.")
+    $auditFailures.Add("Stage 5B-4B2C1 three-process outer-runner, store hash, process, cleanup, or postflight gates are missing. See '$summaryPath'.")
 }
 
 if ($stage5B4B2C1ForbiddenScopePatterns.Count -gt 0) {
-    $auditFailures.Add("Stage 5B-4B2C1 entered online images, network, picker/folder interaction, direct file mutation, Rust ABI expansion, or broad widget scope. See '$summaryPath'.")
+    $auditFailures.Add("Stage 5B-4B2C1 entered online weather images, network, picker/folder interaction, direct file mutation, Rust ABI expansion, or broad widget scope. See '$summaryPath'.")
 }
 
-if ($stage5B4B2C1GeneratedBindableCount -ne 1 -or
-    $stage5B4B2C1BindablePropertyCount -ne 33) {
-    $auditFailures.Add("Stage 5B-4B2C1 must expose exactly one narrow Glance AOT DataContext bridge with 33 XAML properties. See '$summaryPath'.")
+if ($stage5B4B2C1GeneratedBindableCount -ne 2 -or
+    $stage5B4B2C1BindablePropertyCount -ne 25) {
+    $auditFailures.Add("Stage 5B-4B2C1 must expose exactly two narrow Glance AOT DataContext bridges (ViewModel and world-clock row) with 25 XAML properties. See '$summaryPath'.")
 }
 
 if ($stage5B4B2C1JsonSerializeCallCount -ne 1) {

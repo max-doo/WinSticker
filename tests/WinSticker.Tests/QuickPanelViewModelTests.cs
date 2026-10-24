@@ -66,7 +66,7 @@ public sealed class QuickPanelViewModelTests
     }
 
     [Fact]
-    public async Task TodoManagement_CreateEditAndComplete_WorkCorrectly()
+    public async Task TodoManagement_WritesThroughSharedRepository()
     {
         string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-todo-" + Guid.NewGuid().ToString("N"));
         try
@@ -81,32 +81,19 @@ public sealed class QuickPanelViewModelTests
                 IsDisabled = false
             });
 
-            await vm.LoadTodosAsync();
+            // The Quick Panel no longer owns todo logic — the shared
+            // TodoWidgetContent component does. The panel's only todo-side
+            // duty left is extracting tasks from notes, which must land in
+            // the shared store through the repository.
+            vm.NoteTitle = "Sprint Planning";
+            vm.NoteBody = "- [ ] Task 1: Design UI";
+            await vm.SaveCurrentNoteAsync();
+            await vm.ExtractTodosFromNoteAsync();
 
-            // Create a new todo
-            vm.BeginCreateTodo();
-            Assert.True(vm.IsCreatingTodo);
-            vm.ComposerTitle = "Test Todo Item";
-            vm.ComposerNotes = "Important details";
-            vm.ComposerDueDate = DateTimeOffset.Now;
-            vm.ComposerIsImportant = true;
-
-            await vm.SaveComposerTodoAsync();
-            Assert.False(vm.IsCreatingTodo);
-
-            // Verify loaded in Today view
-            vm.SetTodoViewMode(QuickPanelTodoViewMode.Today);
-            Assert.Single(vm.CurrentViewTodos);
-            Assert.Equal("Test Todo Item", vm.CurrentViewTodos[0].Text);
-            Assert.True(vm.CurrentViewTodos[0].IsImportant);
-
-            // Toggle complete
-            var createdItem = vm.CurrentViewTodos[0];
-            await vm.ToggleCompleteTodoAsync(createdItem);
-
-            vm.SetTodoViewMode(QuickPanelTodoViewMode.Completed);
-            Assert.Single(vm.CurrentViewTodos);
-            Assert.True(vm.CurrentViewTodos[0].IsCompleted);
+            var repository = TodoRepository.ForStore(new TodoWidgetStore(
+                Path.Combine(testDir, "widgets"), "test-todo-widget"));
+            TodoWidgetData data = await repository.LoadAsync();
+            Assert.Contains(data.Items, item => item.Text == "Task 1: Design UI");
         }
         finally
         {
@@ -144,13 +131,14 @@ public sealed class QuickPanelViewModelTests
             // Extract todos from note
             await vm.ExtractTodosFromNoteAsync();
 
-            // Verify extracted todos appeared in Todo list
-            await vm.LoadTodosAsync();
-            vm.SetTodoViewMode(QuickPanelTodoViewMode.Today);
-            Assert.Equal(3, vm.CurrentViewTodos.Count);
-            Assert.Contains(vm.CurrentViewTodos, t => t.Text == "Task 1: Design UI");
-            Assert.Contains(vm.CurrentViewTodos, t => t.Text == "Task 2: Implement logic");
-            Assert.Contains(vm.CurrentViewTodos, t => t.Text == "Task 3: Write tests");
+            // Verify extracted todos landed in the shared todo store
+            var repository = TodoRepository.ForStore(new TodoWidgetStore(
+                Path.Combine(testDir, "widgets"), "test-todo-widget"));
+            TodoWidgetData data = await repository.LoadAsync();
+            Assert.Equal(3, data.Items.Count);
+            Assert.Contains(data.Items, t => t.Text == "Task 1: Design UI");
+            Assert.Contains(data.Items, t => t.Text == "Task 2: Implement logic");
+            Assert.Contains(data.Items, t => t.Text == "Task 3: Write tests");
         }
         finally
         {

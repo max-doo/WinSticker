@@ -592,8 +592,8 @@ public sealed class AotPublishContractTests
             ["src/WinSticker/Controls/WidgetContents/GlanceWidgetContent.xaml.cs"] =
             [
                 "public sealed partial class GlanceBoolToVisibilityConverter",
-                "public sealed partial class GlanceInverseBoolToVisibilityConverter",
-                "public sealed partial class GlanceBoolToFontWeightConverter"
+                "public sealed partial class GlanceStringNonEmptyToVisibilityConverter",
+                "public sealed partial class GlanceDaytimeToOpacityConverter"
             ],
             ["src/WinSticker/Controls/WidgetContents/WeatherWidgetContent.xaml.cs"] =
             [

@@ -35,6 +35,10 @@ public sealed partial class QuickPanelWindow : Window
     private Win32Helper.SubclassProc? _subclassProc;
     private bool _isSubclassInstalled;
     private bool _hasPositioned;
+    private bool _isWindowDragging;
+    private Win32Helper.POINT _interactionStartCursor;
+    private RectInt32 _interactionStartBounds;
+    private FrameworkElement? _windowInteractionElement;
     [StructLayout(LayoutKind.Sequential)]
     private struct NativePoint
     {
@@ -80,7 +84,6 @@ public sealed partial class QuickPanelWindow : Window
         _appWindow = AppWindow.GetFromWindowId(windowId);
         RootGrid.DataContext = _viewModel;
         ClipboardView.DataContext = _viewModel;
-        TodoView.DataContext = _viewModel;
         NotesView.DataContext = _viewModel;
         ConfigureWindow();
         ApplyTheme();
@@ -154,6 +157,7 @@ public sealed partial class QuickPanelWindow : Window
                 if (onRight) return (IntPtr)Win32Helper.HTRIGHT;
                 if (onTop) return (IntPtr)Win32Helper.HTTOP;
                 if (onBottom) return (IntPtr)Win32Helper.HTBOTTOM;
+
             }
         }
         else if (uMsg == (uint)Win32Helper.WM_GETMINMAXINFO)
@@ -171,6 +175,126 @@ public sealed partial class QuickPanelWindow : Window
         }
         return Win32Helper.DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }
+    private void Header_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element ||
+            !e.GetCurrentPoint(element).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is DependencyObject dep &&
+            (TryFindAncestor<ButtonBase>(dep, out _) || TryFindAncestor<TextBox>(dep, out _)))
+        {
+            return;
+        }
+
+        if (!TryBeginWindowDrag(element, e))
+        {
+            return;
+        }
+
+        e.Handled = true;
+    }
+
+    private bool TryBeginWindowDrag(FrameworkElement element, PointerRoutedEventArgs e)
+    {
+        bool anchored = Win32Helper.TryGetPointerScreenPoint(_hwnd, RootGrid, e, out _interactionStartCursor) ||
+                        Win32Helper.GetCursorPos(out _interactionStartCursor);
+        if (!anchored || !Win32Helper.GetWindowRect(_hwnd, out var rect))
+        {
+            return false;
+        }
+
+        _interactionStartBounds = new RectInt32(
+            rect.Left,
+            rect.Top,
+            rect.Right - rect.Left,
+            rect.Bottom - rect.Top);
+        _windowInteractionElement = element;
+        if (!element.CapturePointer(e.Pointer))
+        {
+            _windowInteractionElement = null;
+            return false;
+        }
+
+        _isWindowDragging = true;
+        return true;
+    }
+
+    private void Header_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isWindowDragging || _appWindow is null)
+        {
+            return;
+        }
+
+        if (!Win32Helper.TryGetPointerScreenPoint(_hwnd, RootGrid, e, out var cursor) &&
+            !Win32Helper.GetCursorPos(out cursor))
+        {
+            return;
+        }
+
+        int deltaX = cursor.X - _interactionStartCursor.X;
+        int deltaY = cursor.Y - _interactionStartCursor.Y;
+
+        _appWindow.Move(new PointInt32(
+            _interactionStartBounds.X + deltaX,
+            _interactionStartBounds.Y + deltaY));
+
+        e.Handled = true;
+    }
+
+    private void Header_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        EndWindowDrag(e);
+        e.Handled = true;
+    }
+
+    private void Header_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        EndWindowDrag(e);
+    }
+
+    private void EndWindowDrag(PointerRoutedEventArgs? e)
+    {
+        if (!_isWindowDragging)
+        {
+            return;
+        }
+
+        _isWindowDragging = false;
+        if (_windowInteractionElement is not null && e is not null)
+        {
+            try
+            {
+                _windowInteractionElement.ReleasePointerCapture(e.Pointer);
+            }
+            catch (Exception ex)
+            {
+                App.Log($"[QuickPanel] Pointer capture release failed: {ex.Message}");
+            }
+        }
+
+        _windowInteractionElement = null;
+    }
+
+    private static bool TryFindAncestor<T>(DependencyObject? source, out T result) where T : DependencyObject
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is T typed)
+            {
+                result = typed;
+                return true;
+            }
+            current = VisualTreeHelper.GetParent(current);
+        }
+        result = null!;
+        return false;
+    }
+
     private void UpdateTopMost()
     {
         bool isPinned = _viewModel.IsPinned;
@@ -228,6 +352,10 @@ public sealed partial class QuickPanelWindow : Window
         PopupShowStoryboard.Begin();
         (App.Current as App)?.RefreshQuickCaptureClipboardService(captureCurrent: true);
         await _viewModel.RefreshAllAsync();
+        if (_todoContent?.ViewModel is { } todoViewModel)
+        {
+            await todoViewModel.InitializeAsync();
+        }
     }
     public void HidePanel()
     {
@@ -379,8 +507,44 @@ public sealed partial class QuickPanelWindow : Window
             _ => 0
         };
         ClipboardView.Visibility = _viewModel.ActiveTab == QuickPanelTab.Clipboard ? Visibility.Visible : Visibility.Collapsed;
-        TodoView.Visibility = _viewModel.ActiveTab == QuickPanelTab.Todo ? Visibility.Visible : Visibility.Collapsed;
+        TodoViewHost.Visibility = _viewModel.ActiveTab == QuickPanelTab.Todo ? Visibility.Visible : Visibility.Collapsed;
         NotesView.Visibility = _viewModel.ActiveTab == QuickPanelTab.Notes ? Visibility.Visible : Visibility.Collapsed;
+        if (_viewModel.ActiveTab == QuickPanelTab.Todo)
+        {
+            EnsureTodoContent();
+        }
+    }
+
+    private Controls.WidgetContents.TodoWidgetContent? _todoContent;
+
+    /// <summary>
+    /// Materializes the shared Todo component (TodoWidgetContent +
+    /// TodoWidgetViewModel) inside the panel the first time the Todo tab is
+    /// opened. Its own view model talks to the same TodoWidgetStore through
+    /// TodoRepository, so edits here and on the desktop stay in sync.
+    /// </summary>
+    private void EnsureTodoContent()
+    {
+        if (_todoContent is not null)
+        {
+            return;
+        }
+
+        var config = _settingsService.Settings.WidgetLayout.Widgets
+            .FirstOrDefault(w => w.WidgetKind == WidgetKind.Todo && !w.IsDisabled)
+            ?? new WidgetConfig { Id = "todo", WidgetKind = WidgetKind.Todo };
+        var localizationService = (App.Current as App)?.LocalizationService;
+        if (localizationService is null)
+        {
+            return;
+        }
+
+        var viewModel = new TodoWidgetViewModel(
+            new TodoWidgetStore(config.Id), localizationService, config, _settingsService);
+        var content = new Controls.WidgetContents.TodoWidgetContent(viewModel);
+        _todoContent = content;
+        TodoViewHost.Content = content;
+        _ = viewModel.InitializeAsync();
     }
     private void MainTabSegmented_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -396,34 +560,6 @@ public sealed partial class QuickPanelWindow : Window
     {
         _viewModel.IsPinned = PinButton.IsChecked == true;
         UpdateTopMost();
-    }
-    private void Header_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        if (!e.GetCurrentPoint(null).Properties.IsLeftButtonPressed) return;
-        if (e.OriginalSource is DependencyObject dep)
-        {
-            if (TryFindAncestor<ButtonBase>(dep, out _) || TryFindAncestor<TextBox>(dep, out _))
-            {
-                return;
-            }
-        }
-        Win32Helper.ReleaseCapture();
-        Win32Helper.SendMessage(_hwnd, 0x00A1 /* WM_NCLBUTTONDOWN */, (IntPtr)2 /* HTCAPTION */, IntPtr.Zero);
-    }
-    private static bool TryFindAncestor<T>(DependencyObject? source, out T result) where T : DependencyObject
-    {
-        var current = source;
-        while (current is not null)
-        {
-            if (current is T typed)
-            {
-                result = typed;
-                return true;
-            }
-            current = VisualTreeHelper.GetParent(current);
-        }
-        result = null!;
-        return false;
     }
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -748,6 +884,7 @@ public sealed partial class QuickPanelWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         RemoveSubclass();
+        _todoContent?.ViewModel?.Dispose();
         _viewModel.RequestPasteItem -= OnViewModelRequestPasteItem;
         _viewModel.RequestClose -= OnViewModelRequestClose;
         _viewModel.RequestOpenSettings -= OnViewModelRequestOpenSettings;

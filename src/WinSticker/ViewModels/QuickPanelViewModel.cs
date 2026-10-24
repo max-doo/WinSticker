@@ -70,7 +70,6 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
         _activeTab = settingsService.Settings.Core.QuickPanelDefaultTab;
 
         InitializeClipboard();
-        InitializeTodo();
         InitializeNotes();
     }
 
@@ -88,7 +87,6 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
     partial void OnSearchTextChanged(string value)
     {
         ApplyClipboardFilter();
-        ApplyTodoFilter();
     }
 
     [RelayCommand]
@@ -122,7 +120,6 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
         {
             await Task.WhenAll(
                 LoadClipboardHistoryAsync(),
-                LoadTodosAsync(),
                 LoadNotesAsync());
         }
         finally
@@ -165,7 +162,6 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
         if (_isDisposed) return;
         _isDisposed = true;
         DisposeClipboard();
-        DisposeTodo();
         DisposeNotes();
     }
 }

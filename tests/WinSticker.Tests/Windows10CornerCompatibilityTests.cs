@@ -46,7 +46,8 @@ public sealed class Windows10CornerCompatibilityTests
             "src/WinSticker/Controls/WidgetContents/WeatherWidgetContent.xaml.cs");
         string weatherAot = Read(
             "src/WinSticker/ViewModels/WeatherViewModels.AotBindableProperties.cs");
-        string glanceViewModel = Read("src/WinSticker/ViewModels/GlanceWidgetViewModel.cs");
+        string glanceCodeBehind = Read(
+            "src/WinSticker/Controls/WidgetContents/GlanceWidgetContent.xaml.cs");
 
         Assert.Contains(
             "ResolveEffectiveWidgetCornerPreference",
@@ -69,10 +70,13 @@ public sealed class Windows10CornerCompatibilityTests
         Assert.Contains("RichBackdrop.CornerRadius", weatherCodeBehind, StringComparison.Ordinal);
         Assert.Contains("LoadingOverlay.CornerRadius", weatherCodeBehind, StringComparison.Ordinal);
         Assert.Contains("nameof(WidgetCornerRadius)", weatherAot, StringComparison.Ordinal);
+        // The v12 clock patch carries its own contrast plate and matching
+        // corner policy in the content code-behind.
         Assert.Contains(
             "ResolveEffectiveWidgetCornerPreference",
-            glanceViewModel,
+            glanceCodeBehind,
             StringComparison.Ordinal);
+        Assert.Contains("ContrastPlate.CornerRadius", glanceCodeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

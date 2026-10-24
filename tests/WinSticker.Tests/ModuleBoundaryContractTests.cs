@@ -504,7 +504,6 @@ public sealed class ModuleBoundaryContractTests
         ["src/WinSticker/Services/FileService.CaseOnlyRename.cs"] = 2,
         ["src/WinSticker/Services/FileService.TransferProgress.cs"] = 4,
         ["src/WinSticker/Services/FileService.cs"] = 9,
-        ["src/WinSticker/Services/GlanceImageService.cs"] = 3,
         ["src/WinSticker/Services/GlanceWidgetStore.cs"] = 1,
         ["src/WinSticker/Services/LegacySearchIndexCleanupService.cs"] = 1,
         ["src/WinSticker/Services/ManagedStorageDesktopShortcutService.cs"] = 1,

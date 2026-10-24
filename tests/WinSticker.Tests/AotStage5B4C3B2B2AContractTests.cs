@@ -1,4 +1,4 @@
-namespace WinSticker.Tests;
+﻿namespace WinSticker.Tests;
 
 public sealed class AotStage5B4C3B2B2AContractTests
 {
@@ -118,10 +118,10 @@ public sealed class AotStage5B4C3B2B2AContractTests
             "AotTodoNotificationSurfaceEvidence? TodoNotificationSurface",
             managed,
             StringComparison.Ordinal);
-        Assert.Contains("Assert.Equal(41, actual.Count)", baseline, StringComparison.Ordinal);
-        Assert.Contains("Assert.Equal(96, actual.Values.Sum())", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(40, actual.Count)", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(94, actual.Values.Sum())", baseline, StringComparison.Ordinal);
         Assert.Contains(
-            "Assert.Equal(37, actualContextOwners.Length)",
+            "Assert.Equal(36, actualContextOwners.Length)",
             baseline,
             StringComparison.Ordinal);
     }

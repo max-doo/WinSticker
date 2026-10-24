@@ -16,7 +16,7 @@ public sealed class ToggleSwitchAccessibleNameContractTests
     {
         { "src/WinSticker/Views/SettingsWindow.xaml", 53 },
         { "src/WinSticker/Views/SettingsSections/SearchSettingsSection.xaml", 4 },
-        { "src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml", 5 },
+        { "src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml", 3 },
         { "src/WinSticker/Views/SettingsSections/FileWidgetSettingsSection.xaml", 1 },
         { "src/WinSticker/Views/SettingsSections/DesktopOrganizationSettingsSection.xaml", 2 },
         { "src/WinSticker/Views/SettingsSections/CapsuleModeSettingsSection.xaml", 1 },

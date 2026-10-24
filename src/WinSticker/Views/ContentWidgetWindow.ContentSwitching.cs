@@ -82,14 +82,8 @@ public sealed partial class ContentWidgetWindow
         Diagnostics.SetWidgetContext(config);
         _titleViewModel.SetConfig(config);
         ApplyTitleIdentity(config, descriptor, content);
-        // Paint the Glance yield gate from the incoming member's config
-        // before the view's Loaded pass — a cached Glance view carries the
-        // previous member's flag and would draw one stale frame otherwise.
-        if (content.View is WinSticker.Controls.WidgetContents.GlanceWidgetContent glanceView)
-        {
-            glanceView.SetShellCustomBackgroundActive(
-                WidgetBackgroundCustomization.HasCustomBackground(config));
-        }
+        AttachGlanceSurfaceDrag(content.View);
+        AttachGlanceScaleEnforcement(content);
         AttachCompactPresentationSource(content);
         AttachFeedbackSource(content);
         AttachHostContextMenuSource(content);

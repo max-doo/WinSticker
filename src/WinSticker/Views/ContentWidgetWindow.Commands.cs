@@ -277,6 +277,57 @@ public sealed partial class ContentWidgetWindow
                 flyout,
                 glance.ViewModel,
                 App.Current.LocalizationService);
+
+            flyout.Items.Add(WidgetLockMenuBuilder.Create(
+                App.Current.LocalizationService,
+                _config.IsPositionLocked,
+                _config.IsSizeLocked,
+                SetPositionLocked,
+                SetSizeLocked));
+
+            if (WidgetScreenMenuBuilder.TryCreate(
+                    App.Current.LocalizationService,
+                    _config,
+                    ApplyScreenBinding) is { } glanceScreenMenu)
+            {
+                flyout.Items.Add(glanceScreenMenu);
+            }
+
+            flyout.Items.Add(WidgetSettingsMenuHelper.CreateMenuItem(
+                _config.WidgetKind,
+                App.Current.LocalizationService,
+                beforeClick: flyout.Hide,
+                widgetId: _config.Id));
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            var glanceDisable = new MenuFlyoutItem
+            {
+                Text = GetFeatureWidgetCloseMenuText(),
+                Icon = new FontIcon { Glyph = "\uE7E8" }
+            };
+            WidgetDangerActionStyle.Apply(glanceDisable);
+            bool showGlanceClose = false;
+            IDisposable? glanceCloseHandoff = null;
+            glanceDisable.Click += (_, _) =>
+            {
+                showGlanceClose = true;
+                glanceCloseHandoff ??= AcquireCloseWidgetFlyoutHandoff();
+            };
+            flyout.Closed += (_, _) =>
+            {
+                if (showGlanceClose)
+                {
+                    QueueCloseWidgetFlyout(glanceCloseHandoff);
+                    glanceCloseHandoff = null;
+                }
+                else
+                {
+                    glanceCloseHandoff?.Dispose();
+                }
+            };
+            flyout.Items.Add(glanceDisable);
+
+            return flyout;
         }
 
         var rename = new MenuFlyoutItem

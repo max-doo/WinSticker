@@ -25,31 +25,6 @@ public enum QuickPanelFilter
 }
 
 /// <summary>
-/// Todo view filter presets.
-/// </summary>
-public enum QuickPanelTodoFilter
-{
-    All = 0,
-    Today = 1,
-    Scheduled = 2,
-    Unscheduled = 3,
-    Important = 4,
-    Completed = 5
-}
-
-/// <summary>
-/// Todo view modes for Quick Panel.
-/// </summary>
-public enum QuickPanelTodoViewMode
-{
-    Today = 0,
-    Overdue = 1,
-    Unscheduled = 2,
-    Timeline = 3,
-    Completed = 4
-}
-
-/// <summary>
 /// A lightweight note item in the Quick Panel Notes tab.
 /// </summary>
 public sealed partial class QuickPanelNoteItem : ObservableObject

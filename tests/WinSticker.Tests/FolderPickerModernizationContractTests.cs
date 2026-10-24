@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using WinSticker.Services;
 
 namespace WinSticker.Tests;
@@ -98,13 +98,12 @@ public sealed class FolderPickerModernizationContractTests
     }
 
     [Fact]
-    public void AllSevenProductEntrances_AwaitTheOwnerAwarePicker()
+    public void AllProductEntrances_AwaitTheOwnerAwarePicker()
     {
         var expectedCalls = new Dictionary<string, int>
         {
             ["src/WinSticker/App.Tray.cs"] = 1,
             ["src/WinSticker/Services/JumpListService.cs"] = 1,
-            ["src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml.cs"] = 1,
             ["src/WinSticker/Views/SettingsWindow.Maintenance.cs"] = 3,
             ["src/WinSticker/Views/SettingsWindow.StorageAndUpdates.cs"] = 1
         };
@@ -127,7 +126,9 @@ public sealed class FolderPickerModernizationContractTests
             totalCalls += callCount;
         }
 
-        Assert.Equal(7, totalCalls);
+        // The v12 clock patch dropped its local-folder wallpaper entrance, so
+        // the product now has six owner-aware picker call sites.
+        Assert.Equal(6, totalCalls);
     }
 
     [Fact]

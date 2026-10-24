@@ -296,16 +296,25 @@ public sealed class WidgetBackgroundCustomizationTests : IDisposable
     }
 
     [Fact]
-    public void GlanceYieldsToShellBackground_AndSettingsNormalizeCoversBackground()
+    public void GlanceOwnsItsTransparentSurface_AndSettingsNormalizeCoversBackground()
     {
+        // v12 dropped the wallpaper form: the clock patch no longer flips the
+        // shell's custom background, it declares its own surface appearance.
+        string adapter = File.ReadAllText(TestPaths.FromRepository(
+            "src/WinSticker/Controls/WidgetContents/GlanceWidgetContentAdapter.cs"));
+        Assert.Contains("IWidgetSurfaceAppearanceSource", adapter, StringComparison.Ordinal);
+        Assert.Contains("SurfaceMaterialTypeOverride", adapter, StringComparison.Ordinal);
+
         string glance = File.ReadAllText(TestPaths.FromRepository(
             "src/WinSticker/Controls/WidgetContents/GlanceWidgetContent.xaml.cs"));
-        Assert.Contains("SetShellCustomBackgroundActive", glance, StringComparison.Ordinal);
-        Assert.Contains("_shellCustomBackgroundActive", glance, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetShellCustomBackgroundActive", glance, StringComparison.Ordinal);
 
         string window = File.ReadAllText(TestPaths.FromRepository(
             "src/WinSticker/Views/ContentWidgetWindow.xaml.cs"));
-        Assert.Contains("SetShellCustomBackgroundActive", window, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "SetShellCustomBackgroundActive(glance",
+            window,
+            StringComparison.Ordinal);
 
         string settings = File.ReadAllText(TestPaths.FromRepository(
             "src/WinSticker/Services/SettingsService.cs"));

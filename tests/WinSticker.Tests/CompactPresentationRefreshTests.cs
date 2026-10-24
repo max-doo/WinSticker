@@ -61,13 +61,10 @@ public sealed class CompactPresentationRefreshTests
     [InlineData(nameof(GlanceWidgetViewModel.TimeText))]
     [InlineData(nameof(GlanceWidgetViewModel.DateText))]
     [InlineData(nameof(GlanceWidgetViewModel.WeekdayText))]
-    [InlineData(nameof(GlanceWidgetViewModel.TraditionalCalendarTitle))]
-    [InlineData(nameof(GlanceWidgetViewModel.CurrentImagePath))]
-    [InlineData(nameof(GlanceWidgetViewModel.BackgroundImageOpacity))]
-    [InlineData(nameof(GlanceWidgetViewModel.HasVisibleCurrentImage))]
-    [InlineData(nameof(GlanceWidgetViewModel.ReadabilityOpacity))]
-    [InlineData(nameof(GlanceWidgetViewModel.ReadabilityStrengthOpacity))]
-    public void GlanceCompactPresentation_RefreshesForVisibleClockAndImageProperties(
+    [InlineData(nameof(GlanceWidgetViewModel.ShowTime))]
+    [InlineData(nameof(GlanceWidgetViewModel.ShowDate))]
+    [InlineData(nameof(GlanceWidgetViewModel.ShowWeekday))]
+    public void GlanceCompactPresentation_RefreshesForVisibleClockProperties(
         string propertyName)
     {
         Assert.True(ContentWidgetWindow.IsCompactPresentationPropertyRelevant(
@@ -76,11 +73,11 @@ public sealed class CompactPresentationRefreshTests
     }
 
     [Fact]
-    public void GlanceCompactPresentation_IgnoresExpandedOnlyLoadingStatus()
+    public void GlanceCompactPresentation_IgnoresExpandedOnlyWeatherBlock()
     {
         Assert.False(ContentWidgetWindow.IsCompactPresentationPropertyRelevant(
             WidgetKind.Glance,
-            nameof(GlanceWidgetViewModel.StatusText)));
+            nameof(GlanceWidgetViewModel.ShowWeatherBlock)));
     }
 
     [Fact]
