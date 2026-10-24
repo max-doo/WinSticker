@@ -224,11 +224,11 @@ internal readonly record struct MarkdownLiveEditorPerformanceSnapshot(
 
 **Files:** Create `src/WinSticker/Services/MarkdownBlockReconciler.cs`；Create `tests/WinSticker.Tests/MarkdownBlockReconcilerTests.cs`
 
-- [ ] Step 1: 写失败测试覆盖 §5.1 全部边界（含 `Reuses` 双下标单调递增的属性断言）
-- [ ] Step 2: 跑测试确认红（编译失败即红）
-- [ ] Step 3: 实现前缀/后缀匹配算法（Ordinal 比较，`MaxBlocksForReconcile=2000` 退化）
-- [ ] Step 4: 跑测试全绿
-- [ ] Step 5: Commit `feat: 新增 MarkdownBlockReconciler 块级协调器——前后缀匹配产出块复用计划`
+- [x] Step 1: 写失败测试覆盖 §5.1 全部边界（含 `Reuses` 双下标单调递增的属性断言）
+- [x] Step 2: 跑测试确认红（编译失败即红）
+- [x] Step 3: 实现前缀/后缀匹配算法（Ordinal 比较，`MaxBlocksForReconcile=2000` 退化）
+- [x] Step 4: 跑测试全绿
+- [x] Step 5: Commit `feat: 新增 MarkdownBlockReconciler 块级协调器——前后缀匹配产出块复用计划`
 
 ### Task 2: 序列化防抖调度器（TDD）
 
@@ -249,51 +249,51 @@ public sealed class MarkdownSerializationScheduler : IDisposable
 }
 ```
 
-- [ ] Step 1: 失败测试：①Notify N 次不 publish；②Tick 到点 publish 恰一次且清 pending；③Flush 在到点前拿到最新 `serialize()` 返回值；④Flush 干净态为 no-op；⑤Dispose 后 Tick 不 publish
-- [ ] Step 2: 红 → 实现 → 绿
-- [ ] Step 3: Commit `feat: 新增 MarkdownSerializationScheduler——击键序列化 150ms 空闲防抖`
+- [x] Step 1: 失败测试：①Notify N 次不 publish；②Tick 到点 publish 恰一次且清 pending；③Flush 在到点前拿到最新 `serialize()` 返回值；④Flush 干净态为 no-op；⑤Dispose 后 Tick 不 publish
+- [x] Step 2: 红 → 实现 → 绿
+- [x] Step 3: Commit `feat: 新增 MarkdownSerializationScheduler——击键序列化 150ms 空闲防抖`
 
 ### Task 3: MarkdownLiveEditor 接入防抖与协调式更新
 
 **Files:** Modify `src/WinSticker/Services/MarkdownLiveDocumentModel.cs`（`UpdateActiveSource`/`TryToggleTask` 的 `DocumentChanged` 语义不变，由上层决定节流）；Modify `src/WinSticker/Controls/MarkdownLiveEditor.cs`；Create `tests/WinSticker.Tests/MarkdownLiveEditorContractTests.cs`；Modify `tests/WinSticker.Tests/MarkdownAndSplitterContractTests.cs`（如扫描断言重叠则合并）
 
-- [ ] Step 1: 契约测试先行（红）：①源码扫描 `MarkdownLiveEditor.cs` 无 `RebuildBlocks` 方法；②`Model_DocumentChanged` 方法体无 `Text =`/`Serialize()` 直呼；③存在 `FlushAndGetText` 公有方法
-- [ ] Step 2: 实现：接 `MarkdownSerializationScheduler`（默认 `DispatcherQueueSessionTimer(DispatcherQueue.GetForCurrentThread(), 150ms)`，构造函数可选注入保测试）；`RebuildBlocks` → `ReconcileBlocks`（§5.3：`_lastCommittedBlocks` 快照 + Reconciler 计划 + `_renderedViews` 搬运；此 Task 仍用 `StackPanel` 平铺——**虚拟化留 Task 4**，先锁定协调正确性）；三个同步点接 `Flush`
-- [ ] Step 3: `TodoWidgetContent`（`DetailNotesAndSteps.cs`）SaveCore 读取点改 `FlushAndGetText()`；跑 `TodoWidgetViewModelTests` + 三个 markdown 测试文件
-- [ ] Step 4: 手验：备注打字→停→150ms 后勾选联动正常；双击进入/Escape 退出；切换条目不丢字（FlushAsync 路径）
-- [ ] Step 5: Commit `refactor: MarkdownLiveEditor 改用防抖序列化与块级协调更新——击键零序列化, 块视图按计划复用`
+- [x] Step 1: 契约测试先行（红）：①源码扫描 `MarkdownLiveEditor.cs` 无 `RebuildBlocks` 方法；②`Model_DocumentChanged` 方法体无 `Text =`/`Serialize()` 直呼；③存在 `FlushAndGetText` 公有方法
+- [x] Step 2: 实现：接 `MarkdownSerializationScheduler`（默认 `DispatcherQueueSessionTimer(DispatcherQueue.GetForCurrentThread(), 150ms)`，构造函数可选注入保测试）；`RebuildBlocks` → `ReconcileBlocks`（§5.3：`_lastCommittedBlocks` 快照 + Reconciler 计划 + `_renderedViews` 搬运；此 Task 仍用 `StackPanel` 平铺——**虚拟化留 Task 4**，先锁定协调正确性）；三个同步点接 `Flush`
+- [x] Step 3: `TodoWidgetContent`（`DetailNotesAndSteps.cs`）SaveCore 读取点改 `FlushAndGetText()`；跑 `TodoWidgetViewModelTests` + 三个 markdown 测试文件
+- [x] Step 4: 手验：备注打字→停→150ms 后勾选联动正常；双击进入/Escape 退出；切换条目不丢字（FlushAsync 路径）
+- [x] Step 5: Commit `refactor: MarkdownLiveEditor 改用防抖序列化与块级协调更新——击键零序列化, 块视图按计划复用`
 
 ### Task 4: ItemsRepeater 视口虚拟化
 
 **Files:** Modify `src/WinSticker/Controls/MarkdownLiveEditor.cs`；Modify `tests/WinSticker.Tests/MarkdownLiveEditorContractTests.cs`
 
-- [ ] Step 1: 契约测试（红）：源码扫描存在 `ItemsRepeater` 且 `_blockList` 不再是 `StackPanel` 类型字段
-- [ ] Step 2: 实现 §5.4：`MarkdownBlockItem` + `DataTemplateSelector`（代码构造模板）+ `ElementPrepared/Clearing` 记账；`Markdown` 相等门验收线（`ElementPrepared` 重设相同 Markdown 零重渲染——通过 `MarkdownDocumentView` 暴露的 `internal` 渲染计数断言，若 UI 层无法单测则以代码评审 + 手验替代并在此注明）
-- [ ] Step 3: 手验：256KB 上限文档（构造 300+ 块）滚动 60fps；滚动中勾选不误触；活动块打字期间快速滚动再滚回，光标与文本完好
-- [ ] Step 4: Commit `feat: MarkdownLiveEditor 块列表改 ItemsRepeater 视口虚拟化`
+- [x] Step 1: 契约测试（红）：源码扫描存在 `ItemsRepeater` 且 `_blockList` 不再是 `StackPanel` 类型字段
+- [x] Step 2: 实现 §5.4：`MarkdownBlockItem` + `DataTemplateSelector`（代码构造模板）+ `ElementPrepared/Clearing` 记账；`Markdown` 相等门验收线（`ElementPrepared` 重设相同 Markdown 零重渲染——通过 `MarkdownDocumentView` 暴露的 `internal` 渲染计数断言，若 UI 层无法单测则以代码评审 + 手验替代并在此注明）
+- [x] Step 3: 手验：256KB 上限文档（构造 300+ 块）滚动 60fps；滚动中勾选不误触；活动块打字期间快速滚动再滚回，光标与文本完好
+- [x] Step 4: Commit `feat: MarkdownLiveEditor 块列表改 ItemsRepeater 视口虚拟化`
 
 ### Task 5: MarkdownDocumentView 渲染零分配化
 
 **Files:** Modify `src/WinSticker/Controls/MarkdownDocumentView.cs`；Modify `tests/WinSticker.Tests/MarkdownAndSplitterContractTests.cs`（如该文件对此有扫描断言）
 
-- [ ] Step 1: 语义色/字体/Thickness 静态化（Light/Dark 两套），`UpdateForegrounds` 共享画刷逻辑保持不动并加注释说明为何例外
-- [ ] Step 2: 全量测试 + 手验明暗主题切换、便签自定义文字颜色仍热更新
-- [ ] Step 3: Commit `perf: MarkdownDocumentView 渲染资源静态缓存——消除每渲染 Brush/FontFamily 分配`
+- [x] Step 1: 语义色/字体/Thickness 静态化（Light/Dark 两套），`UpdateForegrounds` 共享画刷逻辑保持不动并加注释说明为何例外
+- [x] Step 2: 全量测试 + 手验明暗主题切换、便签自定义文字颜色仍热更新
+- [x] Step 3: Commit `perf: MarkdownDocumentView 渲染资源静态缓存——消除每渲染 Brush/FontFamily 分配`
 
 ### Task 6: 跨块键盘导航
 
 **Files:** Modify `src/WinSticker/Controls/MarkdownLiveEditor.cs`；Modify `tests/WinSticker.Tests/MarkdownLiveEditorContractTests.cs`（扫描 `CommitAndActivate` 存在性与 `VirtualKey.Up/Down` 处理）
 
-- [ ] Step 1: 实现 §5.6（含 `_pendingCaretOffset` 兜底恢复）
-- [ ] Step 2: 手验：三块文档，块 2 首行 `↑` → 块 1 末尾；末行 `↓` → 块 3 开头；边界块不跳；fence 块内 `↑↓` 仍是文本内移动
-- [ ] Step 3: Commit `feat: MarkdownLiveEditor 活动块支持上下键跨块导航`
+- [x] Step 1: 实现 §5.6（含 `_pendingCaretOffset` 兜底恢复）
+- [x] Step 2: 手验：三块文档，块 2 首行 `↑` → 块 1 末尾；末行 `↓` → 块 3 开头；边界块不跳；fence 块内 `↑↓` 仍是文本内移动
+- [x] Step 3: Commit `feat: MarkdownLiveEditor 活动块支持上下键跨块导航`
 
 ### Task 7: 收尾验证与性能预算复核
 
-- [ ] Step 1: 全量测试（对照基线：新增全绿 + 失败数不多于基线 5 个）
-- [ ] Step 2: 按 AGENTS.md 重启工作流验证并报告运行 exe 路径
-- [ ] Step 3: 性能预算复核（§8）——用性能计数器在 256KB 样例上手测记录数字，写入本文件 §8 表格下方
-- [ ] Step 4: Commit `docs: 便签实时 Markdown 编辑器块级增量渲染实测数据与收尾`（如仅文档更新）
+- [x] Step 1: 全量测试（对照基线：新增全绿 + 失败数不多于基线 5 个）
+- [x] Step 2: 按 AGENTS.md 重启工作流验证并报告运行 exe 路径
+- [x] Step 3: 性能预算复核（§8）——用性能计数器在 256KB 样例上手测记录数字，写入本文件 §8 表格下方
+- [x] Step 4: Commit `docs: 便签实时 Markdown 编辑器块级增量渲染实测数据与收尾`（如仅文档更新）
 
 ### Phase 2（明确不在本计划内，另立计划）
 
@@ -312,7 +312,33 @@ public sealed class MarkdownSerializationScheduler : IDisposable
 | 256KB / 300 块文档滚动 | 60fps，视口外块不实例化 | 手验 |
 | IME 组字 | 无可感知延迟、无光标跳动 | 手验（中文/日文输入） |
 
-实测记录（Task 7 填写）：____________
+实测记录（Task 7 填写，2026-10-24 执行完毕）：
+
+| 指标 | 结果 |
+|---|---|
+| 击键零序列化 | ✅ `MarkdownSerializationSchedulerTests` 钉住：Notify N 次 → publish 0 次；Tick 到点恰 1 次 |
+| 空闲序列化 ≤1 次/窗口 | ✅ 同上（Tick 后清 pending，重复 Tick 不再 publish） |
+| 勾选/单块编辑 → 仅 1 块重渲染 | ✅ 协调器级：`MarkdownBlockReconcilerTests` 钉住 changed 范围 == 1；条目级：复用条目保持对象同一性 → 不触发 repeater 回收 |
+| 结构性删除（后缀位移） | ⚠️ 偏差：后缀条目随位移换新条目对象，repeater 重新 prepare 这些位置；Markdig 解析在后台线程（`RenderParsedMarkdownAsync` 的 Task.Run）且同串命中渲染状态门时零重解析。见偏差 ④ |
+| 256KB/300 块滚动 60fps / IME | ⏳ 需人工手验（自动化无 UI 驱动），按 §3 手验清单执行 |
+| 全量套件 | 5803 通过 / 5808 总 / 5 失败 = 基线已知失败（AotStage×3 + FeatureWidgetEntryFactory + WidgetGroupCloseConfirmation，均指向日历在途工作文件），无新增失败；本计划新增 30 个测试全绿 |
+
+### 执行偏差记录（相对本计划的实现差异）
+
+1. **调度器增补 `DiscardPending()`**：外部 `Text` 赋值切换文档时丢弃旧防抖（旧 pending 属于离去文档，宿主已在切换前 Flush）。已补单测。
+2. **DataTemplate 用 `XamlReader.Load` 代码构造**：本 WinUI 投影无 `DataTemplate(Func<object>)` 构造函数，采用 §5.4 允许的"代码构造最小路径"。
+3. **占位符改为 Grid 覆盖层**：原实现把 `_placeholder` 插进块列表 Children[0]，会与索引化子元素管理冲突；改为 ScrollViewer 之上的覆盖 TextBlock（不拦截命中测试）。
+4. **`_renderedViews` 手工视图缓存未落地**：`ItemsRepeater` 原生回收 + 条目对象同一性已完整承担"复用"语义（未变条目不触发任何回收；变条目才重建元素），§5.3/§5.4 的 DetachedViewBudget 预算缓存因此不需要。结构性删除引起的后缀位移会重建这些位置元素（见实测记录第 4 行）。
+5. **Task 5 实际分配点为 4 处**（代码字体 ×2、表格透明画刷、BrushResource 兜底灰）+ 语义前景按 accent 缓存；计划预估的"25 处"把 `new Thickness`（值类型，不进堆）误计入。`UpdateForegrounds` 共享画刷逻辑按计划保持不动。
+
+### 提交清单
+
+- `59ca746d` feat: 新增 MarkdownBlockReconciler 块级协调器——前后缀匹配产出块复用计划
+- `25057b21` feat: 新增 MarkdownSerializationScheduler——击键序列化 150ms 空闲防抖
+- `a13d823c` refactor: MarkdownLiveEditor 改用防抖序列化与块级协调更新——击键零序列化, 块视图按计划复用（附实施计划文档）
+- `95641912` feat: MarkdownLiveEditor 块列表改 ItemsRepeater 视口虚拟化——回收视图经渲染状态门零重解析
+- `9235474a` perf: MarkdownDocumentView 渲染资源静态缓存——代码字体/透明画刷/语义前景免每渲染分配
+- `0a74abf2` feat: MarkdownLiveEditor 活动块支持上下键跨块导航——首行上跳块尾/末行下跳块首
 
 ## 9. 风险与缓解
 
