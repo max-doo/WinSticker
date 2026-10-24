@@ -26,6 +26,15 @@ public sealed partial class QuickPanelViewModel
 
     private DispatcherQueueTimer? _noteAutosaveTimer;
     private bool _isInternalNoteSwitch;
+    private string? _activeTodoWidgetId;
+
+    private string GetActiveTodoWidgetId()
+    {
+        if (_activeTodoWidgetId is not null) return _activeTodoWidgetId;
+
+        _activeTodoWidgetId = TodoTargetResolver.ResolveWidgetId(_settingsService.Settings);
+        return _activeTodoWidgetId;
+    }
 
     private void InitializeNotes()
     {
@@ -326,23 +335,22 @@ public sealed partial class QuickPanelViewModel
         }
 
         string widgetId = GetActiveTodoWidgetId();
-        var store = _todoStoreFactory(widgetId);
-        var data = await store.LoadAsync();
-
-        foreach (var title in extractedTasks)
+        var repository = TodoRepository.ForStore(_todoStoreFactory(widgetId));
+        await repository.MutateAsync(data =>
         {
-            data.Items.Insert(0, new TodoItem
+            foreach (var title in extractedTasks)
             {
-                Text = title,
-                DueDate = DateTimeOffset.Now,
-                SortOrder = data.Items.Count,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            });
-        }
+                data.Items.Insert(0, new TodoItem
+                {
+                    Text = title,
+                    DueDate = DateTimeOffset.Now,
+                    SortOrder = data.Items.Count,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }, this);
 
-        await store.SaveAsync(data);
-        await LoadTodosAsync();
         ShowToast($"已成功提取 {extractedTasks.Count} 条待办任务");
     }
 }
