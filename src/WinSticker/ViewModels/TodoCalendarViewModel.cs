@@ -130,6 +130,21 @@ public sealed partial class TodoCalendarViewModel : ObservableObject, IDisposabl
         await SelectDateAsync(today);
     }
 
+    /// <summary>
+    /// The calendar view model outlives the tab it lives in; without this
+    /// re-entry the panel keeps showing whatever month was last browsed,
+    /// even days later in the same app session.
+    /// </summary>
+    public async Task GoToTodayIfAnchorStaleAsync()
+    {
+        var localNow = TimeZoneInfo.ConvertTime(_now(), _tz);
+        var today = DateOnly.FromDateTime(localNow.DateTime);
+        if (MonthAnchor.Year != today.Year || MonthAnchor.Month != today.Month)
+        {
+            await GoToTodayAsync();
+        }
+    }
+
     public async Task MoveTaskToDateAsync(string taskId, DateOnly date)
     {
         var current = _todo.Items.FirstOrDefault(i => i.Id == taskId)?.Item.DueDate;
@@ -250,6 +265,10 @@ public sealed partial class TodoCalendarViewModel : ObservableObject, IDisposabl
         }
 
         UpdateSelectedDayTasks();
+        // Same-month rebuilds reuse the existing cell instances, so
+        // Cells.CollectionChanged stays silent; this notification is the
+        // view's only signal for those rebuilds.
+        OnPropertyChanged(nameof(Cells));
         OnPropertyChanged(nameof(MonthTitle));
         OnPropertyChanged(nameof(IsEmptyStateVisible));
     }

@@ -131,18 +131,23 @@ public sealed partial class TodoWidgetContent
     {
         bool hasDetail = ViewModel?.SelectedDetailItem is not null;
         bool showList = _isDualPane || !hasDetail;
-        ListHeaderArea.Visibility = showList ? Visibility.Visible : Visibility.Collapsed;
-        ListArea.Visibility = showList ? Visibility.Visible : Visibility.Collapsed;
-        ListFooterArea.Visibility = showList ? Visibility.Visible : Visibility.Collapsed;
+        // 日历模式下主列由 CalendarHost 接管，列表与宽版空态不得被母版/
+        // 明细布局重新铺回，否则与月历重叠；标签栏是日历页唯一的返回
+        // 入口，无论明细状态如何都必须保留。
+        bool isCalendar = ViewModel?.ContentMode == TodoContentViewMode.Calendar;
+        bool showHeader = showList || isCalendar;
+        ListHeaderArea.Visibility = showHeader ? Visibility.Visible : Visibility.Collapsed;
+        ListArea.Visibility = showList && !isCalendar ? Visibility.Visible : Visibility.Collapsed;
+        ListFooterArea.Visibility = showList && !isCalendar ? Visibility.Visible : Visibility.Collapsed;
         DetailPage.Visibility = hasDetail ? Visibility.Visible : Visibility.Collapsed;
-        WideDetailEmptyState.Visibility = _isDualPane && !hasDetail
+        WideDetailEmptyState.Visibility = _isDualPane && !hasDetail && !isCalendar
             ? Visibility.Visible
             : Visibility.Collapsed;
         MasterDetailSplitter.Visibility = _isDualPane
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        if (showList)
+        if (showHeader)
         {
             QueueTodoSegmentedRestore();
         }

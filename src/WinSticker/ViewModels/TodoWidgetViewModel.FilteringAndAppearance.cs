@@ -342,6 +342,7 @@ public sealed partial class TodoWidgetViewModel
         OnPropertyChanged(nameof(ThisMonthFilterText));
         OnPropertyChanged(nameof(ImportantFilterText));
         OnPropertyChanged(nameof(CompletedFilterText));
+        OnPropertyChanged(nameof(CalendarTabText));
         OnPropertyChanged(nameof(EmptyStateTitle));
         OnPropertyChanged(nameof(EmptyStateText));
         OnPropertyChanged(nameof(ClearCompletedText));

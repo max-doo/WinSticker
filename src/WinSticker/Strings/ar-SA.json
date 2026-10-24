@@ -191,6 +191,7 @@
   "Todo.Filter.ThisMonth": "هذا الشهر",
   "Todo.Filter.Important": "مهم",
   "Todo.Filter.Completed": "مكتمل",
+  "Todo.Filter.Calendar": "التقويم",
   "Todo.Filter.Red": "أحمر",
   "Todo.Empty.Title": "لا توجد مهام",
   "Todo.Empty.All": "أضف مهمة للبدء.",

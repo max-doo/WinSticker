@@ -473,6 +473,8 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
 
     public string CompletedFilterText => FormatFilterText("Todo.Filter.Completed", CompletedCount);
 
+    public string CalendarTabText => _localizationService.T("Todo.Filter.Calendar");
+
     public string ListHeaderText => _localizationService.Format("Todo.List.Header", VisibleItems.Count);
 
     public string DetailBackText => _localizationService.T("Todo.Detail.Back");

@@ -191,6 +191,7 @@
   "Todo.Filter.ThisMonth": "이번 달",
   "Todo.Filter.Important": "중요",
   "Todo.Filter.Completed": "완료됨",
+  "Todo.Filter.Calendar": "달력",
   "Todo.Filter.Red": "빨간색",
   "Todo.Empty.Title": "할 일 없음",
   "Todo.Empty.All": "할 일을 추가해 시작해 보세요.",

@@ -191,6 +191,7 @@
   "Todo.Filter.ThisMonth": "今月",
   "Todo.Filter.Important": "重要",
   "Todo.Filter.Completed": "完了",
+  "Todo.Filter.Calendar": "カレンダー",
   "Todo.Filter.Red": "赤",
   "Todo.Empty.Title": "タスクなし",
   "Todo.Empty.All": "タスクを追加して始めましょう。",

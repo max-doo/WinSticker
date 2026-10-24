@@ -45,6 +45,9 @@ public sealed partial class TodoWidgetContent : UserControl
     private bool _isClosingDetail;
     private bool _isSavingDetailDraft;
     private bool _isChangingTodoFilter;
+
+    // 筛选标签之后追加的“日历”页在 Segmented 中的固定位置（0-6 是筛选）。
+    private const int CalendarSegmentIndex = 7;
     private Button? _pressedColorFilterButton;
     private bool _isStartingColorFilterDrag;
     private bool _colorFilterHandledEventsRegistered;
@@ -106,6 +109,11 @@ public sealed partial class TodoWidgetContent : UserControl
         }
 
         var item = ViewModel.FocusReminderItem(itemId, preferTodayFilter);
+        // 提醒定位的是列表条目；停在日历页会让聚焦结果不可见。
+        if (ViewModel.ContentMode == TodoContentViewMode.Calendar)
+        {
+            ViewModel.ContentMode = TodoContentViewMode.List;
+        }
         RefreshFilterButtons();
         TodoListView.Focus(FocusState.Programmatic);
 
@@ -157,6 +165,13 @@ public sealed partial class TodoWidgetContent : UserControl
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
             ViewModel.VisibleItems.CollectionChanged -= VisibleItems_CollectionChanged;
             ViewModel.VisibleItems.CollectionChanged += VisibleItems_CollectionChanged;
+
+            // 日历页只能从标签栏进入；标签栏被隐藏时留在日历页就回不去了。
+            if (ViewModel.ContentMode == TodoContentViewMode.Calendar &&
+                ViewModel.TabBarVisibility != Visibility.Visible)
+            {
+                ViewModel.ContentMode = TodoContentViewMode.List;
+            }
         }
 
         UpdateViewModePresentation();
@@ -455,6 +470,11 @@ public sealed partial class TodoWidgetContent : UserControl
             }
             else
             {
+                // 标签栏在运行中被隐藏时，日历页唯一的人口随之消失，先退回列表。
+                if (ViewModel?.ContentMode == TodoContentViewMode.Calendar)
+                {
+                    ViewModel.ContentMode = TodoContentViewMode.List;
+                }
                 SuspendTodoSegmented();
             }
         }
@@ -601,6 +621,48 @@ public sealed partial class TodoWidgetContent : UserControl
             return;
         }
 
+        bool calendarSelected = TodoFilterSegmented?.SelectedIndex == CalendarSegmentIndex;
+        if (calendarSelected)
+        {
+            if (ViewModel.ContentMode == TodoContentViewMode.Calendar)
+            {
+                RefreshFilterButtons();
+                return;
+            }
+
+            _isChangingTodoFilter = true;
+            try
+            {
+                if (!await FinalizeCreatingDetailBeforeModeSwitchAsync())
+                {
+                    RefreshFilterButtons();
+                    return;
+                }
+
+                ViewModel.ContentMode = TodoContentViewMode.Calendar;
+            }
+            finally
+            {
+                _isChangingTodoFilter = false;
+            }
+
+            EnsureWideDetailSelection();
+            return;
+        }
+
+        if (ViewModel.ContentMode == TodoContentViewMode.Calendar)
+        {
+            _isChangingTodoFilter = true;
+            try
+            {
+                ViewModel.ContentMode = TodoContentViewMode.List;
+            }
+            finally
+            {
+                _isChangingTodoFilter = false;
+            }
+        }
+
         TodoFilter filter = GetSelectedSegmentFilter();
         if (ViewModel.SelectedFilter == filter)
         {
@@ -611,28 +673,10 @@ public sealed partial class TodoWidgetContent : UserControl
         _isChangingTodoFilter = true;
         try
         {
-            if (ViewModel.IsCreatingDetailItem)
+            if (!await FinalizeCreatingDetailBeforeModeSwitchAsync())
             {
-                if (!await SaveActiveNotesAsync(keepEditing: false))
-                {
-                    RefreshFilterButtons();
-                    return;
-                }
-
-                bool hasTitle = !string.IsNullOrWhiteSpace(DetailTitleTextBox.Text);
-                TodoItemViewModel? finalized = await ViewModel.FinalizeDetailAsync(
-                    DetailTitleTextBox.Text,
-                    closeDetail: true);
-                if (hasTitle && finalized is null)
-                {
-                    RefreshFilterButtons();
-                    return;
-                }
-
-                if (finalized is not null)
-                {
-                    ShowTodoStatus("Todo.Status.Saved");
-                }
+                RefreshFilterButtons();
+                return;
             }
 
             SelectFilter(filter);
@@ -643,6 +687,37 @@ public sealed partial class TodoWidgetContent : UserControl
         }
 
         EnsureWideDetailSelection();
+    }
+
+    // 切换内容模式（进日历、换筛选）都会把列表藏起来，正在新建的明细
+    // 必须先落盘，否则标题会随未保存的编辑一起丢失。
+    private async Task<bool> FinalizeCreatingDetailBeforeModeSwitchAsync()
+    {
+        if (ViewModel is null || !ViewModel.IsCreatingDetailItem)
+        {
+            return true;
+        }
+
+        if (!await SaveActiveNotesAsync(keepEditing: false))
+        {
+            return false;
+        }
+
+        bool hasTitle = !string.IsNullOrWhiteSpace(DetailTitleTextBox.Text);
+        TodoItemViewModel? finalized = await ViewModel.FinalizeDetailAsync(
+            DetailTitleTextBox.Text,
+            closeDetail: true);
+        if (hasTitle && finalized is null)
+        {
+            return false;
+        }
+
+        if (finalized is not null)
+        {
+            ShowTodoStatus("Todo.Status.Saved");
+        }
+
+        return true;
     }
 
     private void MetadataDueDate_Click(object sender, RoutedEventArgs e)
@@ -966,37 +1041,11 @@ public sealed partial class TodoWidgetContent : UserControl
     }
 
 
-    private void ViewModeListButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel is not null)
-        {
-            ViewModel.ContentMode = TodoContentViewMode.List;
-            UpdateViewModePresentation();
-        }
-    }
-
-    private void ViewModeCalendarButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel is not null)
-        {
-            ViewModel.ContentMode = TodoContentViewMode.Calendar;
-            UpdateViewModePresentation();
-        }
-    }
-
     private void UpdateViewModePresentation()
     {
         if (ViewModel is null) return;
         bool isCalendar = ViewModel.ContentMode == TodoContentViewMode.Calendar;
 
-        if (ListArea is not null)
-        {
-            ListArea.Visibility = isCalendar ? Visibility.Collapsed : Visibility.Visible;
-        }
-        if (ListFooterArea is not null)
-        {
-            ListFooterArea.Visibility = isCalendar ? Visibility.Collapsed : Visibility.Visible;
-        }
         if (CalendarHost is not null)
         {
             CalendarHost.Visibility = isCalendar ? Visibility.Visible : Visibility.Collapsed;
@@ -1005,8 +1054,25 @@ public sealed partial class TodoWidgetContent : UserControl
                 var calVm = ViewModel.EnsureCalendarViewModel();
                 CalendarHost.Content = new TodoCalendarContent(calVm);
             }
+            if (isCalendar)
+            {
+                // The calendar VM is cached for the whole session; entering
+                // the calendar presentation is the moment "default = today"
+                // gets restored after an earlier visit browsed away.
+                _ = ViewModel.CalendarViewModel?.GoToTodayIfAnchorStaleAsync();
+            }
         }
-        if (ViewModeListButton is not null) ViewModeListButton.Opacity = isCalendar ? 0.45 : 1.0;
-        if (ViewModeCalendarButton is not null) ViewModeCalendarButton.Opacity = isCalendar ? 1.0 : 0.45;
+
+        // 列表三件套/明细页的可见性统一由母版/明细布局计算（它已感知
+        // 日历模式），避免两处写入互相覆盖把列表重新铺回日历上。
+        ApplyMasterDetailVisibility();
+
+        // 外部改 ContentMode（持久化偏好恢复、提醒跳转）时把标签栏同步到
+        // 日历页；用户点击标签驱动的变更由 SelectionChanged 自己管，这里
+        // 抢同步会把刚点的筛选标签弹回旧筛选。
+        if (!_isChangingTodoFilter)
+        {
+            RefreshFilterButtons();
+        }
     }
 }

@@ -1341,6 +1341,7 @@
   "Common.Rename": "重命名",
   "Settings.Music.DisplayMode.Title": "显示模式",
   "Todo.Filter.Completed": "已完成",
+  "Todo.Filter.Calendar": "日历",
   "Settings.DragDropPermission.Detail.StartupShortcutIssue": "启动项异常。单击“修复”重写。",
   "Settings.Music.ArtworkBackdrop.Description": "播放时从封面提取颜色，生成轻量的半透明背景",
   "Todo.Reminder.NotificationTitle": "待办提醒",

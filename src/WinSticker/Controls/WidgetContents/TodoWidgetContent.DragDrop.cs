@@ -370,7 +370,9 @@ public sealed partial class TodoWidgetContent
             return;
         }
 
-        int selectedIndex = GetFilterSegmentIndex(ViewModel.SelectedFilter);
+        int selectedIndex = ViewModel.ContentMode == TodoContentViewMode.Calendar
+            ? CalendarSegmentIndex
+            : GetFilterSegmentIndex(ViewModel.SelectedFilter);
         if (TodoFilterSegmented.SelectedIndex != selectedIndex)
         {
             TodoFilterSegmented.SelectedIndex = selectedIndex;

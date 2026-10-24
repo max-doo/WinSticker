@@ -191,6 +191,7 @@
   "Todo.Filter.ThisMonth": "В этом месяце",
   "Todo.Filter.Important": "Важно",
   "Todo.Filter.Completed": "Завершено",
+  "Todo.Filter.Calendar": "Календарь",
   "Todo.Filter.Red": "Красный",
   "Todo.Empty.Title": "Нет задач",
   "Todo.Empty.All": "Добавьте задачу, чтобы начать.",

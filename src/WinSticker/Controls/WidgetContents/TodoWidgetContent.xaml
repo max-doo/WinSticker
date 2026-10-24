@@ -154,7 +154,6 @@
             <Grid x:Name="TodoFilterBar">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <toolkit:Segmented
                 x:Name="TodoFilterSegmented"
@@ -188,23 +187,11 @@
                 <toolkit:SegmentedItem AllowDrop="True" DragOver="TodoTab_DragOver" Drop="TodoTab_Drop" Tag="Completed" ToolTipService.ToolTip="{Binding CompletedFilterText}" Visibility="{Binding CompletedTabVisibility}">
                     <TextBlock FontSize="{Binding SegmentTextSize}" MaxLines="1" Text="{Binding CompletedFilterText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </toolkit:SegmentedItem>
+                <!-- 日历是视图目的地而非筛选器：不参与拖拽改期，也不随筛选标签收窄隐藏。 -->
+                <toolkit:SegmentedItem AutomationProperties.Name="{Binding CalendarTabText}" Tag="Calendar" ToolTipService.ToolTip="{Binding CalendarTabText}">
+                    <TextBlock FontSize="{Binding SegmentTextSize}" MaxLines="1" Text="{Binding CalendarTabText}" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </toolkit:SegmentedItem>
             </toolkit:Segmented>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="4,0,0,0" VerticalAlignment="Center">
-                    <Button x:Name="ViewModeListButton"
-                            Click="ViewModeListButton_Click"
-                            Style="{StaticResource SubtleButtonStyle}"
-                            Width="26" Height="26" Padding="0" CornerRadius="4"
-                            ToolTipService.ToolTip="列表视图">
-                        <FontIcon FontSize="11" Glyph="&#xE8FD;" />
-                    </Button>
-                    <Button x:Name="ViewModeCalendarButton"
-                            Click="ViewModeCalendarButton_Click"
-                            Style="{StaticResource SubtleButtonStyle}"
-                            Width="26" Height="26" Padding="0" CornerRadius="4"
-                            ToolTipService.ToolTip="月历视图">
-                        <FontIcon FontSize="11" Glyph="&#xE787;" />
-                    </Button>
-                </StackPanel>
             </Grid>
 
             <!-- 色点拖拽只走 PointerMoved 里的手工 StartDragAsync（见 DragDrop.cs）。

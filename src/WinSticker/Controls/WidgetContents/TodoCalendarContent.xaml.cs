@@ -62,13 +62,21 @@ public sealed partial class TodoCalendarContent : UserControl
 
     private void TodoCalendarContent_Loaded(object sender, RoutedEventArgs e)
     {
-        if (_initialized) return;
-        _initialized = true;
-
+        // Re-(un)subscribe on every load like TodoWidgetContent: the
+        // constructor can miss a Cells rebuild queued between construction
+        // and the first load, and a reload after an unload must restore
+        // subscriptions the unload dropped.
+        ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        ViewModel.Cells.CollectionChanged -= Cells_CollectionChanged;
+        ViewModel.SelectedDayTasks.CollectionChanged -= SelectedDayTasks_CollectionChanged;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         ViewModel.Cells.CollectionChanged += Cells_CollectionChanged;
         ViewModel.SelectedDayTasks.CollectionChanged += SelectedDayTasks_CollectionChanged;
 
+        UpdateView();
+
+        if (_initialized) return;
+        _initialized = true;
         _ = ViewModel.InitializeAsync();
     }
 
@@ -88,8 +96,12 @@ public sealed partial class TodoCalendarContent : UserControl
                 MonthTitleText.Text = ViewModel.MonthTitle;
             }
             else if (e.PropertyName == nameof(TodoCalendarViewModel.MonthAnchor) ||
-                     e.PropertyName == nameof(TodoCalendarViewModel.SelectedDate))
+                     e.PropertyName == nameof(TodoCalendarViewModel.SelectedDate) ||
+                     e.PropertyName == nameof(TodoCalendarViewModel.Cells))
             {
+                // Cells: RebuildCells reuses identical cell instances for a
+                // same-month rebuild, so CollectionChanged stays silent and
+                // the view only hears about it here.
                 UpdateView();
             }
         });

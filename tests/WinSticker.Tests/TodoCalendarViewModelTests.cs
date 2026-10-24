@@ -186,4 +186,56 @@ public sealed class TodoCalendarViewModelTests
             Cleanup(dir);
         }
     }
+
+    [Fact]
+    public async Task RebuildCells_IdenticalMonth_StillRaisesCellsPropertyChanged()
+    {
+        // Same-month rebuilds reuse cell instances, so CollectionChanged is
+        // silent; the view contract is a Cells PropertyChanged instead.
+        var (vm, dir) = CreateEnvironment();
+        try
+        {
+            await vm.InitializeAsync();
+            var notified = new List<string>();
+            vm.PropertyChanged += (_, e) => notified.Add(e.PropertyName ?? string.Empty);
+
+            vm.RebuildCells();
+
+            Assert.Equal(42, vm.Cells.Count);
+            Assert.Contains(nameof(TodoCalendarViewModel.Cells), notified);
+        }
+        finally
+        {
+            vm.Dispose();
+            Cleanup(dir);
+        }
+    }
+
+    [Fact]
+    public async Task GoToTodayIfAnchorStale_ReanchorsOnlyWhenMonthDiffers()
+    {
+        var (vm, dir) = CreateEnvironment();
+        try
+        {
+            await vm.InitializeAsync();
+            await vm.ShowMonthAsync(new DateOnly(2026, 1, 15));
+            Assert.Equal(new DateOnly(2026, 1, 1), vm.MonthAnchor);
+
+            await vm.GoToTodayIfAnchorStaleAsync();
+            Assert.Equal(new DateOnly(2026, 10, 1), vm.MonthAnchor);
+            Assert.Equal(new DateOnly(2026, 10, 24), vm.SelectedDate);
+
+            // Already anchored to today: a stale-anchor re-entry must not
+            // clobber the user's in-month selection.
+            await vm.SelectDateAsync(new DateOnly(2026, 10, 5));
+            await vm.GoToTodayIfAnchorStaleAsync();
+            Assert.Equal(new DateOnly(2026, 10, 1), vm.MonthAnchor);
+            Assert.Equal(new DateOnly(2026, 10, 5), vm.SelectedDate);
+        }
+        finally
+        {
+            vm.Dispose();
+            Cleanup(dir);
+        }
+    }
 }

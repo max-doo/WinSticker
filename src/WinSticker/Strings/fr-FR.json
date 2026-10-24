@@ -191,6 +191,7 @@
   "Todo.Filter.ThisMonth": "Ce mois-ci",
   "Todo.Filter.Important": "Important",
   "Todo.Filter.Completed": "Terminé",
+  "Todo.Filter.Calendar": "Calendrier",
   "Todo.Filter.Red": "Rouge",
   "Todo.Empty.Title": "Aucune tâche",
   "Todo.Empty.All": "Ajoutez une tâche pour commencer.",
