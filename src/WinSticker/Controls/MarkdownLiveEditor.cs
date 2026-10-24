@@ -443,7 +443,59 @@ public sealed partial class MarkdownLiveEditor : UserControl
         {
             args.Handled = true;
             Deactivate();
+            return;
         }
+
+        if (sender is not TextBox editor ||
+            !ReferenceEquals(_activeEditor, editor) ||
+            _model.ActiveIndex < 0)
+        {
+            return;
+        }
+
+        int activeIndex = _model.ActiveIndex;
+        if (args.Key == Windows.System.VirtualKey.Up &&
+            IsCaretOnFirstLine(editor) &&
+            activeIndex > 0)
+        {
+            args.Handled = true;
+            CommitAndNavigateToBlock(activeIndex - 1, caretAtTargetStart: false);
+        }
+        else if (args.Key == Windows.System.VirtualKey.Down &&
+                 IsCaretOnLastLine(editor) &&
+                 activeIndex < _model.Blocks.Count - 1)
+        {
+            args.Handled = true;
+            CommitAndNavigateToBlock(activeIndex + 1, caretAtTargetStart: true);
+        }
+    }
+
+    private static bool IsCaretOnFirstLine(TextBox editor)
+    {
+        int start = editor.SelectionStart;
+        return start == 0 || editor.Text.LastIndexOf('\n', start - 1) < 0;
+    }
+
+    private static bool IsCaretOnLastLine(TextBox editor)
+    {
+        string text = editor.Text;
+        int position = Math.Min(text.Length, editor.SelectionStart + editor.SelectionLength);
+        return text.IndexOf('\n', position) < 0;
+    }
+
+    /// <summary>
+    /// Commit the active block and activate a neighbouring one: caret lands
+    /// on the target's last line end (Up) or first line start (Down).
+    /// </summary>
+    private void CommitAndNavigateToBlock(int targetIndex, bool caretAtTargetStart)
+    {
+        _serializationScheduler.Flush();
+        _model.Deactivate();
+        _model.SetActive(targetIndex);
+        // null = end (PrepareBlockElement falls back to Text.Length).
+        _pendingActiveCaretOffset = caretAtTargetStart ? 0 : null;
+        SynchronizeItemsToModel();
+        ApplyPlaceholder();
     }
 
     private void OnActiveEditorLostFocus(object sender, RoutedEventArgs args)

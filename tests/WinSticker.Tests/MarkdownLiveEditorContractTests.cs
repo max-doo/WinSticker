@@ -46,6 +46,16 @@ public sealed class MarkdownLiveEditorContractTests
     }
 
     [Fact]
+    public void Editor_SupportsCrossBlockArrowNavigation()
+    {
+        string code = ReadEditor();
+
+        Assert.Contains("CommitAndNavigateToBlock", code, StringComparison.Ordinal);
+        Assert.Contains("VirtualKey.Up", code, StringComparison.Ordinal);
+        Assert.Contains("VirtualKey.Down", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Editor_ExposesFlushAndGetTextForAutosave()
     {
         string code = ReadEditor();
