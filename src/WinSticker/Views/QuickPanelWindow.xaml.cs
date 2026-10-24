@@ -36,6 +36,10 @@ public sealed partial class QuickPanelWindow : Window
     private bool _isSubclassInstalled;
     private bool _hasPositioned;
     private bool _isWindowDragging;
+    private bool _isWindowResizing;
+    private string _resizeDirection = string.Empty;
+    private const int MinPanelWidth = 380;
+    private const int MinPanelHeight = 420;
     private Win32Helper.POINT _interactionStartCursor;
     private RectInt32 _interactionStartBounds;
     private FrameworkElement? _windowInteractionElement;
@@ -114,12 +118,17 @@ public sealed partial class QuickPanelWindow : Window
         style &= ~(Win32Helper.WS_CAPTION | Win32Helper.WS_BORDER | Win32Helper.WS_DLGFRAME);
         style |= Win32Helper.WS_THICKFRAME;
         Win32Helper.SetWindowLong(_hwnd, Win32Helper.GWL_STYLE, style);
+        // The subclass owns WM_NCCALCSIZE, so it must be listening before the
+        // frame-change recalc runs or the first layout keeps the NC band.
+        InstallSubclass();
         Win32Helper.SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0,
             Win32Helper.SWP_NOMOVE | Win32Helper.SWP_NOSIZE |
             Win32Helper.SWP_NOACTIVATE | Win32Helper.SWP_FRAMECHANGED);
         Win32Helper.SetWindowBorderColor(_hwnd, unchecked((int)0xFFFFFFFE));
-        Win32Helper.ApplyFullWindowFrame(_hwnd);
-        InstallSubclass();
+        // No ApplyFullWindowFrame here: the extended frame is managed by
+        // ApplyMaterialFromSettings per material path (the legacy accent
+        // blur needs it; WinUI backdrop paths must reset it or the panel
+        // flashes its black DWM backing on every show).
         ApplyWindowCornerPreference();
         UpdateTopMost();
     }
@@ -139,33 +148,28 @@ public sealed partial class QuickPanelWindow : Window
     {
         if (uMsg == (uint)Win32Helper.WM_NCHITTEST)
         {
-            if (Win32Helper.GetWindowRect(hWnd, out var rect))
+            if (TryGetEdgeResizeHitTest(hWnd, lParam, out int hitTest))
             {
-                int x = unchecked((short)(long)lParam);
-                int y = unchecked((short)((long)lParam >> 16));
-                double scale = Win32Helper.GetDpiScaleForWindow(hWnd, RootGrid.XamlRoot);
-                int border = Math.Max(6, (int)Math.Round(8 * scale));
-                bool onLeft = x >= rect.Left && x < rect.Left + border;
-                bool onRight = x <= rect.Right && x > rect.Right - border;
-                bool onTop = y >= rect.Top && y < rect.Top + border;
-                bool onBottom = y <= rect.Bottom && y > rect.Bottom - border;
-                if (onTop && onLeft) return (IntPtr)Win32Helper.HTTOPLEFT;
-                if (onTop && onRight) return (IntPtr)Win32Helper.HTTOPRIGHT;
-                if (onBottom && onLeft) return (IntPtr)Win32Helper.HTBOTTOMLEFT;
-                if (onBottom && onRight) return (IntPtr)Win32Helper.HTBOTTOMRIGHT;
-                if (onLeft) return (IntPtr)Win32Helper.HTLEFT;
-                if (onRight) return (IntPtr)Win32Helper.HTRIGHT;
-                if (onTop) return (IntPtr)Win32Helper.HTTOP;
-                if (onBottom) return (IntPtr)Win32Helper.HTBOTTOM;
-
+                return (IntPtr)hitTest;
             }
+        }
+        else if (uMsg == (uint)Win32Helper.WM_NCCALCSIZE && wParam != UIntPtr.Zero)
+        {
+            // WS_THICKFRAME stays for the classic-input fallback hit-tests,
+            // but DWM then reserves a non-client band (16px sides, 35px top)
+            // whose boundary paints as black strips in front of the acrylic
+            // backdrop. Claiming the frame rect for the client gives the
+            // borderless look; the visible resize affordance is the manual
+            // ResizeGrid grip layer (the pointer input stack never delivers
+            // classic NC messages to windows covered by the XAML bridge).
+            return IntPtr.Zero;
         }
         else if (uMsg == (uint)Win32Helper.WM_GETMINMAXINFO)
         {
             var minMaxInfo = Marshal.PtrToStructure<MinMaxInfo>(lParam);
             double scale = Win32Helper.GetDpiScaleForWindow(hWnd, RootGrid.XamlRoot);
-            minMaxInfo.MinTrackSize.X = Math.Max(minMaxInfo.MinTrackSize.X, (int)Math.Round(380 * scale));
-            minMaxInfo.MinTrackSize.Y = Math.Max(minMaxInfo.MinTrackSize.Y, (int)Math.Round(420 * scale));
+            minMaxInfo.MinTrackSize.X = Math.Max(minMaxInfo.MinTrackSize.X, (int)Math.Round(MinPanelWidth * scale));
+            minMaxInfo.MinTrackSize.Y = Math.Max(minMaxInfo.MinTrackSize.Y, (int)Math.Round(MinPanelHeight * scale));
             Marshal.StructureToPtr(minMaxInfo, lParam, false);
             return IntPtr.Zero;
         }
@@ -175,6 +179,194 @@ public sealed partial class QuickPanelWindow : Window
         }
         return Win32Helper.DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }
+
+    /// <summary>
+    /// Native resize hit codes for an 8px (dpi-scaled) band inside the
+    /// window edges, for any classic-input path that still consults
+    /// WM_NCHITTEST on the top-level window.
+    /// </summary>
+    private bool TryGetEdgeResizeHitTest(IntPtr window, IntPtr lParam, out int hitTest)
+    {
+        hitTest = 0;
+        if (!Win32Helper.GetWindowRect(window, out var rect))
+        {
+            return false;
+        }
+
+        int x = unchecked((short)(long)lParam);
+        int y = unchecked((short)((long)lParam >> 16));
+        double scale = Win32Helper.GetDpiScaleForWindow(window, RootGrid.XamlRoot);
+        int border = Math.Max(6, (int)Math.Round(8 * scale));
+        bool onLeft = x >= rect.Left && x < rect.Left + border;
+        bool onRight = x <= rect.Right && x > rect.Right - border;
+        bool onTop = y >= rect.Top && y < rect.Top + border;
+        bool onBottom = y <= rect.Bottom && y > rect.Bottom - border;
+        if (onTop && onLeft) hitTest = Win32Helper.HTTOPLEFT;
+        else if (onTop && onRight) hitTest = Win32Helper.HTTOPRIGHT;
+        else if (onBottom && onLeft) hitTest = Win32Helper.HTBOTTOMLEFT;
+        else if (onBottom && onRight) hitTest = Win32Helper.HTBOTTOMRIGHT;
+        else if (onLeft) hitTest = Win32Helper.HTLEFT;
+        else if (onRight) hitTest = Win32Helper.HTRIGHT;
+        else if (onTop) hitTest = Win32Helper.HTTOP;
+        else if (onBottom) hitTest = Win32Helper.HTBOTTOM;
+        else return false;
+        return true;
+    }
+
+    private void ResizeBorder_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element ||
+            !e.GetCurrentPoint(element).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        string direction = element.Tag as string ?? string.Empty;
+        if (string.IsNullOrEmpty(direction) || !TryBeginResizeInteraction(element, e))
+        {
+            return;
+        }
+
+        _resizeDirection = direction;
+        _isWindowResizing = true;
+        e.Handled = true;
+    }
+
+    private bool TryBeginResizeInteraction(FrameworkElement element, PointerRoutedEventArgs e)
+    {
+        bool anchored = Win32Helper.TryGetPointerScreenPoint(_hwnd, RootGrid, e, out _interactionStartCursor) ||
+                        Win32Helper.GetCursorPos(out _interactionStartCursor);
+        if (!anchored || !Win32Helper.GetWindowRect(_hwnd, out var rect))
+        {
+            return false;
+        }
+
+        _interactionStartBounds = new RectInt32(
+            rect.Left,
+            rect.Top,
+            rect.Right - rect.Left,
+            rect.Bottom - rect.Top);
+        _windowInteractionElement = element;
+        if (!element.CapturePointer(e.Pointer))
+        {
+            _windowInteractionElement = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ResizeInteraction_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isWindowResizing || _appWindow is null)
+        {
+            return;
+        }
+
+        if (!Win32Helper.TryGetPointerScreenPoint(_hwnd, RootGrid, e, out var cursor) &&
+            !Win32Helper.GetCursorPos(out cursor))
+        {
+            return;
+        }
+
+        int deltaX = cursor.X - _interactionStartCursor.X;
+        int deltaY = cursor.Y - _interactionStartCursor.Y;
+        ApplyResizeDelta(deltaX, deltaY);
+        e.Handled = true;
+    }
+
+    private void ApplyResizeDelta(int deltaX, int deltaY)
+    {
+        if (_appWindow is null)
+        {
+            return;
+        }
+
+        int x = _interactionStartBounds.X;
+        int y = _interactionStartBounds.Y;
+        int width = _interactionStartBounds.Width;
+        int height = _interactionStartBounds.Height;
+        double scale = Win32Helper.GetDpiScaleForWindow(_hwnd, RootGrid.XamlRoot);
+        int minWidth = (int)Math.Round(MinPanelWidth * scale);
+        int minHeight = (int)Math.Round(MinPanelHeight * scale);
+
+        if (_resizeDirection.Contains("Right", StringComparison.Ordinal))
+        {
+            width = Math.Max(minWidth, width + deltaX);
+        }
+        else if (_resizeDirection.Contains("Left", StringComparison.Ordinal))
+        {
+            int right = x + width;
+            width = Math.Max(minWidth, width - deltaX);
+            x = right - width;
+        }
+
+        if (_resizeDirection.Contains("Bottom", StringComparison.Ordinal))
+        {
+            height = Math.Max(minHeight, height + deltaY);
+        }
+        else if (_resizeDirection.Contains("Top", StringComparison.Ordinal))
+        {
+            int bottom = y + height;
+            height = Math.Max(minHeight, height - deltaY);
+            y = bottom - height;
+        }
+
+        _appWindow.MoveAndResize(new RectInt32(x, y, width, height));
+    }
+
+    private void ResizeInteraction_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        CompleteResizeInteraction(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void ResizeInteraction_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        CompleteResizeInteraction(e.Pointer);
+    }
+
+    private void CompleteResizeInteraction(Pointer pointer)
+    {
+        if (!_isWindowResizing)
+        {
+            return;
+        }
+
+        _isWindowResizing = false;
+        _resizeDirection = string.Empty;
+        _windowInteractionElement?.ReleasePointerCapture(pointer);
+        _windowInteractionElement = null;
+    }
+
+    private void ResizeBorder_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element)
+        {
+            return;
+        }
+
+        var shape = (element.Tag as string) switch
+        {
+            "Left" or "Right" => Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast,
+            "Top" or "Bottom" => Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth,
+            "TopLeft" or "BottomRight" => Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast,
+            "TopRight" or "BottomLeft" => Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest,
+            _ => Microsoft.UI.Input.InputSystemCursorShape.Arrow
+        };
+        UiElementCursorHelper.SetCursor(element, shape);
+    }
+
+
+    /// <summary>
+    /// WinUI hosts XAML input in a DesktopChildSiteBridge child that covers
+    /// the whole client area once WM_NCCALCSIZE claims the frame rect, and
+    /// the pointer input stack delivers no classic NC messages to anything
+    /// under that bridge (verified empirically: WM_NCHITTEST /
+    /// WM_NCLBUTTONDOWN / WM_NCPOINTERDOWN never arrive during real edge
+    /// drags). Native NC resize is therefore unreachable borderless here;
+    /// the ResizeGrid grip layer implements resize manually instead.
+    /// </summary>
     private void Header_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (sender is not FrameworkElement element ||
@@ -634,7 +826,6 @@ public sealed partial class QuickPanelWindow : Window
         try
         {
             Win32Helper.SetWindowTheme(_hwnd, isDark);
-            Win32Helper.ApplyFullWindowFrame(_hwnd);
             int backdropType;
             bool controllerApplied = false;
             if (SettingsService.IsMicaMaterial(materialType))
@@ -657,6 +848,7 @@ public sealed partial class QuickPanelWindow : Window
                 backdropType = Win32Helper.DWMSBT_NONE;
                 Win32Helper.TrySetDwmWindowAttribute(_hwnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
                 Win32Helper.DisableAccentPolicy(_hwnd);
+                Win32Helper.ResetWindowFrame(_hwnd);
                 RootGrid.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x01, 0x00, 0x00, 0x00));
             }
             else if (materialType is SettingsService.WidgetMaterialTypeSolid)
@@ -666,6 +858,7 @@ public sealed partial class QuickPanelWindow : Window
                 backdropType = Win32Helper.DWMSBT_NONE;
                 Win32Helper.TrySetDwmWindowAttribute(_hwnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
                 Win32Helper.DisableAccentPolicy(_hwnd);
+                Win32Helper.ResetWindowFrame(_hwnd);
                 RootGrid.Background = new SolidColorBrush(
                     BuildOpaquePopupSurfaceColor(isDark, accentColor, materialIntensity));
             }
@@ -675,6 +868,10 @@ public sealed partial class QuickPanelWindow : Window
                 Win32Helper.TrySetDwmWindowAttribute(_hwnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
                 DetachAcrylicControllerTarget();
                 DetachMicaControllerTarget();
+                // The legacy accent-blur path composites through the DWM
+                // extended frame; every other path resets it because its
+                // un-presented backing paints black on show.
+                Win32Helper.ApplyFullWindowFrame(_hwnd);
                 double accentOpacity = Math.Min(surfaceOpacity, 0.52);
                 Win32Helper.ApplyAccentBlur(
                     _hwnd,
@@ -689,6 +886,7 @@ public sealed partial class QuickPanelWindow : Window
             App.Log($"[QuickPanel] ApplyMaterialFromSettings fallback: {ex.Message}");
             DisposeAcrylicController();
             DisposeMicaController();
+            Win32Helper.ResetWindowFrame(_hwnd);
             RootGrid.Background = new SolidColorBrush(
                 BuildOpaquePopupSurfaceColor(isDark, accentColor, materialIntensity));
         }

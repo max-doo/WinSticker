@@ -981,6 +981,7 @@ public static partial class Win32Helper
 
     // Window sizing / hit-test messages and codes (borderless window drag + resize).
     public const int WM_GETMINMAXINFO = 0x0024;
+    public const int WM_NCCALCSIZE = 0x0083;
     public const int WM_NCDESTROY = 0x0082;
     public const int WM_NCHITTEST = 0x0084;
     public const int WM_NCLBUTTONDBLCLK = 0x00A3;
@@ -2173,6 +2174,18 @@ public static partial class Win32Helper
             cyBottomHeight = -1
         };
 
+        DwmExtendFrameIntoClientArea(hWnd, ref margins);
+    }
+
+    /// <summary>
+    /// Backs out <see cref="ApplyFullWindowFrame"/>: the extended frame is
+    /// only needed by the legacy accent-blur material; on WinUI backdrop
+    /// paths it leaves a black DWM backing behind every pixel the app has
+    /// not presented yet (the panel's show-time black flash).
+    /// </summary>
+    public static void ResetWindowFrame(IntPtr hWnd)
+    {
+        var margins = new MARGINS();
         DwmExtendFrameIntoClientArea(hWnd, ref margins);
     }
 

@@ -147,5 +147,32 @@
                 Severity="Informational"
                 IsClosable="True"/>
         </Grid>
+
+        <!-- Manual resize grips: the WinUI pointer input stack bypasses the
+             classic WM_NCHITTEST routing for pixels covered by the XAML
+             bridge child, so a borderless panel cannot get native edge
+             resize; these grips (same pattern as SearchPopupWindow) sit in
+             the 16px content margin and resize via AppWindow directly. -->
+        <Grid x:Name="ResizeGrid" Canvas.ZIndex="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="6"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="7"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="7"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="7"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Row="0" Grid.Column="0" Background="Transparent" Tag="TopLeft" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="0" Grid.Column="1" Background="Transparent" Tag="Top" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="0" Grid.Column="2" Background="Transparent" Tag="TopRight" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="1" Grid.Column="0" Background="Transparent" Tag="Left" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="1" Grid.Column="2" Background="Transparent" Tag="Right" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="2" Grid.Column="0" Background="Transparent" Tag="BottomLeft" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="2" Grid.Column="1" Background="Transparent" Tag="Bottom" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+            <Border Grid.Row="2" Grid.Column="2" Background="Transparent" Tag="BottomRight" PointerEntered="ResizeBorder_PointerEntered" PointerPressed="ResizeBorder_PointerPressed" PointerMoved="ResizeInteraction_PointerMoved" PointerReleased="ResizeInteraction_PointerReleased" PointerCaptureLost="ResizeInteraction_PointerCaptureLost"/>
+        </Grid>
     </Grid>
 </Window>
