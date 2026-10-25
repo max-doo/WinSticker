@@ -68,7 +68,14 @@ public sealed class NoteWorkspaceTests : IDisposable
         var session = workspace.Acquire(note, () => new HeadlessMarkdownSessionTimer());
         session.SetBody("first");
         bool injected = false;
-        service.Changed += () => { if (!injected) { injected = true; session.SetBody("typed during save"); } };
+        service.ChangeDetailed += change =>
+        {
+            if (!injected && change.Kind == QuickCaptureChangeKind.NoteSaved)
+            {
+                injected = true;
+                session.SetBody("typed during save");
+            }
+        };
         Assert.True(await session.FlushAsync());
         Assert.False(session.HasUnsavedChanges);
         Assert.Equal("typed during save", Assert.Single((await Service.GetDataAsync()).Items).Body);
@@ -84,9 +91,10 @@ public sealed class NoteWorkspaceTests : IDisposable
         var workspace = NoteWorkspace.For(service);
         var session = workspace.Acquire(note, () => new HeadlessMarkdownSessionTimer());
         session.SetBody("must survive failed storage");
-        string original = store.StorePath + ".preserved";
-        File.Move(store.StorePath, original);
-        Directory.CreateDirectory(store.StorePath);
+        string notePath = Path.Combine(store.DataDirectory, "notes", $"{note.Id}.md");
+        string original = notePath + ".preserved";
+        File.Move(notePath, original);
+        Directory.CreateDirectory(notePath);
         try
         {
             Assert.False(await session.FlushAsync());
@@ -96,7 +104,7 @@ public sealed class NoteWorkspaceTests : IDisposable
             workspace.Release(session);
             Assert.Same(session, workspace.Acquire(note, () => new HeadlessMarkdownSessionTimer()));
         }
-        finally { Directory.Delete(store.StorePath); File.Move(original, store.StorePath); }
+        finally { Directory.Delete(notePath); File.Move(original, notePath); }
         Assert.True(await session.FlushAsync());
         Assert.False(session.SaveFailed);
         Assert.Equal(session.Body, Assert.Single((await Service.GetDataAsync()).Items).Body);

@@ -15,27 +15,52 @@
           PreviewKeyDown="RootGrid_PreviewKeyDown">
 
         <Grid.Resources>
-            <Storyboard x:Name="PopupShowStoryboard">
-                <DoubleAnimation Storyboard.TargetName="PopupTranslateTransform"
-                                 Storyboard.TargetProperty="Y"
-                                 From="4" To="0" Duration="0:0:0.167">
-                    <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut"/>
-                    </DoubleAnimation.EasingFunction>
-                </DoubleAnimation>
-            </Storyboard>
-            <Storyboard x:Name="PopupHideStoryboard">
-                <DoubleAnimation Storyboard.TargetName="PopupTranslateTransform"
-                                 Storyboard.TargetProperty="Y"
-                                 From="0" To="-2" Duration="0:0:0.083">
-                    <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseIn"/>
-                    </DoubleAnimation.EasingFunction>
-                </DoubleAnimation>
-            </Storyboard>
+            <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Light">
+                        <!-- Layer on Acrylic card standard for Quick Panel flyout -->
+                        <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#E6FFFFFF" />
+                        <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#18000000" />
+                        <SolidColorBrush x:Key="WidgetLayerFillSecondaryBrush" Color="#E6FFFFFF" />
+                        <SolidColorBrush x:Key="WidgetLayerStrokeBrush" Color="#18000000" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Dark">
+                        <!-- Layer on Acrylic card standard for Quick Panel flyout -->
+                        <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#D926292E" />
+                        <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#2EFFFFFF" />
+                        <SolidColorBrush x:Key="WidgetLayerFillSecondaryBrush" Color="#D926292E" />
+                        <SolidColorBrush x:Key="WidgetLayerStrokeBrush" Color="#2EFFFFFF" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Default">
+                        <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#D926292E" />
+                        <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#2EFFFFFF" />
+                        <SolidColorBrush x:Key="WidgetLayerFillSecondaryBrush" Color="#D926292E" />
+                        <SolidColorBrush x:Key="WidgetLayerStrokeBrush" Color="#2EFFFFFF" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
 
-            <helpers:QuickPanelBoolToVisibilityConverter x:Key="BoolToVis"/>
-            <helpers:QuickPanelInverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+                <Storyboard x:Name="PopupShowStoryboard">
+                    <DoubleAnimation Storyboard.TargetName="PopupTranslateTransform"
+                                     Storyboard.TargetProperty="Y"
+                                     From="4" To="0" Duration="0:0:0.167">
+                        <DoubleAnimation.EasingFunction>
+                            <CubicEase EasingMode="EaseOut"/>
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard>
+                <Storyboard x:Name="PopupHideStoryboard">
+                    <DoubleAnimation Storyboard.TargetName="PopupTranslateTransform"
+                                     Storyboard.TargetProperty="Y"
+                                     From="0" To="-2" Duration="0:0:0.083">
+                        <DoubleAnimation.EasingFunction>
+                            <CubicEase EasingMode="EaseIn"/>
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard>
+
+                <helpers:QuickPanelBoolToVisibilityConverter x:Key="BoolToVis"/>
+                <helpers:QuickPanelInverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+            </ResourceDictionary>
         </Grid.Resources>
 
         <!-- Outer frame border overlay -->
@@ -67,9 +92,9 @@
 
                 <!-- App Icon & Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Border Width="24" Height="24" CornerRadius="5" Background="{ThemeResource AccentFillColorDefaultBrush}">
-                        <FontIcon Glyph="&#xE762;" FontSize="13" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    <Image Width="20" Height="20"
+                           Source="/Assets/WidgetTitleIcons/quick-panel.svg"
+                           VerticalAlignment="Center"/>
                     <TextBlock Text="快捷面板" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </StackPanel>
 

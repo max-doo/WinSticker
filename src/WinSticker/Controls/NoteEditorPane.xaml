@@ -24,7 +24,8 @@
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Border x:Name="NoteSurface" Padding="10,8" CornerRadius="6">
+    <Border x:Name="NoteSurface" Padding="10,8" CornerRadius="8"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <VisualStateManager.VisualStateGroups>
                 <VisualStateGroup x:Name="PaperStates">
                     <VisualState x:Name="Default"><VisualState.Setters><Setter Target="NoteSurface.Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/></VisualState.Setters></VisualState>

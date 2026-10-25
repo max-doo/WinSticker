@@ -508,6 +508,13 @@ public sealed class ModuleBoundaryContractTests
         ["src/WinSticker/Services/LegacySearchIndexCleanupService.cs"] = 1,
         ["src/WinSticker/Services/ManagedStorageDesktopShortcutService.cs"] = 1,
         ["src/WinSticker/Services/NativeNotificationActivationEnvelopeStore.cs"] = 6,
+        // 1: tombstone-cap maintenance deletes a note document and its .bak
+        // inside the notes directory the store owns.
+        ["src/WinSticker/Services/NoteFileStore.cs"] = 1,
+        // 4: the one-way legacy→independent-files migration regenerates and
+        // publishes its own staging directory (delete, move) and keeps one
+        // recovery copy of the source store, all inside quick-capture/.
+        ["src/WinSticker/Services/QuickCaptureNoteMigration.cs"] = 4,
         ["src/WinSticker/Services/QuickCaptureService.cs"] = 8,
         ["src/WinSticker/Services/ReleaseNotesService.cs"] = 1,
         // +2: RevertLastCommit restores its own .bak (File.Copy) or deletes

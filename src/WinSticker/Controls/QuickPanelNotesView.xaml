@@ -12,22 +12,120 @@
             <ListView x:Name="NoteTabs" Height="36" ItemsSource="{Binding Notes}"
                       SelectionMode="Single" SelectionChanged="NoteTabs_SelectionChanged"
                       ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListView.ItemsPanel>
+                <ListView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsStackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ListView.ItemsPanel>
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
-                        <Setter Property="Padding" Value="8,2"/>
+                        <Setter Property="Margin" Value="0,0,4,0"/>
+                        <Setter Property="Padding" Value="10,4,6,4"/>
                         <Setter Property="MinWidth" Value="0"/>
-                        <Setter Property="MinHeight" Value="30"/>
-                        <Setter Property="BorderThickness" Value="1"/>
-
+                        <Setter Property="MinHeight" Value="32"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Setter Property="IsTabStop" Value="False"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListViewItem">
+                                    <Grid>
+                                        <VisualStateManager.VisualStateGroups>
+                                            <VisualStateGroup x:Name="CommonStates">
+                                                <VisualState x:Name="Normal">
+                                                    <VisualState.Setters>
+                                                        <Setter Target="TabSurface.Background" Value="Transparent"/>
+                                                        <Setter Target="TabSurface.BorderBrush" Value="Transparent"/>
+                                                        <Setter Target="Presenter.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                                        <Setter Target="Presenter.FontWeight" Value="Normal"/>
+                                                        <Setter Target="ActiveIndicator.Visibility" Value="Collapsed"/>
+                                                    </VisualState.Setters>
+                                                </VisualState>
+                                                <VisualState x:Name="PointerOver">
+                                                    <VisualState.Setters>
+                                                        <Setter Target="TabSurface.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}"/>
+                                                        <Setter Target="TabSurface.BorderBrush" Value="Transparent"/>
+                                                        <Setter Target="Presenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                        <Setter Target="Presenter.FontWeight" Value="Normal"/>
+                                                        <Setter Target="ActiveIndicator.Visibility" Value="Collapsed"/>
+                                                    </VisualState.Setters>
+                                                </VisualState>
+                                                <VisualState x:Name="Pressed">
+                                                    <VisualState.Setters>
+                                                        <Setter Target="TabSurface.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}"/>
+                                                        <Setter Target="TabSurface.BorderBrush" Value="Transparent"/>
+                                                        <Setter Target="Presenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                        <Setter Target="Presenter.FontWeight" Value="Normal"/>
+                                                        <Setter Target="ActiveIndicator.Visibility" Value="Collapsed"/>
+                                                    </VisualState.Setters>
+                                                </VisualState>
+                                                <VisualState x:Name="Selected">
+                                                    <VisualState.Setters>
+                                                        <Setter Target="TabSurface.Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+                                                        <Setter Target="TabSurface.BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                                                        <Setter Target="Presenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                        <Setter Target="Presenter.FontWeight" Value="SemiBold"/>
+                                                        <Setter Target="ActiveIndicator.Visibility" Value="Visible"/>
+                                                    </VisualState.Setters>
+                                                </VisualState>
+                                                <VisualState x:Name="PointerOverSelected">
+                                                    <VisualState.Setters>
+                                                        <Setter Target="TabSurface.Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+                                                        <Setter Target="TabSurface.BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                                                        <Setter Target="Presenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                        <Setter Target="Presenter.FontWeight" Value="SemiBold"/>
+                                                        <Setter Target="ActiveIndicator.Visibility" Value="Visible"/>
+                                                    </VisualState.Setters>
+                                                </VisualState>
+                                                <VisualState x:Name="PressedSelected">
+                                                    <VisualState.Setters>
+                                                        <Setter Target="TabSurface.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}"/>
+                                                        <Setter Target="TabSurface.BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                                                        <Setter Target="Presenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                        <Setter Target="Presenter.FontWeight" Value="SemiBold"/>
+                                                        <Setter Target="ActiveIndicator.Visibility" Value="Visible"/>
+                                                    </VisualState.Setters>
+                                                </VisualState>
+                                            </VisualStateGroup>
+                                        </VisualStateManager.VisualStateGroups>
+                                        <Border x:Name="TabSurface"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1"
+                                                CornerRadius="6">
+                                            <Grid>
+                                                <ContentPresenter x:Name="Presenter"
+                                                                  Content="{TemplateBinding Content}"
+                                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                  Margin="{TemplateBinding Padding}"/>
+                                                <Border x:Name="ActiveIndicator"
+                                                        Height="2.5"
+                                                        Width="20"
+                                                        CornerRadius="1.25"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Bottom"
+                                                        Margin="0,0,0,1"
+                                                        Visibility="Collapsed"/>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:QuickPanelNoteItem">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" MaxWidth="110" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" helpers:WidgetTextShadow.Cast="True"/>
-                            <Button Width="22" Height="22" MinWidth="0" MinHeight="0" Padding="4" Style="{StaticResource SubtleButtonStyle}" Click="CloseNoteButton_Click" svc:Localized.AutomationNameKey="Common.Close" svc:Localized.ToolTipKey="Common.Close">
-                                <FontIcon FontSize="10" Glyph="&#xE8BB;"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" MaxWidth="110" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <Button Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="3" Style="{StaticResource SubtleButtonStyle}" Click="CloseNoteButton_Click" svc:Localized.AutomationNameKey="Common.Close" svc:Localized.ToolTipKey="Common.Close" VerticalAlignment="Center">
+                                <FontIcon FontSize="9" Glyph="&#xE8BB;"/>
                             </Button>
                         </StackPanel>
                     </DataTemplate>

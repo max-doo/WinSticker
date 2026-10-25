@@ -1,0 +1,43 @@
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 板身底层渐变 -->
+  <path d="M4 4.5C4 3.67 4.67 3 5.5 3H14.5C15.33 3 16 3.67 16 4.5V16.5C16 17.33 15.33 18 14.5 18H5.5C4.67 18 4 17.33 4 16.5V4.5Z" fill="url(#ic_fluent_quick_panel__bg)"/>
+  <!-- 微软 Fluent 标志性背板暗部微阴影 -->
+  <path d="M4 4.5C4 3.67 4.67 3 5.5 3H14.5C15.33 3 16 3.67 16 4.5V16.5C16 17.33 15.33 18 14.5 18H5.5C4.67 18 4 17.33 4 16.5V4.5Z" fill="url(#ic_fluent_quick_panel__shadow1)" fill-opacity="0.6"/>
+  <path d="M4 4.5C4 3.67 4.67 3 5.5 3H14.5C15.33 3 16 3.67 16 4.5V16.5C16 17.33 15.33 18 14.5 18H5.5C4.67 18 4 17.33 4 16.5V4.5Z" fill="url(#ic_fluent_quick_panel__shadow2)" fill-opacity="0.35"/>
+  <!-- 顶部琥珀金板夹（体现剪贴板） -->
+  <path d="M7 3.25C7 2.56 7.56 2 8.25 2H11.75C12.44 2 13 2.56 13 3.25C13 3.94 12.44 4.5 11.75 4.5H8.25C7.56 4.5 7 3.94 7 3.25Z" fill="url(#ic_fluent_quick_panel__clip)"/>
+  <rect x="8.5" y="2.5" width="3" height="0.75" rx="0.375" fill="#FFF3B3" fill-opacity="0.8"/>
+  <!-- 清单与便签任务条目（体现待办、便签与列表内容） -->
+  <circle cx="6.5" cy="7.5" r="0.85" fill="url(#ic_fluent_quick_panel__item)"/>
+  <rect x="8.5" y="6.85" width="5" height="1.3" rx="0.65" fill="url(#ic_fluent_quick_panel__item)"/>
+  <circle cx="6.5" cy="11" r="0.85" fill="url(#ic_fluent_quick_panel__item)"/>
+  <rect x="8.5" y="10.35" width="5" height="1.3" rx="0.65" fill="url(#ic_fluent_quick_panel__item)"/>
+  <circle cx="6.5" cy="14.5" r="0.85" fill="url(#ic_fluent_quick_panel__item)"/>
+  <rect x="8.5" y="13.85" width="3.5" height="1.3" rx="0.65" fill="url(#ic_fluent_quick_panel__item)"/>
+  <defs>
+    <!-- 板身 Fluent 蓝渐变 -->
+    <linearGradient id="ic_fluent_quick_panel__bg" x1="4" y1="3" x2="16" y2="18" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#36DFF1"/>
+      <stop offset="0.45" stop-color="#0094F0"/>
+      <stop offset="1" stop-color="#1B55DF"/>
+    </linearGradient>
+    <radialGradient id="ic_fluent_quick_panel__shadow1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(10 2.2) rotate(90) scale(5.2 4.7)">
+      <stop stop-color="#0A1852"/>
+      <stop offset="0.97" stop-color="#0A1852" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ic_fluent_quick_panel__shadow2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(10 3.8) rotate(90) scale(2.4 3.7)">
+      <stop stop-color="#0A1852"/>
+      <stop offset="1" stop-color="#0A1852" stop-opacity="0"/>
+    </radialGradient>
+    <!-- 顶部板夹金黄渐变 -->
+    <linearGradient id="ic_fluent_quick_panel__clip" x1="10" y1="2" x2="10" y2="4.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE06B"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <!-- 条目冰白渐变 -->
+    <linearGradient id="ic_fluent_quick_panel__item" x1="6" y1="7" x2="14" y2="15" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#CCE8FF"/>
+    </linearGradient>
+  </defs>
+</svg>

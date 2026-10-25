@@ -67,7 +67,8 @@ public sealed partial class QuickCaptureSurfaceContent
     private async Task<bool> ChangeUnifiedNoteAppearanceAsync(QuickCaptureItemViewModel item, Models.QuickCaptureAppearancePreset preset)
     {
         var session = _noteWorkspace!.Acquire(item.ToModel(),
-            () => new DispatcherQueueSessionTimer(DispatcherQueue, TimeSpan.FromMilliseconds(600)), DispatcherQueue);
+            () => new DispatcherQueueSessionTimer(DispatcherQueue, TimeSpan.FromMilliseconds(600)), DispatcherQueue,
+            () => new DispatcherQueueSessionTimer(DispatcherQueue, NoteEditingSession.MaxSaveDelay));
         try { session.SetAppearance(preset); return await session.FlushAsync(); }
         finally { _noteWorkspace.Release(session); }
     }

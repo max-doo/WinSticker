@@ -34,7 +34,7 @@ public sealed class QuickCaptureSidebarFoundationTests : IDisposable
         QuickCaptureStoreData data = await new QuickCaptureStore(_root).LoadAsync();
 
         QuickCaptureItem item = Assert.Single(data.Items);
-        Assert.Equal(5, data.Version);
+        Assert.Equal(6, data.Version);
         Assert.Equal(TextContentFormat.PlainText, item.ContentFormat);
         Assert.Equal("Legacy **literal** text", item.Body);
     }
@@ -50,7 +50,8 @@ public sealed class QuickCaptureSidebarFoundationTests : IDisposable
             source,
             QuickCaptureAppearancePreset.Paper,
             TextContentFormat.Markdown);
-        QuickCaptureItem stored = Assert.Single((await new QuickCaptureStore(_root).LoadAsync()).Items);
+        QuickCaptureItem stored = Assert.Single(
+            (await new QuickCaptureService(new QuickCaptureStore(_root)).GetDataAsync()).Items);
 
         Assert.Equal(TextContentFormat.Markdown, item.ContentFormat);
         Assert.Equal(TextContentFormat.Markdown, stored.ContentFormat);

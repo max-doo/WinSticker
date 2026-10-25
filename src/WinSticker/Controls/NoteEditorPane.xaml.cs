@@ -79,8 +79,11 @@ public sealed partial class NoteEditorPane : UserControl, IDisposable
         Release();
         if (item is not null && _service is not null)
         {
-            Session = _workspace!.Acquire(item,
-                () => new DispatcherQueueSessionTimer(DispatcherQueue, TimeSpan.FromMilliseconds(600)), DispatcherQueue);
+            Session = _workspace!.Acquire(
+                item,
+                () => new DispatcherQueueSessionTimer(DispatcherQueue, TimeSpan.FromMilliseconds(600)),
+                DispatcherQueue,
+                () => new DispatcherQueueSessionTimer(DispatcherQueue, NoteEditingSession.MaxSaveDelay));
             Session.Changed += Session_Changed;
         }
         _attachmentKey = string.Empty;

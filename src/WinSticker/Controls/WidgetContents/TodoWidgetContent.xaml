@@ -103,9 +103,9 @@
             <Setter Property="MinHeight" Value="48" />
             <Setter Property="Padding" Value="8,5" />
             <Setter Property="Background" Value="{ThemeResource WidgetLayerFillSecondaryBrush}" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="{StaticResource WidgetCornerRadiusSmall}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource WidgetLayerStrokeBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
         </Style>
 
         <Style x:Key="TodoDetailRowButtonStyle" TargetType="Button" BasedOn="{StaticResource SubtleButtonStyle}">
@@ -121,7 +121,7 @@
             <Setter Property="Background" Value="{ThemeResource WidgetLayerFillSecondaryBrush}" />
             <Setter Property="BorderBrush" Value="{ThemeResource WidgetLayerStrokeBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{StaticResource WidgetCornerRadiusSmall}" />
+            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Padding" Value="8,6" />
         </Style>
@@ -247,10 +247,10 @@
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Stretch"
                         Background="{ThemeResource WidgetLayerFillSecondaryBrush}"
-                        BorderBrush="Transparent"
-                        BorderThickness="0"
+                        BorderBrush="{ThemeResource WidgetLayerStrokeBrush}"
+                        BorderThickness="1"
                         Click="AddCard_Click"
-                        CornerRadius="{StaticResource WidgetCornerRadiusSmall}">
+                        CornerRadius="8">
                             <Grid ColumnSpacing="4">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="32" />
@@ -373,6 +373,7 @@
                                         x:Name="TodoCompletionCheckBox"
                                         Grid.Column="0"
                                         Margin="0,1,0,0"
+                                        VerticalAlignment="Top"
                                         AutomationProperties.Name="{Binding CompletionToggleText}"
                                         Click="ItemCompletionCheckBox_Click"
                                         IsChecked="{Binding IsCompleted, Mode=OneWay}"

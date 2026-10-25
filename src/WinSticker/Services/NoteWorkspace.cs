@@ -33,13 +33,17 @@ public sealed class NoteWorkspace
         return true;
     }
 
-    public NoteEditingSession Acquire(QuickCaptureItem item, Func<IMarkdownSessionTimer> timerFactory, DispatcherQueue? dispatcher = null)
+    public NoteEditingSession Acquire(
+        QuickCaptureItem item,
+        Func<IMarkdownSessionTimer> timerFactory,
+        DispatcherQueue? dispatcher = null,
+        Func<IMarkdownSessionTimer>? maxDelayTimerFactory = null)
     {
         lock (_sessions)
         {
             if (!_sessions.TryGetValue(item.Id, out var session))
             {
-                session = new(_service, item, timerFactory(), dispatcher);
+                session = new(_service, item, timerFactory(), dispatcher, maxDelayTimerFactory?.Invoke());
                 session.Changed += SessionChanged;
                 _sessions.Add(item.Id, session);
             }

@@ -21,7 +21,10 @@ internal sealed partial class QuickCaptureJsonContext : JsonSerializerContext
 
 public sealed class QuickCaptureStore
 {
-    private const int CurrentVersion = 5;
+    internal const int CurrentVersion = 6;
+
+    /// <summary>Notes live in independent files once this marker is set.</summary>
+    public const int CurrentNotesStorageVersion = 1;
 
     private readonly string _storePath;
 
@@ -35,8 +38,11 @@ public sealed class QuickCaptureStore
     internal QuickCaptureStore(string dataDir)
     {
         Directory.CreateDirectory(dataDir);
+        DataDirectory = dataDir;
         _storePath = Path.Combine(dataDir, "quick-capture.json");
     }
+
+    internal string DataDirectory { get; }
 
     internal string StorePath => _storePath;
 
@@ -52,16 +58,27 @@ public sealed class QuickCaptureStore
     {
         return await ResilientJsonStore.LoadAsync(
             _storePath,
-            json => Normalize(JsonSerializer.Deserialize(
-                json,
-                QuickCaptureJsonContext.Default.StoreData)),
+            json =>
+            {
+                QuickCaptureStoreData? data = JsonSerializer.Deserialize(
+                    json,
+                    QuickCaptureJsonContext.Default.StoreData);
+                // The loaded marker decides the normalization contract: a v1
+                // document must keep its SortOrder values verbatim (they are
+                // globally meaningful across note files), while a legacy
+                // document still gets the compacting normalize the migration
+                // source relies on.
+                return data?.NotesStorageVersion >= CurrentNotesStorageVersion
+                    ? NormalizeIndependent(data)
+                    : Normalize(data);
+            },
             () => new QuickCaptureStoreData(),
             nameof(QuickCaptureStore));
     }
 
     public Task SaveAsync(QuickCaptureStoreData data)
     {
-        data = Normalize(data);
+        data = NormalizeIndependent(data);
         // Stream the UTF-8 directly into the temp file: materializing the
         // whole document as a string first doubles the transient footprint
         // on every save, and quick-capture autosave fires while the user
@@ -98,7 +115,6 @@ public sealed class QuickCaptureStore
 
         NormalizeItems(data.Items, isRecent: false);
         NormalizeItems(data.RecentItems, isRecent: true);
-
         data.Items = PruneTombstones(data.Items
             .Where(IsValidItem)
             .GroupBy(item => item.Id, StringComparer.Ordinal)
@@ -134,12 +150,55 @@ public sealed class QuickCaptureStore
         return data;
     }
 
-    private static void NormalizeItems(List<QuickCaptureItem> items, bool isRecent)
+    /// <summary>
+    /// Normalize for the independent-notes layout: field-level sanitation,
+    /// tombstone caps and id dedup only. SortOrder/PinnedSortOrder values
+    /// are globally meaningful across note files once notes are independent
+    /// (newest-first inserts use min-1 instead of renumbering the world), so
+    /// this path must never sort, compact or renumber them.
+    /// </summary>
+    private static QuickCaptureStoreData NormalizeIndependent(QuickCaptureStoreData? data)
+    {
+        data ??= new QuickCaptureStoreData();
+        data.Version = CurrentVersion;
+        data.NotesStorageVersion = CurrentNotesStorageVersion;
+        data.Items ??= [];
+        data.RecentItems ??= [];
+        NormalizeItems(data.Items, isRecent: false, independentNotes: true);
+        NormalizeItems(data.RecentItems, isRecent: true, independentNotes: true);
+
+        data.Items = PruneTombstones(data.Items
+            .Where(IsValidItem)
+            .GroupBy(item => item.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList());
+
+        var liveRecentItems = data.RecentItems
+            .Where(item => IsValidItem(item) && !item.IsDeleted)
+            .GroupBy(GetDeduplicationKey, StringComparer.Ordinal)
+            .Select(group => group.OrderBy(item => item.SortOrder).ThenByDescending(item => item.UpdatedAt).First())
+            .OrderBy(item => item.SortOrder)
+            .ThenByDescending(item => item.UpdatedAt)
+            .Take(QuickCaptureService.MaxRecentLimit)
+            .ToList();
+        var tombstoneRecentItems = data.RecentItems
+            .Where(item => item is not null && item.IsDeleted)
+            .GroupBy(item => item.Id, StringComparer.Ordinal)
+            .Select(group => group.OrderByDescending(item => item.UpdatedAt).First())
+            .ToList();
+        data.RecentItems = PruneTombstones(liveRecentItems
+            .Concat(tombstoneRecentItems)
+            .ToList());
+        return data;
+    }
+
+    private static void NormalizeItems(List<QuickCaptureItem> items, bool isRecent, bool independentNotes = false)
     {
         int sortOrder = 0;
         foreach (var item in items.Where(item => item is not null))
         {
-            if (!isRecent && (!string.IsNullOrWhiteSpace(item.Title) || !string.IsNullOrWhiteSpace(item.Body)) &&
+            if (!isRecent && !independentNotes &&
+                (!string.IsNullOrWhiteSpace(item.Title) || !string.IsNullOrWhiteSpace(item.Body)) &&
                 (item.Type is QuickCaptureItemType.Text or QuickCaptureItemType.Link || item.ContentFormat == TextContentFormat.Markdown))
                 item.IsNote = true;
             if (string.IsNullOrWhiteSpace(item.Id))
@@ -204,7 +263,7 @@ public sealed class QuickCaptureStore
                 item.UpdatedAt = item.CreatedAt;
             }
 
-            if (item.SortOrder < 0)
+            if (!independentNotes && item.SortOrder < 0)
             {
                 item.SortOrder = sortOrder;
             }

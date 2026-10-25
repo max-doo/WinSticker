@@ -33,11 +33,11 @@ public sealed partial class QuickPanelViewModel
     {
         _notesWorkspace = NoteWorkspace.For(_quickCaptureService);
         _notesWorkspace.NoteChanged += WorkspaceNoteChanged;
-        _quickCaptureService.Changed += NotesStoreChanged;
+        _quickCaptureService.ChangeDetailed += NotesStoreChanged;
     }
     private void DisposeNotes()
     {
-        _quickCaptureService.Changed -= NotesStoreChanged;
+        _quickCaptureService.ChangeDetailed -= NotesStoreChanged;
         if (_notesWorkspace is not null) _notesWorkspace.NoteChanged -= WorkspaceNoteChanged;
         if (_activeNoteSession is not null) _notesWorkspace?.Release(_activeNoteSession);
         _activeNoteSession = null;
@@ -58,14 +58,19 @@ public sealed partial class QuickPanelViewModel
         {
             if (_activeNoteSession is not null) _notesWorkspace?.Release(_activeNoteSession);
             _activeNoteSession = note is null ? null : _notesWorkspace!.Acquire(note.ToRecord(),
-                () => _dispatcherQueue is null ? new HeadlessMarkdownSessionTimer() :
-                    new DispatcherQueueSessionTimer(_dispatcherQueue, TimeSpan.FromMilliseconds(600)), _dispatcherQueue);
+                CreateNoteSessionTimer, _dispatcherQueue, CreateNoteMaxDelayTimer);
         }
         _isInternalNoteSwitch = true;
         try { NoteTitle = _activeNoteSession?.Title ?? string.Empty; NoteBody = _activeNoteSession?.Body ?? string.Empty; }
         finally { _isInternalNoteSwitch = false; }
         UpdateNoteSaveStatus();
     }
+    private IMarkdownSessionTimer CreateNoteSessionTimer() =>
+        _dispatcherQueue is null ? new HeadlessMarkdownSessionTimer() :
+            new DispatcherQueueSessionTimer(_dispatcherQueue, TimeSpan.FromMilliseconds(600));
+    private IMarkdownSessionTimer CreateNoteMaxDelayTimer() =>
+        _dispatcherQueue is null ? new HeadlessMarkdownSessionTimer() :
+            new DispatcherQueueSessionTimer(_dispatcherQueue, NoteEditingSession.MaxSaveDelay);
     partial void OnNoteTitleChanged(string value) { if (!_isInternalNoteSwitch) _activeNoteSession?.SetTitle(value); }
     partial void OnNoteBodyChanged(string value) { if (!_isInternalNoteSwitch) _activeNoteSession?.SetBody(value); }
     private void UpdateNoteSaveStatus() => NoteSaveStatus = _localizationService.T(_activeNoteSession?.SaveFailed == true
@@ -86,7 +91,32 @@ public sealed partial class QuickPanelViewModel
         note.ContentFormat = session.ContentFormat; note.Attachments = session.Attachments;
         note.IsPinned = session.IsPinned; note.UpdatedAt = session.UpdatedAt;
     }
-    private void NotesStoreChanged() => RunOnUi(() => _ = LoadNotesAsync());
+    private void NotesStoreChanged(QuickCaptureChange change) => RunOnUi(() => _ = HandleNotesStoreChangedAsync(change));
+    private async Task HandleNotesStoreChangedAsync(QuickCaptureChange change)
+    {
+        // A note save touches only its own file: patch the matching row
+        // instead of re-reading the whole store and rebuilding every list.
+        if (change.Kind == QuickCaptureChangeKind.NoteSaved &&
+            change.NoteIds.Count > 0 &&
+            change.NoteIds.All(id => AllNotes.Any(note => note.Id == id)))
+        {
+            foreach (string id in change.NoteIds)
+            {
+                var record = await _quickCaptureService.GetNoteAsync(id);
+                if (record is null) { await LoadNotesAsync(); return; }
+                var note = AllNotes.FirstOrDefault(item => item.Id == id);
+                if (note is null) { await LoadNotesAsync(); return; }
+                note.Title = record.Title ?? string.Empty; note.Body = record.Body; note.Appearance = record.AppearancePreset;
+                note.ContentFormat = record.ContentFormat; note.Attachments = record.Attachments;
+                note.IsPinned = record.IsPinned; note.UpdatedAt = record.UpdatedAt;
+            }
+
+            if (_activeNoteSession is not null && change.NoteIds.Contains(_activeNoteSession.Id)) UpdateNoteSaveStatus();
+            return;
+        }
+
+        await LoadNotesAsync();
+    }
     public async Task LoadNotesAsync()
     {
         if (_isDisposed) return;

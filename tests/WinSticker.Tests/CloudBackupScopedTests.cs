@@ -510,7 +510,10 @@ public sealed class CloudBackupScopedTests : IDisposable
         WinStickerRestoreApplyResult result = await service.ApplyPendingRestoreAsync();
 
         Assert.True(result.Succeeded, result.ErrorMessage);
-        QuickCaptureStoreData merged = await liveQc.LoadAsync();
+        // The merged library spans the aggregate store and the independent
+        // note files (staged legacy notes convert during restore staging), so
+        // read it back through the service projection.
+        QuickCaptureStoreData merged = await new QuickCaptureService(liveQc).GetDataAsync();
         Assert.Equal(
             ["a", "b", "c"],
             merged.Items.Select(i => i.Id).OrderBy(id => id, StringComparer.Ordinal).ToArray());

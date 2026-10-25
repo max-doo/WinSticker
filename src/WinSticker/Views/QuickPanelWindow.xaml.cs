@@ -896,30 +896,7 @@ public sealed partial class QuickPanelWindow : Window
             Win32Helper.SetWindowTheme(_hwnd, isDark);
             int backdropType;
             bool controllerApplied = false;
-            if (SettingsService.IsMicaMaterial(materialType))
-            {
-                controllerApplied = ApplyMicaController(
-                    isDark,
-                    BuildNativeBackdropTintColor(isDark, accentColor, materialIntensity),
-                    materialType == SettingsService.WidgetMaterialTypeMicaAlt);
-            }
-            if (!controllerApplied && SettingsService.IsAcrylicMaterial(materialType))
-            {
-                controllerApplied = ApplyAcrylicController(
-                    isDark,
-                    BuildNativeBackdropTintColor(isDark, accentColor, materialIntensity),
-                    surfaceOpacity,
-                    materialType == SettingsService.WidgetMaterialTypeAcrylicBase);
-            }
-            if (controllerApplied)
-            {
-                backdropType = Win32Helper.DWMSBT_NONE;
-                Win32Helper.TrySetDwmWindowAttribute(_hwnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
-                Win32Helper.DisableAccentPolicy(_hwnd);
-                Win32Helper.ResetWindowFrame(_hwnd);
-                RootGrid.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x01, 0x00, 0x00, 0x00));
-            }
-            else if (materialType is SettingsService.WidgetMaterialTypeSolid)
+            if (materialType is SettingsService.WidgetMaterialTypeSolid)
             {
                 DetachAcrylicControllerTarget();
                 DetachMicaControllerTarget();
@@ -932,6 +909,28 @@ public sealed partial class QuickPanelWindow : Window
             }
             else
             {
+                // In Windows Fluent Design, flyouts and popovers always use Desktop Acrylic Base
+                // with tuned tint and luminosity to prevent underlying light from washing out text.
+                controllerApplied = ApplyAcrylicController(
+                    isDark,
+                    BuildNativeBackdropTintColor(isDark, accentColor, materialIntensity),
+                    surfaceOpacity,
+                    useBase: true);
+            }
+            if (controllerApplied)
+            {
+                backdropType = Win32Helper.DWMSBT_NONE;
+                Win32Helper.TrySetDwmWindowAttribute(_hwnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
+                Win32Helper.DisableAccentPolicy(_hwnd);
+                Win32Helper.ResetWindowFrame(_hwnd);
+                RootGrid.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x01, 0x00, 0x00, 0x00));
+            }
+            else if (materialType is SettingsService.WidgetMaterialTypeSolid)
+            {
+                // Handled above
+            }
+            else
+            {
                 backdropType = Win32Helper.DWMSBT_TRANSIENTWINDOW;
                 Win32Helper.TrySetDwmWindowAttribute(_hwnd, Win32Helper.DWMWA_SYSTEMBACKDROP_TYPE, ref backdropType);
                 DetachAcrylicControllerTarget();
@@ -940,7 +939,7 @@ public sealed partial class QuickPanelWindow : Window
                 // extended frame; every other path resets it because its
                 // un-presented backing paints black on show.
                 Win32Helper.ApplyFullWindowFrame(_hwnd);
-                double accentOpacity = Math.Min(surfaceOpacity, 0.52);
+                double accentOpacity = Math.Clamp(surfaceOpacity * 0.52, 0.35, 0.60);
                 Win32Helper.ApplyAccentBlur(
                     _hwnd,
                     BuildNativeBackdropTintColor(isDark, accentColor, materialIntensity),
@@ -968,8 +967,8 @@ public sealed partial class QuickPanelWindow : Window
         bool isDark, Windows.UI.Color accentColor, double materialIntensity)
     {
         var baseColor = isDark
-            ? Windows.UI.Color.FromArgb(0xFF, 0x20, 0x22, 0x26)
-            : Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+            ? Windows.UI.Color.FromArgb(0xFF, 0x1E, 0x20, 0x24)
+            : Windows.UI.Color.FromArgb(0xFF, 0xF6, 0xF7, 0xF9);
         double accentMix = 0.07 * materialIntensity;
         return BlendColors(baseColor, accentColor, accentMix);
     }
@@ -1029,7 +1028,7 @@ public sealed partial class QuickPanelWindow : Window
         {
             DisposeAcrylicController();
         }
-        DesktopAcrylicKind kind = useBase ? DesktopAcrylicKind.Base : DesktopAcrylicKind.Thin;
+        DesktopAcrylicKind kind = DesktopAcrylicKind.Base;
         _acrylicController ??= new DesktopAcrylicController { Kind = kind };
         if (_acrylicController.Kind != kind)
         {
@@ -1047,17 +1046,21 @@ public sealed partial class QuickPanelWindow : Window
             _acrylicController.SetSystemBackdropConfiguration(_backdropConfiguration);
         }
         _acrylicController.TintColor = tintColor;
-        _acrylicController.FallbackColor = tintColor;
+        _acrylicController.FallbackColor = isDark
+            ? Windows.UI.Color.FromArgb(0xFF, 0x20, 0x22, 0x26)
+            : Windows.UI.Color.FromArgb(0xFF, 0xF3, 0xF3, 0xF3);
         double intensity = Math.Clamp(_settingsService.Settings.WidgetShell.WidgetMaterialIntensity, 0.0, 1.0);
-        double surfaceStrength = Lerp(0.08, 1.0, Math.Clamp(surfaceOpacity, 0.0, 1.0));
-        double tintOpacity = useBase
-            ? Lerp(isDark ? 0.18 : 0.12, isDark ? 0.72 : 0.62, intensity)
-            : Lerp(isDark ? 0.04 : 0.02, isDark ? 0.42 : 0.34, intensity);
-        double luminosityOpacity = useBase
-            ? Lerp(isDark ? 0.38 : 0.46, isDark ? 0.82 : 0.90, intensity)
-            : Lerp(isDark ? 0.16 : 0.22, isDark ? 0.56 : 0.64, intensity);
-        _acrylicController.TintOpacity = (float)Math.Clamp(tintOpacity * surfaceStrength, 0.0, 1.0);
-        _acrylicController.LuminosityOpacity = (float)Math.Clamp(luminosityOpacity * surfaceStrength, 0.0, 1.0);
+        double surfaceStrength = Lerp(0.5, 1.0, Math.Clamp(surfaceOpacity, 0.0, 1.0));
+        // Tune outer acrylic backdrop to have a visible frosted glass translucency,
+        // while the internal Layer-on-Acrylic cards guarantee text readability.
+        double tintOpacity = isDark
+            ? Lerp(0.42, 0.58, intensity) * surfaceStrength
+            : Lerp(0.35, 0.52, intensity) * surfaceStrength;
+        double luminosityOpacity = isDark
+            ? Lerp(0.60, 0.76, intensity) * surfaceStrength
+            : Lerp(0.64, 0.80, intensity) * surfaceStrength;
+        _acrylicController.TintOpacity = (float)Math.Clamp(tintOpacity, 0.0, 1.0);
+        _acrylicController.LuminosityOpacity = (float)Math.Clamp(luminosityOpacity, 0.0, 1.0);
         return true;
     }
     private void DisposeMicaController()

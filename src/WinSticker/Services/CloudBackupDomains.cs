@@ -182,6 +182,22 @@ internal static class CloudBackupDomains
         return tail.Equals("todo.json", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsQuickCaptureDataPath(string normalizedPath) =>
-        normalizedPath.Equals("quick-capture/quick-capture.json", StringComparison.OrdinalIgnoreCase);
+    private static bool IsQuickCaptureDataPath(string normalizedPath)
+    {
+        if (normalizedPath.Equals("quick-capture/quick-capture.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Independent note files are in-domain user content. Their .bak
+        // rotation copies, temp files and the migration staging directory
+        // are machine-local recovery artifacts and stay out.
+        if (normalizedPath.StartsWith("quick-capture/notes/", StringComparison.OrdinalIgnoreCase))
+        {
+            return !normalizedPath.EndsWith(".md.bak", StringComparison.OrdinalIgnoreCase) &&
+                   !normalizedPath.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
 }

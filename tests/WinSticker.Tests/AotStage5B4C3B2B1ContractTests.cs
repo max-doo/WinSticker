@@ -162,10 +162,10 @@ public sealed class AotStage5B4C3B2B1ContractTests
             "tests/WinSticker.Tests/JsonSerializationBaselineContractTests.cs");
         string rust = Read("native/winsticker-native/src/lib.rs");
 
-        Assert.Contains("FortyOneFilesAndNinetySixCalls", baseline, StringComparison.Ordinal);
-        Assert.Contains("Assert.Equal(40, actual.Count)", baseline, StringComparison.Ordinal);
-        Assert.Contains("Assert.Equal(94, actual.Values.Sum())", baseline, StringComparison.Ordinal);
-        Assert.Contains("Assert.Equal(36, actualContextOwners.Length)", baseline, StringComparison.Ordinal);
+        Assert.Contains("FortyTwoFilesAndNinetyEightCalls", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(42, actual.Count)", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(98, actual.Values.Sum())", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(37, actualContextOwners.Length)", baseline, StringComparison.Ordinal);
         Assert.Contains(
             "App.AotTodoNotificationForwardingSmoke.cs\"] = 1",
             baseline,

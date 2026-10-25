@@ -13,7 +13,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
         Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void ProductionInventory_IsFrozenAtFortyOneFilesAndNinetySixCalls()
+    public void ProductionInventory_IsFrozenAtFortyTwoFilesAndNinetyEightCalls()
     {
         var expected = new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -44,7 +44,11 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             ["src/WinSticker/Services/LocalizationService.cs"] = 1,
             ["src/WinSticker/Services/ManagedStorageMigrationService.cs"] = 2,
             ["src/WinSticker/Services/NativeNotificationActivationEnvelopeStore.cs"] = 2,
+            // 2: the note-file metadata header (serialize + deserialize).
+            ["src/WinSticker/Services/NoteFileCodec.cs"] = 2,
             ["src/WinSticker/Services/QuickCaptureStore.cs"] = 2,
+            // 2: migration progress journal + recovery-copy info sidecar.
+            ["src/WinSticker/Services/QuickCaptureNoteMigration.cs"] = 2,
             // 2: the wipe-recovery offer marker (read deserialize, atomic save serialize).
             ["src/WinSticker/Services/RecoveryOfferStore.cs"] = 2,
             ["src/WinSticker/Services/SearchHistoryService.cs"] = 2,
@@ -83,8 +87,8 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             Assert.Equal(expectedCount, actual[path]);
         }
 
-        Assert.Equal(40, actual.Count);
-        Assert.Equal(94, actual.Values.Sum());
+        Assert.Equal(42, actual.Count);
+        Assert.Equal(98, actual.Values.Sum());
 
         string[] expectedContextOwners =
         [
@@ -108,6 +112,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             "src/WinSticker/Services/LocalizationService.cs",
             "src/WinSticker/Services/ManagedStorageMigrationModels.cs",
             "src/WinSticker/Services/NativeNotificationActivationEnvelopeStore.cs",
+            "src/WinSticker/Services/NoteFileCodec.cs",
             "src/WinSticker/Services/QuickCaptureStore.cs",
             "src/WinSticker/Services/RecoveryOfferStore.cs",
             "src/WinSticker/Services/SearchHistoryService.cs",
@@ -133,7 +138,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             .Order()
             .ToArray();
 
-        Assert.Equal(36, actualContextOwners.Length);
+        Assert.Equal(37, actualContextOwners.Length);
         Assert.Equal(expectedContextOwners, actualContextOwners);
     }
 
@@ -618,7 +623,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             """);
         QuickCaptureStoreData legacyQuick = await new QuickCaptureStore(quickDirectory).LoadAsync();
         Assert.Equal(QuickCaptureViewMode.Recent, legacyQuick.CurrentView);
-        Assert.Equal(5, legacyQuick.Version);
+        Assert.Equal(6, legacyQuick.Version);
         Assert.Empty(legacyQuick.Items);
         Assert.Empty(legacyQuick.RecentItems);
 

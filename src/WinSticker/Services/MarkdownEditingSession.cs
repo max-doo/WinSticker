@@ -58,14 +58,30 @@ public sealed class DispatcherQueueSessionTimer : IMarkdownSessionTimer
 public sealed class MarkdownEditingSession
 {
     private readonly IMarkdownSessionTimer _autosaveTimer;
+    private readonly IMarkdownSessionTimer? _maxDelayTimer;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private long _editRevision;
     private long _savedRevision;
 
-    public MarkdownEditingSession(IMarkdownSessionTimer autosaveTimer)
+    /// <param name="autosaveTimer">Idle-debounce timer (the 600 ms window).</param>
+    /// <param name="maxDelayTimer">
+    /// Optional longest-pending-dirty timer. When supplied (notes only —
+    /// other Markdown surfaces keep the unchanged debounce-only contract),
+    /// continuous input without an idle window still forces a save within
+    /// the timer's interval: the deadline runs from the first unsaved
+    /// revision, typing does not reset it, and it re-arms only after a save.
+    /// </param>
+    public MarkdownEditingSession(
+        IMarkdownSessionTimer autosaveTimer,
+        IMarkdownSessionTimer? maxDelayTimer = null)
     {
         _autosaveTimer = autosaveTimer;
         _autosaveTimer.Tick += AutosaveTimer_Tick;
+        _maxDelayTimer = maxDelayTimer;
+        if (_maxDelayTimer is not null)
+        {
+            _maxDelayTimer.Tick += MaxDelayTimer_Tick;
+        }
     }
 
     /// <summary>
@@ -97,6 +113,12 @@ public sealed class MarkdownEditingSession
     {
         _editRevision++;
         HasUnsavedChanges = true;
+        // Arm-once semantics: the deadline spans from the earliest unsaved
+        // revision, so continuous typing cannot defer the save forever.
+        if (_maxDelayTimer is { IsEnabled: false })
+        {
+            _maxDelayTimer.Start();
+        }
     }
 
     /// <summary>(Re)arm the auto-save debounce without marking dirty.</summary>
@@ -110,6 +132,7 @@ public sealed class MarkdownEditingSession
     public void Reset()
     {
         _autosaveTimer.Stop();
+        _maxDelayTimer?.Stop();
         _editRevision = 0;
         _savedRevision = 0;
         HasUnsavedChanges = false;
@@ -120,6 +143,7 @@ public sealed class MarkdownEditingSession
     {
         _editRevision = _savedRevision;
         HasUnsavedChanges = false;
+        _maxDelayTimer?.Stop();
     }
 
     /// <summary>
@@ -198,10 +222,27 @@ public sealed class MarkdownEditingSession
         {
             _savedRevision = Math.Max(_savedRevision, revisionAtStart);
             HasUnsavedChanges = _editRevision > revisionAtStart;
+            if (_maxDelayTimer is not null)
+            {
+                // Revisions that arrived during the save start a fresh
+                // deadline; a clean document disarms it.
+                if (HasUnsavedChanges)
+                {
+                    _maxDelayTimer.Start();
+                }
+                else
+                {
+                    _maxDelayTimer.Stop();
+                }
+            }
+
             SaveCompleted?.Invoke(this, EventArgs.Empty);
         }
         else
         {
+            // The draft is still pending: re-arm the deadline so the next
+            // window retries instead of spinning a hot retry loop.
+            _maxDelayTimer?.Start();
             SaveFailed?.Invoke(this, EventArgs.Empty);
         }
 
@@ -211,6 +252,15 @@ public sealed class MarkdownEditingSession
     private async void AutosaveTimer_Tick(object? sender, EventArgs args)
     {
         _autosaveTimer.Stop();
+        if (HasUnsavedChanges)
+        {
+            await SaveAsync(completeEditing: false);
+        }
+    }
+
+    private async void MaxDelayTimer_Tick(object? sender, EventArgs args)
+    {
+        _maxDelayTimer?.Stop();
         if (HasUnsavedChanges)
         {
             await SaveAsync(completeEditing: false);

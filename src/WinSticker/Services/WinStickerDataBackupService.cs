@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -713,6 +714,7 @@ public sealed partial class WinStickerDataBackupService
                 archiveInfo.Manifest.SourceDataPath,
                 todoWidgetIdRemaps,
                 cancellationToken);
+            await ConvertStagedLegacyQuickCaptureStoreAsync(stagedDataDirectory, cancellationToken);
             ValidateScopedRestoreData(stagedDataDirectory, appliedScope);
             IReadOnlyList<WinStickerDomainItemCount> domainItemCounts =
                 CountStagedDomainItems(stagedDataDirectory, appliedScope);
@@ -763,6 +765,49 @@ public sealed partial class WinStickerDataBackupService
     }
 
     /// <summary>
+    /// Old-format backups carry notes inside quick-capture.json. Convert the
+    /// staged copy to the independent-files layout before validation,
+    /// counting and apply, so both restore modes and the confirm-dialog
+    /// preview see one uniform layout. This runs the startup migration's
+    /// protocol inside the staging directory only and never touches live
+    /// data; failure aborts the restore before anything is applied.
+    /// </summary>
+    private static async Task ConvertStagedLegacyQuickCaptureStoreAsync(
+        string stagedDataDirectory,
+        CancellationToken cancellationToken)
+    {
+        string stagedStoreDirectory = Path.Combine(stagedDataDirectory, "quick-capture");
+        string stagedJsonPath = Path.Combine(stagedStoreDirectory, "quick-capture.json");
+        if (!File.Exists(stagedJsonPath))
+        {
+            return;
+        }
+
+        var store = new QuickCaptureStore(stagedStoreDirectory);
+        QuickCaptureStoreData data = await store.LoadAsync();
+        // Trigger on embedded rule-notes, not just the version marker: a
+        // store document written after the layout switch but still carrying
+        // notes inside Items (e.g. a test fixture or a hand-moved file) is
+        // equally wrong to merge as raw records.
+        bool hasEmbeddedNotes = data.Items.Any(item =>
+            item is { IsDeleted: false } candidate && NoteWorkspace.IsNote(candidate));
+        if (data.NotesStorageVersion >= QuickCaptureStore.CurrentNotesStorageVersion && !hasEmbeddedNotes)
+        {
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var noteFiles = new NoteFileStore(stagedStoreDirectory);
+        if (Directory.Exists(noteFiles.NotesDirectory))
+        {
+            throw new InvalidDataException(
+                "The staged backup mixes note files with a store file that still embeds notes.");
+        }
+
+        await QuickCaptureNoteMigration.MigrateAsync(store, noteFiles, data);
+    }
+
+    /// <summary>
     /// Scoped-archive validation: the staged data dir must hold only files
     /// inside the applied domains (a tampered archive must never reach
     /// non-domain paths), and each domain store file must parse.
@@ -783,6 +828,7 @@ public sealed partial class WinStickerDataBackupService
                 ValidateJsonFileIfPresent<QuickCaptureStoreData>(
                     Path.Combine(stagedDataDirectory, "quick-capture", "quick-capture.json"),
                     s_quickCaptureDataJsonContext.StoreData);
+                ValidateStagedNoteFiles(stagedDataDirectory);
             }
         }
 
@@ -805,6 +851,76 @@ public sealed partial class WinStickerDataBackupService
                     s_todoDataJsonContext.StoreData);
             }
         }
+    }
+
+    /// <summary>
+    /// Every staged note document must decode through the note codec — a
+    /// corrupt header or a future format version must fail the restore
+    /// here, not surface as a broken note after apply.
+    /// </summary>
+    private static void ValidateStagedNoteFiles(string stagedDataDirectory)
+    {
+        foreach (QuickCaptureItem note in LoadStagedNotes(stagedDataDirectory))
+        {
+            _ = note;
+        }
+    }
+
+    /// <summary>
+    /// Decodes every staged note file. Reports the first structural failure
+    /// (corrupt header, unsupported version, id mismatch) as
+    /// InvalidDataException; headerless files load with file-name identity,
+    /// matching the runtime loader.
+    /// </summary>
+    private static List<QuickCaptureItem> LoadStagedNotes(string stagedDataDirectory)
+    {
+        var notes = new List<QuickCaptureItem>();
+        string notesDirectory = Path.Combine(
+            stagedDataDirectory,
+            "quick-capture",
+            NoteFileStore.NotesDirectoryName);
+        if (!Directory.Exists(notesDirectory))
+        {
+            return notes;
+        }
+
+        foreach (string notePath in Directory.EnumerateFiles(
+                     notesDirectory, "*", SearchOption.TopDirectoryOnly)
+                     .Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!NoteFileStore.TryGetNoteIdFromFileName(Path.GetFileName(notePath), out string noteId))
+            {
+                continue;
+            }
+
+            NoteFileDecodeResult decoded;
+            try
+            {
+                decoded = NoteFileCodec.Decode(
+                    File.ReadAllBytes(notePath),
+                    noteId,
+                    notesDirectory);
+            }
+            catch (Exception ex) when (ex is DecoderFallbackException or ArgumentException)
+            {
+                throw new InvalidDataException(
+                    $"Backup note file '{Path.GetFileName(notePath)}' is not valid UTF-8.", ex);
+            }
+
+            if (decoded.Status is NoteFileDecodeStatus.CorruptHeader or NoteFileDecodeStatus.UnsupportedVersion
+                or NoteFileDecodeStatus.IdMismatch)
+            {
+                throw new InvalidDataException(
+                    $"Backup note file '{Path.GetFileName(notePath)}' is invalid: {decoded.ErrorMessage}");
+            }
+
+            if (decoded.Item is { } item)
+            {
+                notes.Add(item);
+            }
+        }
+
+        return notes;
     }
 
     /// <summary>
@@ -851,6 +967,8 @@ public sealed partial class WinStickerDataBackupService
                 data =>
                     (data.Items?.Count(item => item is { IsDeleted: false }) ?? 0) +
                     (data.RecentItems?.Count(item => item is { IsDeleted: false }) ?? 0));
+            items += LoadStagedNotes(stagedDataDirectory)
+                .Count(note => !note.IsDeleted);
             counts.Add(new WinStickerDomainItemCount(
                 CloudBackupDomains.ToManifestName(CloudBackupDomain.QuickCaptureData), items));
         }
@@ -918,6 +1036,8 @@ public sealed partial class WinStickerDataBackupService
                 s_quickCaptureDataJsonContext.StoreData,
                 data => (data.Items ?? []).Concat(data.RecentItems ?? []).Sum(item =>
                     item is null ? 0 : CountAttachmentPaths(item.Attachments, item.ImagePath)));
+            references += LoadStagedNotes(stagedDataDirectory)
+                .Sum(note => CountAttachmentPaths(note.Attachments, note.ImagePath));
         }
 
         return references;
@@ -1689,7 +1809,9 @@ public sealed partial class WinStickerDataBackupService
     /// <summary>
     /// Merge-mode apply for the quick-capture domain: staged Items and
     /// RecentItems union into the live store by item id under the same
-    /// no-delete rule. CurrentView is device-local UI state and stays.
+    /// no-delete rule, and staged note files merge into the live notes
+    /// directory by the same id/timestamp rule. CurrentView is device-local
+    /// UI state and stays.
     /// </summary>
     private async Task MergeStagedQuickCaptureStoreAsync(
         string stagedDataDirectory,
@@ -1710,6 +1832,7 @@ public sealed partial class WinStickerDataBackupService
         (int added, int updated) = (0, 0);
         MergeList(liveData.Items, stagedData.Items);
         MergeList(liveData.RecentItems, stagedData.RecentItems);
+        await MergeStagedNoteFilesAsync(stagedStoreDirectory, cancellationToken);
         await liveStore.SaveAsync(liveData);
 
         void MergeList(List<QuickCaptureItem> liveList, List<QuickCaptureItem>? stagedList)
@@ -1750,6 +1873,58 @@ public sealed partial class WinStickerDataBackupService
             }
         }
         App.Log($"[DataBackup] Merged staged quick-capture store: +{added} item(s), {updated} updated.");
+    }
+
+    /// <summary>
+    /// Note files merge by business id under the same conflict rule as the
+    /// JSON records — newest UpdatedAt wins unless a staged tombstone would
+    /// cover a live local note. Commits bypass the external-change guard:
+    /// a restore is an authoritative write, not a concurrent editor.
+    /// </summary>
+    private async Task MergeStagedNoteFilesAsync(
+        string stagedStoreDirectory,
+        CancellationToken cancellationToken)
+    {
+        string stagedNotesDirectory = Path.Combine(stagedStoreDirectory, NoteFileStore.NotesDirectoryName);
+        if (!Directory.Exists(stagedNotesDirectory))
+        {
+            return;
+        }
+
+        var liveNoteFiles = new NoteFileStore(Path.Combine(DataDirectory, "quick-capture"));
+        var stagedNoteFiles = new NoteFileStore(stagedStoreDirectory);
+        Dictionary<string, QuickCaptureItem> liveNotes =
+            (await liveNoteFiles.LoadAllAsync())
+                .Where(load => load.Item is not null)
+                .GroupBy(load => load.Item!.Id, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().Item!, StringComparer.Ordinal);
+
+        int added = 0;
+        int updated = 0;
+        foreach (NoteFileLoadResult staged in await stagedNoteFiles.LoadAllAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (staged.Item is not { } remote)
+            {
+                continue;
+            }
+
+            if (!liveNotes.TryGetValue(remote.Id, out QuickCaptureItem? local) ||
+                ShouldRemoteItemWin(remote.IsDeleted, remote.UpdatedAt, local.IsDeleted, local.UpdatedAt))
+            {
+                NoteFileCommitResult commit = await liveNoteFiles.SaveAsync(remote, bypassConflictCheck: true);
+                if (commit.Status == NoteFileCommitStatus.Saved)
+                {
+                    if (local is null) added++;
+                    else updated++;
+                }
+            }
+        }
+
+        if (added + updated > 0)
+        {
+            App.Log($"[DataBackup] Merged staged note files: +{added} note(s), {updated} updated.");
+        }
     }
 
     /// <summary>
@@ -3250,6 +3425,19 @@ public sealed partial class WinStickerDataBackupService
         // contract assigns it no backup semantics at all.
         if (relativePath.StartsWith("quick-capture/thumbnails/", StringComparison.OrdinalIgnoreCase) ||
             relativePath.StartsWith("quick-capture/exports/", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.StartsWith(
+                "quick-capture/" + NoteFileStore.MigrationDirectoryName + "/",
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                relativePath,
+                "quick-capture/" + QuickCaptureNoteMigration.ProgressFileName,
+                StringComparison.OrdinalIgnoreCase) ||
+            relativePath.StartsWith(
+                "quick-capture/quick-capture.json" + QuickCaptureNoteMigration.RecoveryCopySuffix,
+                StringComparison.OrdinalIgnoreCase) ||
+            (relativePath.StartsWith("quick-capture/" + NoteFileStore.NotesDirectoryName + "/",
+                 StringComparison.OrdinalIgnoreCase) &&
+             relativePath.EndsWith(".md.bak", StringComparison.OrdinalIgnoreCase)) ||
             relativePath.StartsWith("cache/", StringComparison.OrdinalIgnoreCase) ||
             relativePath.StartsWith("sync/", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(relativePath, "weather-cache.json", StringComparison.OrdinalIgnoreCase) ||

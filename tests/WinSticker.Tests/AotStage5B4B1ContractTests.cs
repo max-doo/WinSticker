@@ -334,8 +334,8 @@ public sealed class AotStage5B4B1ContractTests
         string baseline = ReadRepositoryFile("tests/WinSticker.Tests/JsonSerializationBaselineContractTests.cs");
         string source = ReadRepositoryFile("src/WinSticker/App.AotManagedUiSmoke.cs");
 
-        Assert.Contains("Assert.Equal(40, actual.Count);", baseline, StringComparison.Ordinal);
-        Assert.Contains("Assert.Equal(94, actual.Values.Sum());", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(42, actual.Count);", baseline, StringComparison.Ordinal);
+        Assert.Contains("Assert.Equal(98, actual.Values.Sum());", baseline, StringComparison.Ordinal);
         Assert.Contains("\"src/WinSticker/App.AotManagedUiSmoke.cs\"", baseline, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(source, "JsonSerializer.Serialize("));
     }

@@ -104,7 +104,7 @@ public sealed partial class QuickCaptureWidgetViewModel : ObservableObject, IDis
         _iconSize = SettingsService.NormalizeIconSize(settingsService.Settings.IconSize);
         _layoutDensityScale = NormalizeDensity(settingsService.Settings.LayoutDensityScale);
         Name = config.Name;
-        _quickCaptureService.Changed += OnQuickCaptureChanged;
+        _quickCaptureService.ChangeDetailed += OnQuickCaptureChangeDetailed;
         _settingsService.SettingsChanged += OnSettingsChanged;
         _localizationService.LanguageChanged += OnLanguageChanged;
         UpdateEmptyStateText();
@@ -600,7 +600,7 @@ public sealed partial class QuickCaptureWidgetViewModel : ObservableObject, IDis
         _currentViewSaveTimer.Tick -= CurrentViewSaveTimer_Tick;
         _viewSwitchRefreshTimer.Stop();
         _viewSwitchRefreshTimer.Tick -= ViewSwitchRefreshTimer_Tick;
-        _quickCaptureService.Changed -= OnQuickCaptureChanged;
+        _quickCaptureService.ChangeDetailed -= OnQuickCaptureChangeDetailed;
         _settingsService.SettingsChanged -= OnSettingsChanged;
         _localizationService.LanguageChanged -= OnLanguageChanged;
     }

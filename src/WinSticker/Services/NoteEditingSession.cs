@@ -6,10 +6,17 @@ namespace WinSticker.Services;
 /// <summary>One note draft and save state shared by every open host of that note.</summary>
 public sealed class NoteEditingSession : IDisposable
 {
+    /// <summary>
+    /// Longest a pending edit may stay unsaved: continuous input without a
+    /// 600 ms idle window still forces a save within this window.
+    /// </summary>
+    public static readonly TimeSpan MaxSaveDelay = TimeSpan.FromSeconds(5);
+
     [Flags]
     private enum Fields { None = 0, Title = 1, Body = 2, Appearance = 4, Format = 8 }
     private readonly QuickCaptureService _service;
     private readonly IMarkdownSessionTimer _timer;
+    private readonly IMarkdownSessionTimer? _maxDelayTimer;
     private readonly MarkdownEditingSession _saving;
     private readonly DispatcherQueue? _dispatcher;
     private Fields _dirty;
@@ -21,17 +28,23 @@ public sealed class NoteEditingSession : IDisposable
     private bool _disposed;
     internal int ViewCount { get; set; }
 
-    internal NoteEditingSession(QuickCaptureService service, QuickCaptureItem item, IMarkdownSessionTimer timer, DispatcherQueue? dispatcher)
+    internal NoteEditingSession(
+        QuickCaptureService service,
+        QuickCaptureItem item,
+        IMarkdownSessionTimer timer,
+        DispatcherQueue? dispatcher,
+        IMarkdownSessionTimer? maxDelayTimer = null)
     {
         _service = service;
         _timer = timer;
+        _maxDelayTimer = maxDelayTimer;
         _dispatcher = dispatcher;
         Id = item.Id;
-        _saving = new(timer) { SaveCore = PersistAsync };
+        _saving = new(timer, maxDelayTimer) { SaveCore = PersistAsync };
         _saving.SaveCompleted += (_, _) => RaiseChanged();
         _saving.SaveFailed += (_, _) => { SaveFailed = true; RaiseChanged(); };
         Merge(item);
-        _service.Changed += StoreChanged;
+        _service.ChangeDetailed += StoreChanged;
     }
 
     public string Id { get; }
@@ -143,7 +156,7 @@ public sealed class NoteEditingSession : IDisposable
 
     public async Task RefreshAsync()
     {
-        var item = (await _service.GetDataAsync()).Items.FirstOrDefault(item => item.Id == Id);
+        var item = await _service.GetNoteAsync(Id);
         void Apply()
         {
             if (_disposed) return;
@@ -168,9 +181,16 @@ public sealed class NoteEditingSession : IDisposable
         RaiseChanged();
     }
 
-    private async void StoreChanged()
+    private async void StoreChanged(QuickCaptureChange change)
     {
         if (_disposed) return;
+        // A note-body save of a different note does not concern this
+        // session; everything else refreshes through the coalesced loop.
+        if (change.Kind == QuickCaptureChangeKind.NoteSaved && !change.NoteIds.Contains(Id))
+        {
+            return;
+        }
+
         if (_refreshQueued) { _refreshAgain = true; return; }
         _refreshQueued = true;
         try
@@ -188,8 +208,9 @@ public sealed class NoteEditingSession : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _service.Changed -= StoreChanged;
+        _service.ChangeDetailed -= StoreChanged;
         _timer.Dispose();
+        _maxDelayTimer?.Dispose();
         _activeOwner = null;
         _flushEditor = null;
     }

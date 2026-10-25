@@ -25,6 +25,29 @@ public sealed record QuickCaptureWriteResult(
     bool WasTruncated,
     QuickCaptureItem? Item);
 
+/// <summary>Granularity of a store change, for targeted refreshes.</summary>
+public enum QuickCaptureChangeKind
+{
+    /// <summary>One note's content/metadata was committed to its own file; ids are included.</summary>
+    NoteSaved,
+    /// <summary>Records were added, removed, reordered or re-pinned; notes were created or deleted.</summary>
+    ItemsChanged,
+    /// <summary>Host view state changed (closed-tab history, current view).</summary>
+    HostStateChanged,
+    /// <summary>The recent-clipboard list changed.</summary>
+    ClipboardChanged
+}
+
+public sealed record QuickCaptureChange(
+    QuickCaptureChangeKind Kind,
+    IReadOnlyList<string> NoteIds);
+
+public sealed record QuickCaptureNoteFileError(
+    string NoteId,
+    string Status,
+    string? FileName,
+    string? ErrorMessage);
+
 public sealed class QuickCaptureService
 {
     public const int DefaultRecentLimit = 30;
@@ -33,14 +56,26 @@ public sealed class QuickCaptureService
     public const int MaxItemBodyCharacters = MarkdownDocumentService.MaxCharacters;
     private const uint ThumbnailMaxPixelSize = 180;
     private static readonly TimeSpan ExportCleanupAge = TimeSpan.FromDays(1);
+    private const int MaxRetainedNoteTombstoneFiles = 500;
 
     private readonly QuickCaptureStore _store;
+    private readonly NoteFileStore _noteFiles;
     private readonly Func<string, Task<bool>>? _recycleAttachmentFileAsync;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _thumbnailTaskLock = new();
     private readonly Dictionary<string, Task<string?>> _thumbnailTasks = new(StringComparer.OrdinalIgnoreCase);
     private QuickCaptureStoreData? _data;
+    private Dictionary<string, QuickCaptureItem> _notes = new(StringComparer.Ordinal);
+    private List<QuickCaptureNoteFileError> _noteFileErrors = [];
 
+    /// <summary>
+    /// Fires for every change with its granularity; <see cref="NoteSaved"/>
+    /// carries the affected note ids so sessions and lists refresh only the
+    /// touched rows instead of re-reading the whole store.
+    /// </summary>
+    public event Action<QuickCaptureChange>? ChangeDetailed;
+
+    /// <summary>Legacy all-changes event; not raised for single-note saves.</summary>
     public event Action? Changed;
 
     public QuickCaptureService(
@@ -48,13 +83,30 @@ public sealed class QuickCaptureService
         Func<string, Task<bool>>? recycleAttachmentFileAsync = null)
     {
         _store = store ?? new QuickCaptureStore();
+        _noteFiles = new NoteFileStore(_store.DataDirectory);
         _recycleAttachmentFileAsync = recycleAttachmentFileAsync;
     }
+
+    public IReadOnlyList<QuickCaptureNoteFileError> NoteFileErrors => _noteFileErrors;
+
+    internal string NotesDirectory => _noteFiles.NotesDirectory;
 
     public async Task<QuickCaptureStoreData> GetDataAsync()
     {
         await EnsureLoadedAsync();
-        return Clone(_data!);
+        return CloneWithMergedItems();
+    }
+
+    /// <summary>Single-note projection clone; null when the id is unknown or deleted.</summary>
+    public async Task<QuickCaptureItem?> GetNoteAsync(string itemId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            return null;
+        }
+
+        await EnsureLoadedAsync();
+        return FindItemIncludingDeleted(itemId) is { } item ? Clone(item) : null;
     }
 
     /// <summary>Create a persisted, unnamed blank note without inventing a user title.</summary>
@@ -64,13 +116,15 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
+            var merged = MergedItemsCore();
             var item = new QuickCaptureItem
             {
                 IsNote = true, ContentFormat = TextContentFormat.Markdown,
-                SortOrder = _data!.Items.Count == 0 ? 0 : _data.Items.Max(entry => entry.SortOrder) + 1
+                SortOrder = merged.Count == 0 ? 0 : merged.Max(entry => entry.SortOrder) + 1
             };
-            _data.Items.Add(item);
-            await SaveCoreAsync();
+            _notes[item.Id] = item;
+            await SaveItemAsync(item, notify: false);
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             return Clone(item);
         }
         finally { _gate.Release(); }
@@ -126,6 +180,12 @@ public sealed class QuickCaptureService
         {
             await EnsureLoadedCoreAsync();
             var now = DateTimeOffset.UtcNow;
+            var before = SnapshotOrders();
+            if (pin)
+            {
+                ShiftPinnedBelowNewTopPin();
+            }
+
             var item = new QuickCaptureItem
             {
                 Id = itemId,
@@ -139,24 +199,29 @@ public sealed class QuickCaptureService
                 SourceKind = QuickCaptureSourceKind.Manual,
                 IsPinned = pin,
                 IsRecent = false,
-                SortOrder = 0,
+                SortOrder = NextSortOrderForInsertAtTop(),
                 PinnedSortOrder = pin ? 0 : -1,
                 CreatedAt = now,
                 UpdatedAt = now
             };
-
-            foreach (var existing in _data!.Items)
+            if (QualifiesAsNote(item))
             {
-                existing.SortOrder++;
-                if (pin && existing.IsPinned)
-                {
-                    existing.PinnedSortOrder++;
-                }
+                item.IsNote = true;
             }
 
-            _data.Items.Insert(0, item);
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            if (item.IsNote)
+            {
+                _notes[item.Id] = item;
+                await SaveItemAsync(item, notify: false);
+            }
+            else
+            {
+                _data!.Items.Insert(0, item);
+                await SaveHostCoreAsync(notify: false);
+            }
+
+            await PersistOrderChangesCoreAsync(before);
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             return new QuickCaptureWriteResult(true, wasTruncated, Clone(item));
         }
         finally
@@ -182,7 +247,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.Items.FirstOrDefault(entry => string.Equals(entry.Id, itemId, StringComparison.Ordinal));
+            var item = FindItem(itemId);
             if (item is null || item.IsDeleted)
             {
                 return new QuickCaptureWriteResult(false, false, null);
@@ -204,8 +269,8 @@ public sealed class QuickCaptureService
             item.Type = TryDetectUrl(normalizedBody, out string? url) ? QuickCaptureItemType.Link : QuickCaptureItemType.Text;
             item.Url = url;
             item.UpdatedAt = DateTimeOffset.UtcNow;
-            await SaveCoreAsync();
-            return new QuickCaptureWriteResult(true, wasTruncated, Clone(item));
+            bool saved = await SaveItemAsync(item);
+            return new QuickCaptureWriteResult(saved, wasTruncated, saved ? Clone(item) : null);
         }
         finally
         {
@@ -253,7 +318,7 @@ public sealed class QuickCaptureService
 
             _data.RecentItems.Insert(0, item);
             TrimRecentItemsCore(NormalizeRecentLimit(maxRecentItems));
-            await SaveCoreAsync();
+            await SaveHostCoreAsync(kind: QuickCaptureChangeKind.ClipboardChanged);
             CleanupUnusedImageCacheCore();
             return Clone(item);
         }
@@ -307,7 +372,7 @@ public sealed class QuickCaptureService
 
             _data.RecentItems.Insert(0, item);
             TrimRecentItemsCore(NormalizeRecentLimit(maxRecentItems));
-            await SaveCoreAsync();
+            await SaveHostCoreAsync(kind: QuickCaptureChangeKind.ClipboardChanged);
             CleanupUnusedImageCacheCore();
             return Clone(item);
         }
@@ -333,6 +398,12 @@ public sealed class QuickCaptureService
             string cachedImagePath = await SaveImageFileAsync(imagePath);
             string contentHash = Path.GetFileNameWithoutExtension(cachedImagePath);
             var now = DateTimeOffset.UtcNow;
+            var before = SnapshotOrders();
+            if (pin)
+            {
+                ShiftPinnedBelowNewTopPin();
+            }
+
             var item = new QuickCaptureItem
             {
                 Body = "Image",
@@ -344,24 +415,16 @@ public sealed class QuickCaptureService
                 SourceKind = QuickCaptureSourceKind.Image,
                 IsPinned = pin,
                 IsRecent = false,
-                SortOrder = 0,
+                SortOrder = NextSortOrderForInsertAtTop(),
                 PinnedSortOrder = pin ? 0 : -1,
                 CreatedAt = now,
                 UpdatedAt = now
             };
 
-            foreach (var existing in _data!.Items)
-            {
-                existing.SortOrder++;
-                if (pin && existing.IsPinned)
-                {
-                    existing.PinnedSortOrder++;
-                }
-            }
-
-            _data.Items.Insert(0, item);
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            _data!.Items.Insert(0, item);
+            await SaveHostCoreAsync(notify: false);
+            await PersistOrderChangesCoreAsync(before);
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             CleanupUnusedImageCacheCore();
             return Clone(item);
         }
@@ -414,6 +477,12 @@ public sealed class QuickCaptureService
             }
 
             var now = DateTimeOffset.UtcNow;
+            var before = SnapshotOrders();
+            if (pin)
+            {
+                ShiftPinnedBelowNewTopPin();
+            }
+
             var item = new QuickCaptureItem
             {
                 Body = recentItem.Body,
@@ -427,24 +496,29 @@ public sealed class QuickCaptureService
                 SourceKind = QuickCaptureSourceKind.Clipboard,
                 IsPinned = pin,
                 IsRecent = false,
-                SortOrder = 0,
+                SortOrder = NextSortOrderForInsertAtTop(),
                 PinnedSortOrder = pin ? 0 : -1,
                 CreatedAt = now,
                 UpdatedAt = now
             };
-
-            foreach (var existing in _data.Items)
+            if (QualifiesAsNote(item))
             {
-                existing.SortOrder++;
-                if (pin && existing.IsPinned)
-                {
-                    existing.PinnedSortOrder++;
-                }
+                item.IsNote = true;
             }
 
-            _data.Items.Insert(0, item);
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            if (item.IsNote)
+            {
+                _notes[item.Id] = item;
+                await SaveItemAsync(item, notify: false);
+            }
+            else
+            {
+                _data.Items.Insert(0, item);
+                await SaveHostCoreAsync(notify: false);
+            }
+
+            await PersistOrderChangesCoreAsync(before);
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             return Clone(item);
         }
         finally
@@ -464,20 +538,17 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.Items.FirstOrDefault(entry => string.Equals(entry.Id, itemId, StringComparison.Ordinal));
+            var item = FindItem(itemId);
             if (item is null || item.IsDeleted || item.IsPinned == isPinned)
             {
                 return false;
             }
 
+            var before = SnapshotOrders();
             item.IsPinned = isPinned;
             if (isPinned)
             {
-                foreach (var existing in _data.Items.Where(entry => entry.IsPinned && entry != item))
-                {
-                    existing.PinnedSortOrder++;
-                }
-
+                ShiftPinnedBelowNewTopPin();
                 item.PinnedSortOrder = 0;
             }
             else
@@ -485,9 +556,8 @@ public sealed class QuickCaptureService
                 item.PinnedSortOrder = -1;
             }
 
-            NormalizePinnedSortOrders(_data.Items);
             item.UpdatedAt = DateTimeOffset.UtcNow;
-            await SaveCoreAsync();
+            await PersistOrderChangesAsync(before);
             return true;
         }
         finally
@@ -510,15 +580,15 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var targets = _data!.Items
+            var targets = MergedItemsCore()
                 .Where(item => !item.IsDeleted && selectedIds.Contains(item.Id) && item.IsPinned != isPinned)
-                .OrderBy(item => item.SortOrder)
                 .ToList();
             if (targets.Count == 0)
             {
                 return 0;
             }
 
+            var before = SnapshotOrders();
             var now = DateTimeOffset.UtcNow;
             foreach (var item in targets)
             {
@@ -531,7 +601,7 @@ public sealed class QuickCaptureService
             {
                 var targetIdSet = targets.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
                 var pinnedOrder = targets
-                    .Concat(_data.Items
+                    .Concat(MergedItemsCore()
                         .Where(item => item.IsPinned && !targetIdSet.Contains(item.Id))
                         .OrderBy(item => item.PinnedSortOrder))
                     .ToList();
@@ -541,8 +611,7 @@ public sealed class QuickCaptureService
                 }
             }
 
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            await PersistOrderChangesAsync(before);
             return targets.Count;
         }
         finally
@@ -590,6 +659,12 @@ public sealed class QuickCaptureService
         {
             await EnsureLoadedCoreAsync();
             var now = DateTimeOffset.UtcNow;
+            var before = SnapshotOrders();
+            if (pin)
+            {
+                ShiftPinnedBelowNewTopPin();
+            }
+
             string? primaryImagePath = attachments
                 .FirstOrDefault(attachment => string.Equals(attachment.Type, "image", StringComparison.OrdinalIgnoreCase))
                 ?.FilePath;
@@ -603,24 +678,29 @@ public sealed class QuickCaptureService
                 Attachments = attachments,
                 SourceKind = QuickCaptureSourceKind.DragDrop,
                 IsPinned = pin,
-                SortOrder = 0,
+                SortOrder = NextSortOrderForInsertAtTop(),
                 PinnedSortOrder = pin ? 0 : -1,
                 CreatedAt = now,
                 UpdatedAt = now
             };
-
-            foreach (QuickCaptureItem existing in _data!.Items)
+            if (QualifiesAsNote(item))
             {
-                existing.SortOrder++;
-                if (pin && existing.IsPinned)
-                {
-                    existing.PinnedSortOrder++;
-                }
+                item.IsNote = true;
             }
 
-            _data.Items.Insert(0, item);
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            if (item.IsNote)
+            {
+                _notes[item.Id] = item;
+                await SaveItemAsync(item, notify: false);
+            }
+            else
+            {
+                _data!.Items.Insert(0, item);
+                await SaveHostCoreAsync(notify: false);
+            }
+
+            await PersistOrderChangesCoreAsync(before);
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             return Clone(item);
         }
         finally
@@ -661,9 +741,8 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            QuickCaptureItem? item = _data!.Items.FirstOrDefault(entry =>
-                string.Equals(entry.Id, itemId, StringComparison.Ordinal) && !entry.IsDeleted);
-            if (item is null)
+            QuickCaptureItem? item = FindItem(itemId);
+            if (item is null || item.IsDeleted)
             {
                 return null;
             }
@@ -685,8 +764,8 @@ public sealed class QuickCaptureService
                 item.Type = QuickCaptureItemType.Image;
             }
             item.UpdatedAt = DateTimeOffset.UtcNow;
-            await SaveCoreAsync();
-            return Clone(item);
+            bool saved = await SaveItemAsync(item);
+            return saved ? Clone(item) : null;
         }
         finally
         {
@@ -707,9 +786,8 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            QuickCaptureItem? item = _data!.Items.FirstOrDefault(entry =>
-                string.Equals(entry.Id, itemId, StringComparison.Ordinal) && !entry.IsDeleted);
-            if (item is null)
+            QuickCaptureItem? item = FindItem(itemId);
+            if (item is null || item.IsDeleted)
             {
                 return null;
             }
@@ -739,10 +817,9 @@ public sealed class QuickCaptureService
             }
 
             item.UpdatedAt = DateTimeOffset.UtcNow;
-            await SaveCoreAsync();
-            removalPersisted = true;
+            removalPersisted = await SaveItemAsync(item);
             CleanupUnusedImageCacheCore();
-            return Clone(item);
+            return removalPersisted ? Clone(item) : null;
         }
         finally
         {
@@ -777,8 +854,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.Items.FirstOrDefault(entry =>
-                string.Equals(entry.Id, itemId, StringComparison.Ordinal) && !entry.IsDeleted);
+            var item = FindItem(itemId);
             var closed = _data!.ClosedQuickPanelNotes ??= [];
             if (item is null || closed.ContainsKey(itemId) == isClosed)
             {
@@ -787,7 +863,7 @@ public sealed class QuickCaptureService
 
             if (isClosed) closed[itemId] = DateTimeOffset.UtcNow;
             else closed.Remove(itemId);
-            await SaveCoreAsync();
+            await SaveHostCoreAsync(kind: QuickCaptureChangeKind.HostStateChanged);
             return true;
         }
         finally
@@ -807,14 +883,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            NormalizePinnedSortOrders(_data!.Items);
-
-            var pinnedItems = _data.Items
-                .Where(item => !item.IsDeleted && item.IsPinned)
-                .OrderBy(item => item.PinnedSortOrder)
-                .ThenBy(item => item.SortOrder)
-                .ThenByDescending(item => item.UpdatedAt)
-                .ToList();
+            var pinnedItems = OrderedPinnedItemsCore();
 
             int currentIndex = pinnedItems.FindIndex(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
             if (currentIndex < 0)
@@ -828,11 +897,11 @@ public sealed class QuickCaptureService
                 return false;
             }
 
+            var before = SnapshotOrders();
             (pinnedItems[currentIndex].PinnedSortOrder, pinnedItems[targetIndex].PinnedSortOrder) =
                 (pinnedItems[targetIndex].PinnedSortOrder, pinnedItems[currentIndex].PinnedSortOrder);
 
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            await PersistOrderChangesAsync(before);
             return true;
         }
         finally
@@ -852,7 +921,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.Items.FirstOrDefault(entry => string.Equals(entry.Id, itemId, StringComparison.Ordinal));
+            var item = FindItem(itemId);
             if (item is null)
             {
                 return null;
@@ -861,15 +930,11 @@ public sealed class QuickCaptureService
             var deletedItem = Clone(item);
             // Tombstone, not physical removal: a merge restore treats an
             // absent id as "unknown to this device" and would resurrect the
-            // item. The stub keeps the delete winning by LWW while stripping
-            // the payload from the store file — undo restores from the
+            // item. Notes keep their minimal tombstone in their own file;
+            // records keep it in the aggregate store. Undo restores from the
             // in-memory snapshot, not from the store.
-            int itemIndex = _data.Items.IndexOf(item);
-            _data.Items[itemIndex] = CreateTombstoneStub(item, DateTimeOffset.UtcNow, isRecent: false);
-            NormalizeSortOrders(_data.Items);
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
-            return new QuickCaptureDeletedItemSnapshot(deletedItem, IsRecent: false);
+            await ReplaceWithTombstoneAsync(item, DateTimeOffset.UtcNow, isRecent: false);
+            return deletedItem is null ? null : new QuickCaptureDeletedItemSnapshot(deletedItem, IsRecent: false);
         }
         finally
         {
@@ -893,8 +958,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            List<QuickCaptureItem> source = isRecent ? _data!.RecentItems : _data!.Items;
-            var itemsToDelete = source
+            List<QuickCaptureItem> itemsToDelete = (isRecent ? _data!.RecentItems : MergedItemsCore())
                 .Where(item => selectedIds.Contains(item.Id))
                 .ToList();
             if (itemsToDelete.Count == 0)
@@ -908,24 +972,9 @@ public sealed class QuickCaptureService
             var deletedAt = DateTimeOffset.UtcNow;
             foreach (var item in itemsToDelete)
             {
-                // Content-stripped tombstone (see DeleteItemAsync): merge
-                // protection needs only id + timestamps, and the payload
-                // must not survive a delete in the store file or in cloud
-                // backups of it.
-                int index = source.IndexOf(item);
-                if (index >= 0)
-                {
-                    source[index] = CreateTombstoneStub(item, deletedAt, isRecent);
-                }
+                await ReplaceWithTombstoneAsync(item, deletedAt, isRecent);
             }
 
-            NormalizeSortOrders(source);
-            if (!isRecent)
-            {
-                NormalizePinnedSortOrders(_data.Items);
-            }
-
-            await SaveCoreAsync();
             return snapshots;
         }
         finally
@@ -945,18 +994,16 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.RecentItems.FirstOrDefault(entry => string.Equals(entry.Id, itemId, StringComparison.Ordinal));
+            var item = _data!.RecentItems.FirstOrDefault(entry =>
+                string.Equals(entry.Id, itemId, StringComparison.Ordinal));
             if (item is null)
             {
                 return null;
             }
 
-            var deletedItem = Clone(item);
+            var deletedItem = Clone(item)!;
             // Content-stripped tombstone (see DeleteItemAsync).
-            int recentIndex = _data.RecentItems.IndexOf(item);
-            _data.RecentItems[recentIndex] = CreateTombstoneStub(item, DateTimeOffset.UtcNow, isRecent: true);
-            NormalizeSortOrders(_data.RecentItems);
-            await SaveCoreAsync();
+            await ReplaceWithTombstoneAsync(item, DateTimeOffset.UtcNow, isRecent: true);
             return new QuickCaptureDeletedItemSnapshot(deletedItem, IsRecent: true);
         }
         finally
@@ -976,9 +1023,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var targetItems = snapshot.IsRecent ? _data!.RecentItems : _data!.Items;
-            if (targetItems.FirstOrDefault(item =>
-                    string.Equals(item.Id, snapshot.Item.Id, StringComparison.Ordinal)) is { } existing)
+            if (FindItemIncludingDeleted(snapshot.Item.Id) is { } existing)
             {
                 if (!existing.IsDeleted)
                 {
@@ -987,33 +1032,42 @@ public sealed class QuickCaptureService
 
                 // Undo resurrects the tombstone left by the delete — the
                 // refreshed timestamp also wins any later merge conflict.
-                int existingIndex = targetItems.IndexOf(existing);
-                var resurrected = Clone(snapshot.Item);
+                var resurrected = Clone(snapshot.Item)!;
                 resurrected.IsDeleted = false;
                 resurrected.UpdatedAt = DateTimeOffset.UtcNow;
-                targetItems[existingIndex] = resurrected;
-
-                NormalizeSortOrders(targetItems);
-                if (!snapshot.IsRecent)
+                if (_notes.ContainsKey(existing.Id))
                 {
-                    NormalizePinnedSortOrders(_data.Items);
+                    _notes[existing.Id] = resurrected;
+                    await SaveItemAsync(resurrected, notify: false);
+                }
+                else
+                {
+                    int existingIndex = _data!.Items.IndexOf(existing);
+                    _data.Items[existingIndex] = resurrected;
+                    await SaveHostCoreAsync(notify: false);
                 }
 
-                await SaveCoreAsync();
+                RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
                 return true;
             }
 
-            var item = Clone(snapshot.Item);
-            int insertIndex = Math.Clamp(item.SortOrder, 0, targetItems.Count);
-            targetItems.Insert(insertIndex, item);
-
-            NormalizeSortOrders(targetItems);
-            if (!snapshot.IsRecent)
+            var item = Clone(snapshot.Item)!;
+            item.IsDeleted = false;
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            if (!snapshot.IsRecent && QualifiesAsNote(item))
             {
-                NormalizePinnedSortOrders(_data.Items);
+                item.IsNote = true;
+                _notes[item.Id] = item;
+                await SaveItemAsync(item, notify: false);
+            }
+            else
+            {
+                int insertIndex = Math.Clamp(item.SortOrder, 0, _data!.Items.Count);
+                _data.Items.Insert(insertIndex, item);
+                await SaveHostCoreAsync(notify: false);
             }
 
-            await SaveCoreAsync();
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             return true;
         }
         finally
@@ -1029,15 +1083,26 @@ public sealed class QuickCaptureService
         {
             await EnsureLoadedCoreAsync();
             // Stub tombstones keep the wipe winning merge restores without
-            // retaining cleared content in the store file.
+            // retaining cleared content in note files or the store file.
             var clearedAt = DateTimeOffset.UtcNow;
+            foreach (var note in _notes.Values.ToList())
+            {
+                if (note.IsDeleted)
+                {
+                    continue;
+                }
+
+                _notes[note.Id] = CreateTombstoneStub(note, clearedAt, isRecent: false, isNote: true);
+                await SaveItemAsync(_notes[note.Id], notify: false);
+            }
+
             _data!.Items = _data.Items
-                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: false))
+                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: false, isNote: false))
                 .ToList();
             _data.RecentItems = _data.RecentItems
-                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: true))
+                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: true, isNote: false))
                 .ToList();
-            await SaveCoreAsync();
+            await SaveHostCoreAsync();
             CleanupUnusedImageCacheCore();
             TryDeleteDirectory(_store.AttachmentDirectory);
         }
@@ -1055,9 +1120,9 @@ public sealed class QuickCaptureService
             await EnsureLoadedCoreAsync();
             var clearedAt = DateTimeOffset.UtcNow;
             _data!.RecentItems = _data.RecentItems
-                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: true))
+                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: true, isNote: false))
                 .ToList();
-            await SaveCoreAsync();
+            await SaveHostCoreAsync(kind: QuickCaptureChangeKind.ClipboardChanged);
             CleanupUnusedImageCacheCore();
         }
         finally
@@ -1078,7 +1143,7 @@ public sealed class QuickCaptureService
             TrimRecentItemsCore(NormalizeRecentLimit(maxRecentItems));
             if (_data.RecentItems.Count != before)
             {
-                await SaveCoreAsync();
+                await SaveHostCoreAsync(kind: QuickCaptureChangeKind.ClipboardChanged);
                 CleanupUnusedImageCacheCore();
             }
         }
@@ -1100,7 +1165,7 @@ public sealed class QuickCaptureService
             }
 
             _data.CurrentView = viewMode;
-            await SaveCoreAsync(notify: false);
+            await SaveHostCoreAsync(notify: false);
         }
         finally
         {
@@ -1179,14 +1244,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            NormalizePinnedSortOrders(_data!.Items);
-
-            var pinnedItems = _data.Items
-                .Where(item => !item.IsDeleted && item.IsPinned)
-                .OrderBy(item => item.PinnedSortOrder)
-                .ThenBy(item => item.SortOrder)
-                .ThenByDescending(item => item.UpdatedAt)
-                .ToList();
+            var pinnedItems = OrderedPinnedItemsCore();
             int currentIndex = pinnedItems.FindIndex(item =>
                 string.Equals(item.Id, itemId, StringComparison.Ordinal));
             if (currentIndex < 0)
@@ -1194,6 +1252,7 @@ public sealed class QuickCaptureService
                 return false;
             }
 
+            var before = SnapshotOrders();
             QuickCaptureItem movedItem = pinnedItems[currentIndex];
             pinnedItems.RemoveAt(currentIndex);
             pinnedItems.Insert(Math.Clamp(targetIndex, 0, pinnedItems.Count), movedItem);
@@ -1202,7 +1261,7 @@ public sealed class QuickCaptureService
                 pinnedItems[index].PinnedSortOrder = index;
             }
 
-            await SaveCoreAsync();
+            await PersistOrderChangesAsync(before);
             return true;
         }
         finally
@@ -1225,9 +1284,8 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.Items.FirstOrDefault(entry =>
-                string.Equals(entry.Id, itemId, StringComparison.Ordinal) && !entry.IsDeleted);
-            if (item is null)
+            var item = FindItem(itemId);
+            if (item is null || item.IsDeleted)
             {
                 return null;
             }
@@ -1254,9 +1312,9 @@ public sealed class QuickCaptureService
             item.SourceKind = QuickCaptureSourceKind.Image;
             item.Url = null;
             item.UpdatedAt = DateTimeOffset.UtcNow;
-            await SaveCoreAsync();
+            bool saved = await SaveItemAsync(item);
             CleanupUnusedImageCacheCore();
-            return Clone(item);
+            return saved ? Clone(item) : null;
         }
         finally
         {
@@ -1275,10 +1333,8 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var items = _data!.Items
+            var items = MergedItemsCore()
                 .Where(item => !item.IsDeleted)
-                .OrderBy(item => item.SortOrder)
-                .ThenByDescending(item => item.UpdatedAt)
                 .ToList();
             int currentIndex = items.FindIndex(item => string.Equals(item.Id, itemId, StringComparison.Ordinal));
             if (currentIndex < 0)
@@ -1286,12 +1342,16 @@ public sealed class QuickCaptureService
                 return false;
             }
 
+            var before = SnapshotOrders();
             QuickCaptureItem movedItem = items[currentIndex];
             items.RemoveAt(currentIndex);
             items.Insert(Math.Clamp(targetIndex, 0, items.Count), movedItem);
-            NormalizeSortOrders(items);
-            NormalizePinnedSortOrders(_data.Items);
-            await SaveCoreAsync();
+            for (int index = 0; index < items.Count; index++)
+            {
+                items[index].SortOrder = index;
+            }
+
+            await PersistOrderChangesAsync(before);
             return true;
         }
         finally
@@ -1339,9 +1399,8 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var item = _data!.Items.FirstOrDefault(entry =>
-                string.Equals(entry.Id, itemId, StringComparison.Ordinal) && !entry.IsDeleted);
-            if (item is null)
+            var item = FindItem(itemId);
+            if (item is null || item.IsDeleted)
             {
                 return new QuickCaptureWriteResult(false, false, null);
             }
@@ -1382,7 +1441,27 @@ public sealed class QuickCaptureService
             }
 
             item.UpdatedAt = DateTimeOffset.UtcNow;
-            await SaveCoreAsync();
+            if (isNotePatch && _notes.ContainsKey(item.Id))
+            {
+                // Hot path: one note file, one targeted notification; the
+                // aggregate store is not read, re-serialized or touched.
+                if (!await SaveItemAsync(item, notify: false))
+                {
+                    return new QuickCaptureWriteResult(false, wasTruncated, null);
+                }
+
+                RaiseChanged(QuickCaptureChangeKind.NoteSaved, [item.Id]);
+            }
+            else
+            {
+                if (!await SaveItemAsync(item, notify: false))
+                {
+                    return new QuickCaptureWriteResult(false, wasTruncated, null);
+                }
+
+                RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
+            }
+
             return new QuickCaptureWriteResult(true, wasTruncated, Clone(item));
         }
         finally
@@ -1408,7 +1487,7 @@ public sealed class QuickCaptureService
         try
         {
             await EnsureLoadedCoreAsync();
-            var targets = _data!.Items
+            var targets = MergedItemsCore()
                 .Where(item => !item.IsDeleted &&
                                selectedIds.Contains(item.Id) &&
                                item.AppearancePreset != normalizedPreset)
@@ -1423,9 +1502,10 @@ public sealed class QuickCaptureService
             {
                 item.AppearancePreset = normalizedPreset;
                 item.UpdatedAt = now;
+                await SaveItemAsync(item, notify: false);
             }
 
-            await SaveCoreAsync();
+            RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
             return targets.Count;
         }
         finally
@@ -1469,9 +1549,47 @@ public sealed class QuickCaptureService
             return;
         }
 
-        _data = await _store.LoadAsync();
-        bool migrated = false;
-        foreach (QuickCaptureItem item in _data.Items.Where(item => !item.IsDeleted))
+        QuickCaptureStoreData data = await _store.LoadAsync();
+        if (data.NotesStorageVersion < QuickCaptureStore.CurrentNotesStorageVersion)
+        {
+            // One-way switch to independent note files; on any failure the
+            // old aggregate stays readable and no store is half-migrated.
+            data = await QuickCaptureNoteMigration.MigrateAsync(_store, _noteFiles, data);
+        }
+
+        _data = data;
+        _notes = new Dictionary<string, QuickCaptureItem>(StringComparer.Ordinal);
+        var fileErrors = new List<QuickCaptureNoteFileError>();
+        foreach (NoteFileLoadResult load in await _noteFiles.LoadAllAsync())
+        {
+            if (load.Item is { } note &&
+                load.Status is NoteFileLoadStatus.Loaded or NoteFileLoadStatus.NoHeader)
+            {
+                if (!_notes.TryAdd(note.Id, note))
+                {
+                    App.Log($"[QuickCaptureService] Duplicate note id '{note.Id}'; keeping the first file ({load.FileName}).");
+                }
+
+                continue;
+            }
+
+            fileErrors.Add(new QuickCaptureNoteFileError(
+                load.NoteId ?? string.Empty,
+                load.Status.ToString(),
+                load.FileName,
+                load.ErrorMessage));
+            // A damaged file only invalidates its own note: the rest of the
+            // library still loads, and the source file is never overwritten.
+            App.Log($"[QuickCaptureService] Note '{load.FileName}' failed to load ({load.Status}): {load.ErrorMessage}");
+        }
+
+        _noteFileErrors = fileErrors;
+        PruneNoteTombstoneFiles();
+
+        // Legacy inline data-URI extraction once per load; each affected
+        // note commits its own file, records go through one host save.
+        bool hostDirty = false;
+        foreach (QuickCaptureItem item in _data.Items.Concat(_notes.Values).Where(item => !item.IsDeleted).ToList())
         {
             string body = await ExtractInlineMarkdownImagesAsync(
                 item.Id,
@@ -1482,13 +1600,210 @@ public sealed class QuickCaptureService
             if (!string.Equals(body, item.Body, StringComparison.Ordinal))
             {
                 item.Body = body;
-                migrated = true;
+                if (_notes.ContainsKey(item.Id))
+                {
+                    await SaveItemAsync(item, notify: false);
+                }
+                else
+                {
+                    hostDirty = true;
+                }
             }
         }
 
-        if (migrated)
+        if (hostDirty)
         {
-            await SaveCoreAsync(notify: false);
+            await SaveHostCoreAsync(notify: false);
+        }
+    }
+
+    private void PruneNoteTombstoneFiles()
+    {
+        var tombstones = _notes.Values.Where(note => note.IsDeleted)
+            .OrderByDescending(note => note.UpdatedAt)
+            .ToList();
+        if (tombstones.Count <= MaxRetainedNoteTombstoneFiles)
+        {
+            return;
+        }
+
+        foreach (var stale in tombstones.Skip(MaxRetainedNoteTombstoneFiles))
+        {
+            _notes.Remove(stale.Id);
+            _noteFiles.TryDeleteNoteFiles(stale.Id);
+            App.Log($"[QuickCaptureService] Pruned note tombstone '{stale.Id}' beyond the retention cap.");
+        }
+    }
+
+    private async Task ReplaceWithTombstoneAsync(QuickCaptureItem item, DateTimeOffset deletedAt, bool isRecent)
+    {
+        bool isNote = !isRecent && _notes.ContainsKey(item.Id);
+        QuickCaptureItem stub = CreateTombstoneStub(item, deletedAt, isRecent, isNote || item.IsNote);
+        if (isNote)
+        {
+            _notes[item.Id] = stub;
+            await SaveItemAsync(stub, notify: false);
+        }
+        else
+        {
+            List<QuickCaptureItem> list = isRecent ? _data!.RecentItems : _data!.Items;
+            int index = list.IndexOf(item);
+            if (index >= 0)
+            {
+                list[index] = stub;
+            }
+            else
+            {
+                list.Add(stub);
+            }
+
+            await SaveHostCoreAsync(notify: false);
+        }
+
+        RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
+    }
+
+    /// <summary>All note and record items in display order, live objects (not clones).</summary>
+    private List<QuickCaptureItem> MergedItemsCore() =>
+        _data!.Items
+            .Concat(_notes.Values)
+            .Where(item => item is not null)
+            .OrderBy(item => item.SortOrder)
+            .ThenByDescending(item => item.UpdatedAt)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
+            .ToList();
+
+    private List<QuickCaptureItem> OrderedPinnedItemsCore() =>
+        MergedItemsCore()
+            .Where(item => !item.IsDeleted && item.IsPinned)
+            .OrderBy(item => item.PinnedSortOrder < 0 ? int.MaxValue : item.PinnedSortOrder)
+            .ThenBy(item => item.SortOrder)
+            .ThenByDescending(item => item.UpdatedAt)
+            .ToList();
+
+    private QuickCaptureItem? FindItem(string itemId) =>
+        FindItemIncludingDeleted(itemId) is { } item && !item.IsDeleted ? item : null;
+
+    private QuickCaptureItem? FindItemIncludingDeleted(string itemId)
+    {
+        if (_notes.TryGetValue(itemId, out QuickCaptureItem? note))
+        {
+            return note;
+        }
+
+        return _data!.Items.FirstOrDefault(entry => string.Equals(entry.Id, itemId, StringComparison.Ordinal));
+    }
+
+    private static bool QualifiesAsNote(QuickCaptureItem item) => NoteWorkspace.IsNote(item);
+
+    private int NextSortOrderForInsertAtTop()
+    {
+        var merged = MergedItemsCore();
+        return merged.Count == 0 ? 0 : merged.Min(item => item.SortOrder) - 1;
+    }
+
+    /// <summary>
+    /// Pre-insert shift for a new top pin: existing pinned items move down
+    /// so the newcomer takes slot 0. Pinned sets are small and pinning is
+    /// never on the typing hot path, so shifting keeps pinned orders dense
+    /// and non-negative — negative values are the "not pinned" sentinel.
+    /// </summary>
+    private void ShiftPinnedBelowNewTopPin()
+    {
+        foreach (var pinned in MergedItemsCore().Where(item => !item.IsDeleted && item.IsPinned))
+        {
+            pinned.PinnedSortOrder++;
+        }
+    }
+
+    private Dictionary<string, (int SortOrder, int PinnedSortOrder)> SnapshotOrders() =>
+        MergedItemsCore().ToDictionary(item => item.Id, item => (item.SortOrder, item.PinnedSortOrder));
+
+    /// <summary>
+    /// Persists only the items whose order values actually changed: note
+    /// files one by one, records through a single host save.
+    /// </summary>
+    private async Task PersistOrderChangesAsync(Dictionary<string, (int SortOrder, int PinnedSortOrder)> before)
+    {
+        await PersistOrderChangesCoreAsync(before);
+        RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
+    }
+
+    private async Task PersistOrderChangesCoreAsync(Dictionary<string, (int SortOrder, int PinnedSortOrder)> before)
+    {
+        bool hostDirty = false;
+        foreach (var item in MergedItemsCore())
+        {
+            if (!before.TryGetValue(item.Id, out var was))
+            {
+                continue;
+            }
+
+            if (was.SortOrder == item.SortOrder && was.PinnedSortOrder == item.PinnedSortOrder)
+            {
+                continue;
+            }
+
+            if (_notes.ContainsKey(item.Id))
+            {
+                await SaveItemAsync(item, notify: false);
+            }
+            else
+            {
+                hostDirty = true;
+            }
+        }
+
+        if (hostDirty)
+        {
+            await SaveHostCoreAsync(notify: false);
+        }
+    }
+
+    /// <summary>
+    /// Persists one item through its owning store: note files commit a
+    /// single document with a targeted notification; records ride the
+    /// aggregate JSON save.
+    /// </summary>
+    private async Task<bool> SaveItemAsync(QuickCaptureItem item, bool notify = true)
+    {
+        if (_notes.ContainsKey(item.Id))
+        {
+            NoteFileCommitResult result = await _noteFiles.SaveAsync(item);
+            if (result.Status == NoteFileCommitStatus.Conflict)
+            {
+                App.Log($"[QuickCaptureService] Note '{item.Id}' was not saved: {result.ErrorMessage}");
+                if (notify) RaiseChanged(QuickCaptureChangeKind.ItemsChanged);
+                return false;
+            }
+
+            if (notify) RaiseChanged(QuickCaptureChangeKind.NoteSaved, [item.Id]);
+            return true;
+        }
+
+        await SaveHostCoreAsync(notify: notify);
+        return true;
+    }
+
+    private async Task SaveHostCoreAsync(
+        bool notify = true,
+        QuickCaptureChangeKind kind = QuickCaptureChangeKind.ItemsChanged)
+    {
+        await _store.SaveAsync(_data!);
+        if (notify)
+        {
+            RaiseChanged(kind);
+        }
+    }
+
+    private void RaiseChanged(QuickCaptureChangeKind kind) => RaiseChanged(kind, Array.Empty<string>());
+
+    private void RaiseChanged(QuickCaptureChangeKind kind, IReadOnlyList<string> noteIds)
+    {
+        ChangeDetailed?.Invoke(new QuickCaptureChange(kind, noteIds));
+        if (kind != QuickCaptureChangeKind.NoteSaved)
+        {
+            Changed?.Invoke();
         }
     }
 
@@ -1516,15 +1831,6 @@ public sealed class QuickCaptureService
         }
 
         return result.Body;
-    }
-
-    private async Task SaveCoreAsync(bool notify = true)
-    {
-        await _store.SaveAsync(_data!);
-        if (notify)
-        {
-            Changed?.Invoke();
-        }
     }
 
     private QuickCaptureImageCacheInfo GetImageCacheInfoCore()
@@ -1615,8 +1921,8 @@ public sealed class QuickCaptureService
 
     private HashSet<string> GetReferencedImagePathsCore()
     {
-        return _data!.Items
-            .Concat(_data.RecentItems)
+        return MergedItemsCore()
+            .Concat(_data!.RecentItems)
             .Where(item => item is not null &&
                            !item.IsDeleted &&
                            item.Type == QuickCaptureItemType.Image &&
@@ -1726,11 +2032,32 @@ public sealed class QuickCaptureService
         }
     }
 
+    /// <summary>
+    /// The consumer-facing projection: notes and records merged in display
+    /// order. SortOrder values in files stay sparse; this clone renumbers
+    /// them to dense list positions because every existing consumer treats
+    /// SortOrder as the position within Items.
+    /// </summary>
+    private QuickCaptureStoreData CloneWithMergedItems()
+    {
+        var data = Clone(_data!);
+        List<QuickCaptureItem> merged = MergedItemsCore().Select(Clone).ToList();
+        for (int index = 0; index < merged.Count; index++)
+        {
+            merged[index].SortOrder = index;
+        }
+
+        NormalizePinnedSortOrders(merged);
+        data.Items = merged;
+        return data;
+    }
+
     private static QuickCaptureStoreData Clone(QuickCaptureStoreData data)
     {
         return new QuickCaptureStoreData
         {
             Version = data.Version,
+            NotesStorageVersion = data.NotesStorageVersion,
             CurrentView = data.CurrentView,
             ClosedQuickPanelNotes = data.ClosedQuickPanelNotes is null ? null : new(data.ClosedQuickPanelNotes, StringComparer.Ordinal),
             Items = data.Items.Select(Clone).ToList(),
@@ -1738,8 +2065,13 @@ public sealed class QuickCaptureService
         };
     }
 
-    private static QuickCaptureItem Clone(QuickCaptureItem item)
+    private static QuickCaptureItem? Clone(QuickCaptureItem? item)
     {
+        if (item is null)
+        {
+            return null;
+        }
+
         return new QuickCaptureItem
         {
             Id = item.Id,
@@ -1775,11 +2107,13 @@ public sealed class QuickCaptureService
     private static QuickCaptureItem CreateTombstoneStub(
         QuickCaptureItem item,
         DateTimeOffset deletedAt,
-        bool isRecent) =>
+        bool isRecent,
+        bool isNote) =>
         new()
         {
             Id = item.Id,
             IsDeleted = true,
+            IsNote = isNote,
             IsRecent = isRecent,
             SortOrder = item.SortOrder,
             CreatedAt = item.CreatedAt,

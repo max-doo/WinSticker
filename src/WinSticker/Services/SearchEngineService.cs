@@ -36,21 +36,26 @@ public sealed class SearchEngineService : IDisposable
         _localizationService = localizationService;
         _everythingSearchService = everythingSearchService;
         _quickCaptureService = quickCaptureService;
-        _quickCaptureService.Changed += OnQuickCaptureChanged;
+        _quickCaptureService.ChangeDetailed += OnQuickCaptureChangeDetailed;
     }
 
     public EverythingSearchService EverythingProvider => _everythingSearchService;
 
     public event Action? ResultsChanged;
 
-    private void OnQuickCaptureChanged()
+    private void OnQuickCaptureChangeDetailed(QuickCaptureChange change)
     {
-        if (!_isDisposed && _settingsService.Settings.SearchIncludeWinStickerContent)
+        if (_isDisposed || !_settingsService.Settings.SearchIncludeWinStickerContent)
         {
-            _ = EnsureWinStickerContentSnapshotAsync(
-                forceRefresh: true,
-                _winstickerContentLifetimeCts.Token);
+            return;
         }
+
+        // Note saves arrive per keystroke-batch: run through the throttled,
+        // coalescing refresh (1 s interval) instead of the forced rebuild
+        // structural changes still get.
+        _ = EnsureWinStickerContentSnapshotAsync(
+            forceRefresh: change.Kind != QuickCaptureChangeKind.NoteSaved,
+            _winstickerContentLifetimeCts.Token);
     }
 
     public void SetWinStickerContentSearchEnabled(bool enabled)
@@ -872,7 +877,7 @@ public sealed class SearchEngineService : IDisposable
         }
 
         _isDisposed = true;
-        _quickCaptureService.Changed -= OnQuickCaptureChanged;
+        _quickCaptureService.ChangeDetailed -= OnQuickCaptureChangeDetailed;
         _winstickerContentLifetimeCts.Cancel();
         _winstickerContentLifetimeCts.Dispose();
         Volatile.Write(ref _winstickerContentSnapshot, []);

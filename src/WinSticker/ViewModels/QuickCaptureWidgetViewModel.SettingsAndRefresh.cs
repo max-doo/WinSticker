@@ -11,7 +11,7 @@ namespace WinSticker.ViewModels;
 
 public sealed partial class QuickCaptureWidgetViewModel
 {
-    private void OnQuickCaptureChanged()
+    private void OnQuickCaptureChangeDetailed(QuickCaptureChange change)
     {
         if (_isDisposed)
         {
@@ -26,11 +26,42 @@ public sealed partial class QuickCaptureWidgetViewModel
 
         if (!_dispatcherQueue.HasThreadAccess)
         {
-            _dispatcherQueue.TryEnqueue(OnQuickCaptureChanged);
+            _dispatcherQueue.TryEnqueue(() => OnQuickCaptureChangeDetailed(change));
+            return;
+        }
+
+        if (change.Kind == QuickCaptureChangeKind.NoteSaved && change.NoteIds.Count > 0)
+        {
+            // One note's own file was saved: update that row in place; a
+            // full GetDataAsync round trip per keystroke save is exactly
+            // what independent note files exist to remove.
+            UpdateNoteRowsAsync(change.NoteIds).LogQuickCaptureFailure();
             return;
         }
 
         RefreshVisibleItemsImmediately();
+    }
+
+    private async Task UpdateNoteRowsAsync(IReadOnlyList<string> noteIds)
+    {
+        foreach (string id in noteIds)
+        {
+            if (!_itemViewModelCache.TryGetValue(id, out QuickCaptureItemViewModel? row))
+            {
+                RefreshVisibleItemsImmediately();
+                return;
+            }
+
+            QuickCaptureItem? model = await _quickCaptureService.GetNoteAsync(id);
+            if (model is null)
+            {
+                RefreshVisibleItemsImmediately();
+                return;
+            }
+
+            row.Update(model);
+            row.UpdateSearchText(SearchText);
+        }
     }
 
     private void OnLanguageChanged()
