@@ -34,7 +34,7 @@ public sealed class QuickCaptureSidebarFoundationTests : IDisposable
         QuickCaptureStoreData data = await new QuickCaptureStore(_root).LoadAsync();
 
         QuickCaptureItem item = Assert.Single(data.Items);
-        Assert.Equal(4, data.Version);
+        Assert.Equal(5, data.Version);
         Assert.Equal(TextContentFormat.PlainText, item.ContentFormat);
         Assert.Equal("Legacy **literal** text", item.Body);
     }

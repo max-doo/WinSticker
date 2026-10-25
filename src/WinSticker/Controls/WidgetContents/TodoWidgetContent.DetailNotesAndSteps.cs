@@ -212,6 +212,7 @@ public sealed partial class TodoWidgetContent
         _notesEditingItemId = item.Id;
         _notesExitRequested = false;
         _notesSession?.Reset();
+        DetailNotesEditor.AttachmentResolver = ResolveSelectedTodoAttachment;
         DetailNotesEditor.Text = item.Notes;
         DetailNotesSaveFailure.Visibility = Visibility.Collapsed;
         ApplyNotesEditingVisualState(isEditing: true);

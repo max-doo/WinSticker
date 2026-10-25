@@ -63,6 +63,7 @@ public sealed partial class QuickCaptureWidgetViewModel : ObservableObject, IDis
     public object[] VisibleItemsSource => Items.Cast<object>().ToArray();
 
     public WidgetConfig Config { get; }
+    internal QuickCaptureService NoteService => _quickCaptureService;
 
     public bool IsInitialized { get; private set; }
 

@@ -234,7 +234,7 @@ public sealed class QuickCaptureServiceTests : IDisposable
         Assert.Equal("Decide the launch date", saved.Body);
         Assert.Equal(QuickCaptureAppearancePreset.StickyYellow, saved.AppearancePreset);
         Assert.Equal(QuickCaptureSourceKind.Manual, saved.SourceKind);
-        Assert.Equal(4, data.Version);
+        Assert.Equal(5, data.Version);
     }
 
     [Fact]
@@ -255,6 +255,69 @@ public sealed class QuickCaptureServiceTests : IDisposable
         Assert.Equal(QuickCaptureItemType.Link, saved.Type);
         Assert.Equal("https://example.com/new", saved.Url);
         Assert.Equal(QuickCaptureAppearancePreset.Rose, saved.AppearancePreset);
+    }
+
+    [Fact]
+    public async Task UpdateItemDetailsAsync_NullTitleKeepsStoredTitle()
+    {
+        var service = CreateService();
+        QuickCaptureItem item = await service.AddDetailedItemAsync(
+            "面板命名的标题",
+            "原正文",
+            QuickCaptureAppearancePreset.Default);
+
+        bool updated = await service.UpdateItemDetailsAsync(
+            item.Id,
+            title: null,
+            body: "贴纸侧改了正文",
+            appearancePreset: null);
+        QuickCaptureItem saved = Assert.Single((await service.GetDataAsync()).Items);
+
+        Assert.True(updated);
+        Assert.Equal("面板命名的标题", saved.Title);
+        Assert.Equal("贴纸侧改了正文", saved.Body);
+    }
+
+    [Fact]
+    public async Task UpdateItemDetailsAsync_EmptyTitleClearsStoredTitle()
+    {
+        var service = CreateService();
+        QuickCaptureItem item = await service.AddDetailedItemAsync(
+            "原标题",
+            "原正文",
+            QuickCaptureAppearancePreset.Default);
+
+        bool updated = await service.UpdateItemDetailsAsync(
+            item.Id,
+            title: string.Empty,
+            body: "新正文",
+            appearancePreset: null);
+        QuickCaptureItem saved = Assert.Single((await service.GetDataAsync()).Items);
+
+        Assert.True(updated);
+        Assert.Null(saved.Title);
+        Assert.Equal("新正文", saved.Body);
+    }
+
+    [Fact]
+    public async Task UpdateItemDetailsAsync_NullAppearanceKeepsStoredPreset()
+    {
+        var service = CreateService();
+        QuickCaptureItem item = await service.AddDetailedItemAsync(
+            "标题",
+            "原正文",
+            QuickCaptureAppearancePreset.StickyYellow);
+
+        bool updated = await service.UpdateItemDetailsAsync(
+            item.Id,
+            title: null,
+            body: "面板改了正文",
+            appearancePreset: null);
+        QuickCaptureItem saved = Assert.Single((await service.GetDataAsync()).Items);
+
+        Assert.True(updated);
+        Assert.Equal(QuickCaptureAppearancePreset.StickyYellow, saved.AppearancePreset);
+        Assert.Equal("面板改了正文", saved.Body);
     }
 
     [Fact]
@@ -297,7 +360,7 @@ public sealed class QuickCaptureServiceTests : IDisposable
         QuickCaptureStoreData data = await store.LoadAsync();
         QuickCaptureItem recent = Assert.Single(data.RecentItems);
 
-        Assert.Equal(4, data.Version);
+        Assert.Equal(5, data.Version);
         Assert.Equal(QuickCaptureAppearancePreset.Default, recent.AppearancePreset);
         Assert.Equal(QuickCaptureSourceKind.Clipboard, recent.SourceKind);
         Assert.True(recent.IsRecent);
@@ -315,6 +378,46 @@ public sealed class QuickCaptureServiceTests : IDisposable
 
         Assert.True(pinned);
         Assert.True(Assert.Single(data.Items).IsPinned);
+    }
+
+    [Fact]
+    public async Task SetItemClosedAsync_ClosesAndReopensWithoutTouchingContent()
+    {
+        var service = CreateService();
+        var item = await service.AddItemAsync("keep my content");
+
+        Assert.True(await service.SetItemClosedAsync(item.Id, isClosed: true));
+
+        var reloaded = CreateService();
+        var data = await reloaded.GetDataAsync();
+        QuickCaptureItem closed = Assert.Single(data.Items);
+        Assert.False(closed.IsDeleted);
+        Assert.Equal("keep my content", closed.Body);
+        Assert.Null(closed.ArchivedAt);
+        Assert.Contains(item.Id, data.ClosedQuickPanelNotes!.Keys);
+        Assert.Equal(item.UpdatedAt, closed.UpdatedAt);
+
+        Assert.True(await service.SetItemClosedAsync(item.Id, isClosed: false));
+
+        reloaded = CreateService();
+        data = await reloaded.GetDataAsync();
+        QuickCaptureItem reopened = Assert.Single(data.Items);
+        Assert.Null(reopened.ArchivedAt);
+        Assert.Equal("keep my content", reopened.Body);
+    }
+
+    [Fact]
+    public async Task SetItemClosedAsync_IgnoresUnknownOrRepeatedRequests()
+    {
+        var service = CreateService();
+        var item = await service.AddItemAsync("once");
+
+        Assert.False(await service.SetItemClosedAsync("missing-id", isClosed: true));
+        Assert.True(await service.SetItemClosedAsync(item.Id, isClosed: true));
+        Assert.False(await service.SetItemClosedAsync(item.Id, isClosed: true));
+        // Reopening a closed record is a real state change and must succeed.
+        Assert.True(await service.SetItemClosedAsync(item.Id, isClosed: false));
+        Assert.False(await service.SetItemClosedAsync(item.Id, isClosed: false));
     }
 
     [Fact]
@@ -1144,7 +1247,7 @@ public sealed class QuickCaptureServiceTests : IDisposable
         QuickCaptureItem item = Assert.Single(data.Items);
         TodoAttachment attachment = Assert.Single(item.Attachments);
 
-        Assert.Equal(4, data.Version);
+        Assert.Equal(5, data.Version);
         Assert.Equal(imagePath, attachment.FilePath);
         Assert.Equal(TodoAttachment.ManagedStorageMode, attachment.StorageMode);
         Assert.Equal("image", attachment.Type);

@@ -559,11 +559,13 @@ public sealed partial class QuickCaptureWidgetViewModel
         return changedCount;
     }
 
-    public Task<bool> SetAppearanceAsync(
+    public async Task<bool> SetAppearanceAsync(
         QuickCaptureItemViewModel item,
         QuickCaptureAppearancePreset appearancePreset)
     {
-        return _quickCaptureService.UpdateItemDetailsAsync(item.Id, item.Title, item.Body, appearancePreset);
+        // Appearance-only change: never rewrites title/body from a possibly stale projection.
+        int changed = await _quickCaptureService.SetAppearanceAsync([item.Id], appearancePreset);
+        return changed > 0;
     }
 
     public Task<int> SetAppearanceAsync(

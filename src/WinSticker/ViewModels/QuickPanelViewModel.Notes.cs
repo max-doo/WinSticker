@@ -1,356 +1,202 @@
 using System.Collections.ObjectModel;
-using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WinSticker.Models;
 using WinSticker.Services;
-using Microsoft.UI.Dispatching;
 
 namespace WinSticker.ViewModels;
 
 public sealed partial class QuickPanelViewModel
 {
-    [ObservableProperty]
-    private QuickPanelNoteItem? _selectedNote;
-
-    [ObservableProperty]
-    private string _noteTitle = string.Empty;
-
-    [ObservableProperty]
-    private string _noteBody = string.Empty;
-
-    [ObservableProperty]
-    private string _noteSaveStatus = "已保存";
-
+    [ObservableProperty] private QuickPanelNoteItem? _selectedNote;
+    [ObservableProperty] private string _noteTitle = string.Empty;
+    [ObservableProperty] private string _noteBody = string.Empty;
+    [ObservableProperty] private string _noteSaveStatus = string.Empty;
     public ObservableCollection<QuickPanelNoteItem> Notes { get; } = [];
-
-    private DispatcherQueueTimer? _noteAutosaveTimer;
+    public ObservableCollection<QuickPanelNoteItem> ClosedNotes { get; } = [];
+    public ObservableCollection<QuickPanelNoteItem> AllNotes { get; } = [];
+    private NoteWorkspace? _notesWorkspace;
+    private NoteEditingSession? _activeNoteSession;
     private bool _isInternalNoteSwitch;
-    private string? _activeTodoWidgetId;
-
-    private string GetActiveTodoWidgetId()
-    {
-        if (_activeTodoWidgetId is not null) return _activeTodoWidgetId;
-
-        _activeTodoWidgetId = TodoTargetResolver.ResolveWidgetId(_settingsService.Settings);
-        return _activeTodoWidgetId;
-    }
+    private bool _loadingNotes;
+    private bool _reloadNotesAgain;
+    private TaskCompletionSource? _notesLoaded;
+    /// <summary>Synchronize native input before a host changes the selected note.</summary>
+    public Action? FlushNoteEditor { get; set; }
+    public bool NoteAllowsRemoteImages => _settingsService.Settings.QuickCapture.QuickCaptureAllowRemoteImages;
+    internal QuickCaptureService NoteService => _quickCaptureService;
+    internal SettingsService NoteSettings => _settingsService;
+    internal LocalizationService NoteLocalization => _localizationService;
+    internal Func<string, TodoWidgetStore> NoteTodoStoreFactory => _todoStoreFactory;
 
     private void InitializeNotes()
     {
-        if (_dispatcherQueue is not null)
-        {
-            _noteAutosaveTimer = _dispatcherQueue.CreateTimer();
-            _noteAutosaveTimer.Interval = TimeSpan.FromMilliseconds(350);
-            _noteAutosaveTimer.IsRepeating = false;
-            _noteAutosaveTimer.Tick += (s, e) => _ = SaveCurrentNoteAsync();
-        }
+        _notesWorkspace = NoteWorkspace.For(_quickCaptureService);
+        _notesWorkspace.NoteChanged += WorkspaceNoteChanged;
+        _quickCaptureService.Changed += NotesStoreChanged;
     }
-
     private void DisposeNotes()
     {
-        _noteAutosaveTimer?.Stop();
+        _quickCaptureService.Changed -= NotesStoreChanged;
+        if (_notesWorkspace is not null) _notesWorkspace.NoteChanged -= WorkspaceNoteChanged;
+        if (_activeNoteSession is not null) _notesWorkspace?.Release(_activeNoteSession);
+        _activeNoteSession = null;
     }
-
-    partial void OnSelectedNoteChanged(QuickPanelNoteItem? value)
+    partial void OnSelectedNoteChanging(QuickPanelNoteItem? oldValue, QuickPanelNoteItem? newValue)
     {
         if (_isInternalNoteSwitch) return;
-
+        FlushNoteEditor?.Invoke();
+        if (_activeNoteSession is not null) _ = _activeNoteSession.FlushAsync();
+    }
+    partial void OnSelectedNoteChanged(QuickPanelNoteItem? value)
+    {
+        if (!_isInternalNoteSwitch) SwitchNoteSession(value);
+    }
+    private void SwitchNoteSession(QuickPanelNoteItem? note)
+    {
+        if (_activeNoteSession?.Id != note?.Id)
+        {
+            if (_activeNoteSession is not null) _notesWorkspace?.Release(_activeNoteSession);
+            _activeNoteSession = note is null ? null : _notesWorkspace!.Acquire(note.ToRecord(),
+                () => _dispatcherQueue is null ? new HeadlessMarkdownSessionTimer() :
+                    new DispatcherQueueSessionTimer(_dispatcherQueue, TimeSpan.FromMilliseconds(600)), _dispatcherQueue);
+        }
         _isInternalNoteSwitch = true;
-        try
-        {
-            if (value is not null)
-            {
-                NoteTitle = value.Title;
-                NoteBody = value.Body;
-                NoteSaveStatus = "已保存";
-            }
-            else
-            {
-                NoteTitle = string.Empty;
-                NoteBody = string.Empty;
-            }
-        }
-        finally
-        {
-            _isInternalNoteSwitch = false;
-        }
+        try { NoteTitle = _activeNoteSession?.Title ?? string.Empty; NoteBody = _activeNoteSession?.Body ?? string.Empty; }
+        finally { _isInternalNoteSwitch = false; }
+        UpdateNoteSaveStatus();
     }
-
-    partial void OnNoteTitleChanged(string value)
+    partial void OnNoteTitleChanged(string value) { if (!_isInternalNoteSwitch) _activeNoteSession?.SetTitle(value); }
+    partial void OnNoteBodyChanged(string value) { if (!_isInternalNoteSwitch) _activeNoteSession?.SetBody(value); }
+    private void UpdateNoteSaveStatus() => NoteSaveStatus = _localizationService.T(_activeNoteSession?.SaveFailed == true
+        ? "Notes.SaveFailed" : _activeNoteSession?.HasUnsavedChanges == true ? "Notes.Saving" : "Notes.Saved");
+    private void WorkspaceNoteChanged(object? sender, NoteEditingSession session) => RunOnUi(() =>
     {
-        if (_isInternalNoteSwitch || SelectedNote is null) return;
-
-        SelectedNote.Title = value;
-        TriggerNoteAutosave();
-    }
-
-    partial void OnNoteBodyChanged(string value)
+        var note = AllNotes.FirstOrDefault(item => item.Id == session.Id);
+        if (note is not null) UpdateNote(note, session);
+        if (_activeNoteSession?.Id != session.Id) return;
+        _isInternalNoteSwitch = true;
+        try { NoteTitle = session.Title; NoteBody = session.Body; }
+        finally { _isInternalNoteSwitch = false; }
+        UpdateNoteSaveStatus();
+    });
+    private static void UpdateNote(QuickPanelNoteItem note, NoteEditingSession session)
     {
-        if (_isInternalNoteSwitch || SelectedNote is null) return;
-
-        SelectedNote.Body = value;
-        TriggerNoteAutosave();
+        note.Title = session.Title; note.Body = session.Body; note.Appearance = session.Appearance;
+        note.ContentFormat = session.ContentFormat; note.Attachments = session.Attachments;
+        note.IsPinned = session.IsPinned; note.UpdatedAt = session.UpdatedAt;
     }
-
-    private void TriggerNoteAutosave()
-    {
-        NoteSaveStatus = "正在保存...";
-        _noteAutosaveTimer?.Stop();
-        _noteAutosaveTimer?.Start();
-    }
-
+    private void NotesStoreChanged() => RunOnUi(() => _ = LoadNotesAsync());
     public async Task LoadNotesAsync()
     {
+        if (_isDisposed) return;
+        if (_loadingNotes) { _reloadNotesAgain = true; if (_notesLoaded is { } pending) await pending.Task; return; }
+        _loadingNotes = true;
+        var completion = _notesLoaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            QuickCaptureStoreData data = await _quickCaptureService.GetDataAsync();
-
-            var noteRecords = data.Items
-                .Where(i => i.Type == QuickCaptureItemType.Text && !i.IsRecent && !i.IsDeleted)
-                .OrderBy(i => i.SortOrder)
-                .ToList();
-
-            List<QuickPanelNoteItem> noteItems = [];
-            if (noteRecords.Count == 0)
+            do
             {
-                var created = await _quickCaptureService.AddDetailedItemAsync(
-                    title: "便签 1",
-                    body: string.Empty,
-                    appearancePreset: QuickCaptureAppearancePreset.Default);
-
-                noteItems.Add(new QuickPanelNoteItem
-                {
-                    Id = created.Id,
-                    Title = string.IsNullOrWhiteSpace(created.Title) ? "便签 1" : created.Title,
-                    Body = created.Body ?? string.Empty,
-                    CreatedAt = created.CreatedAt,
-                    UpdatedAt = created.UpdatedAt
-                });
-            }
-            else
+            _reloadNotesAgain = false;
+            if (!await TrySaveCurrentNoteAsync()) return;
+            var data = await _quickCaptureService.GetDataAsync();
+            var records = data.Items.Where(NoteWorkspace.IsNote).OrderBy(item => item.SortOrder).ToList();
+            if (records.Count == 0)
             {
-                foreach (var record in noteRecords)
-                {
-                    noteItems.Add(new QuickPanelNoteItem
-                    {
-                        Id = record.Id,
-                        Title = string.IsNullOrWhiteSpace(record.Title) ? "便签" : record.Title,
-                        Body = record.Body ?? string.Empty,
-                        CreatedAt = record.CreatedAt,
-                        UpdatedAt = record.UpdatedAt
-                    });
-                }
+                records.Add(await _quickCaptureService.CreateNoteAsync());
+                data = await _quickCaptureService.GetDataAsync();
             }
-
             RunOnUi(() =>
             {
+                string? selected = SelectedNote?.Id;
+                var old = AllNotes.ToDictionary(item => item.Id, StringComparer.Ordinal);
+                var items = records.Select(record =>
+                {
+                    if (!old.TryGetValue(record.Id, out var note)) note = new QuickPanelNoteItem { Id = record.Id };
+                    note.UntitledText = _localizationService.T("Notes.Untitled");
+                    note.Title = record.Title ?? string.Empty; note.Body = record.Body; note.Appearance = record.AppearancePreset;
+                    note.ContentFormat = record.ContentFormat; note.Attachments = record.Attachments;
+                    note.IsPinned = record.IsPinned; note.CreatedAt = record.CreatedAt; note.UpdatedAt = record.UpdatedAt;
+                    note.ClosedAt = data.ClosedQuickPanelNotes is { } closed && closed.TryGetValue(record.Id, out var date) ? date : null;
+                    return note;
+                }).ToArray();
                 _isInternalNoteSwitch = true;
                 try
                 {
-                    Notes.Clear();
-                    foreach (var item in noteItems)
-                    {
-                        Notes.Add(item);
-                    }
-
-                    SelectedNote = Notes.Count > 0 ? Notes[0] : null;
-                    if (SelectedNote is not null)
-                    {
-                        NoteTitle = SelectedNote.Title;
-                        NoteBody = SelectedNote.Body;
-                        NoteSaveStatus = "已保存";
-                    }
+                    SyncNotes(AllNotes, items);
+                    SyncNotes(Notes, items.Where(item => item.ClosedAt is null).ToArray());
+                    SyncNotes(ClosedNotes, items.Where(item => item.ClosedAt is not null).OrderByDescending(item => item.ClosedAt).ToArray());
+                    SelectedNote = Notes.FirstOrDefault(item => item.Id == selected) ?? Notes.FirstOrDefault();
                 }
-                finally
-                {
-                    _isInternalNoteSwitch = false;
-                }
+                finally { _isInternalNoteSwitch = false; }
+                SwitchNoteSession(SelectedNote);
             });
+            }
+            while (_reloadNotesAgain && !_isDisposed);
         }
-        catch (Exception ex)
+        catch (Exception error) { App.Log($"[Notes] Load failed: {error}"); }
+        finally
         {
-            App.Log($"[QuickPanel] Failed to load notes: {ex.Message}");
+            _loadingNotes = false;
+            completion.TrySetResult();
         }
     }
-
+    private static void SyncNotes(ObservableCollection<QuickPanelNoteItem> target, QuickPanelNoteItem[] source)
+    {
+        foreach (var removed in target.Where(item => !source.Contains(item)).ToArray()) target.Remove(removed);
+        for (int index = 0; index < source.Length; index++)
+        {
+            int old = target.IndexOf(source[index]);
+            if (old < 0) target.Insert(index, source[index]); else if (old != index) target.Move(old, index);
+        }
+    }
+    public async Task<bool> TrySaveCurrentNoteAsync()
+    {
+        FlushNoteEditor?.Invoke();
+        return _activeNoteSession is null || await _activeNoteSession.FlushAsync();
+    }
+    public async Task SaveCurrentNoteAsync() => await TrySaveCurrentNoteAsync();
+    public async Task<bool> SelectNoteAsync(QuickPanelNoteItem note)
+    {
+        if (!await TrySaveCurrentNoteAsync()) return false;
+        if (note.ClosedAt is not null) await _quickCaptureService.SetItemClosedAsync(note.Id, false);
+        await LoadNotesAsync();
+        SelectedNote = Notes.FirstOrDefault(item => item.Id == note.Id);
+        return true;
+    }
     [RelayCommand]
     public async Task CreateNewNoteAsync()
     {
-        int maxIndex = 0;
-        foreach (var note in Notes)
-        {
-            var match = Regex.Match(note.Title ?? string.Empty, @"^便签\s*(\d+)$");
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
-            {
-                maxIndex = Math.Max(maxIndex, num);
-            }
-        }
-        int nextIndex = Math.Max(Notes.Count + 1, maxIndex + 1);
-
-        var newNote = new QuickPanelNoteItem
-        {
-            Title = $"便签 {nextIndex}",
-            Body = string.Empty
-        };
-
-        var created = await _quickCaptureService.AddDetailedItemAsync(
-            title: newNote.Title,
-            body: newNote.Body,
-            appearancePreset: QuickCaptureAppearancePreset.Default);
-
-        newNote.Id = created.Id;
-        Notes.Add(newNote);
-        SelectedNote = newNote;
-        ShowToast("已创建新便签");
+        if (!await TrySaveCurrentNoteAsync()) return;
+        var created = await _quickCaptureService.CreateNoteAsync();
+        await LoadNotesAsync();
+        SelectedNote = Notes.FirstOrDefault(note => note.Id == created.Id);
     }
-
     [RelayCommand]
     public async Task CloseNoteAsync(QuickPanelNoteItem? note)
     {
-        if (note is null || Notes.Count <= 1) return;
-
-        int index = Notes.IndexOf(note);
-        Notes.Remove(note);
-
-        if (ReferenceEquals(SelectedNote, note))
-        {
-            int nextIndex = Math.Clamp(index, 0, Notes.Count - 1);
-            SelectedNote = Notes[nextIndex];
-        }
-
-        await _quickCaptureService.DeleteItemAsync(note.Id);
+        if (note is null || !await TrySaveCurrentNoteAsync()) return;
+        await _quickCaptureService.SetItemClosedAsync(note.Id, true);
+        await LoadNotesAsync();
     }
-
     [RelayCommand]
-    public async Task DeleteCurrentNoteAsync()
+    public async Task ReopenNoteAsync(QuickPanelNoteItem? note) { if (note is not null) await SelectNoteAsync(note); }
+    [RelayCommand]
+    public async Task DeleteNoteAsync(QuickPanelNoteItem? note)
     {
-        if (SelectedNote is null) return;
-
-        var noteToDelete = SelectedNote;
-        await _quickCaptureService.DeleteItemAsync(noteToDelete.Id);
-
-        Notes.Remove(noteToDelete);
-        if (Notes.Count == 0)
-        {
-            await CreateNewNoteAsync();
-        }
-        else
-        {
-            SelectedNote = Notes[0];
-        }
-
-        ShowToast("便签已删除");
+        note ??= SelectedNote;
+        if (note is null || !await TrySaveCurrentNoteAsync()) return;
+        var session = _notesWorkspace!.Acquire(note.ToRecord(), () => new HeadlessMarkdownSessionTimer(), _dispatcherQueue);
+        try { await _notesWorkspace.DeleteAsync(session); }
+        finally { _notesWorkspace.Release(session); }
+        await LoadNotesAsync();
     }
-
-    public async Task SaveCurrentNoteAsync()
-    {
-        if (SelectedNote is null) return;
-
-        try
-        {
-            SelectedNote.UpdatedAt = DateTimeOffset.UtcNow;
-            if (string.IsNullOrWhiteSpace(SelectedNote.Id))
-            {
-                var created = await _quickCaptureService.AddDetailedItemAsync(
-                    title: SelectedNote.Title,
-                    body: SelectedNote.Body,
-                    appearancePreset: QuickCaptureAppearancePreset.Default);
-                SelectedNote.Id = created.Id;
-            }
-            else
-            {
-                await _quickCaptureService.UpdateItemDetailsAsync(
-                    SelectedNote.Id,
-                    SelectedNote.Title,
-                    SelectedNote.Body,
-                    QuickCaptureAppearancePreset.Default);
-            }
-
-            RunOnUi(() =>
-            {
-                NoteSaveStatus = "已保存";
-            });
-        }
-        catch (Exception ex)
-        {
-            App.Log($"[QuickPanel] Autosave note failed: {ex.Message}");
-            RunOnUi(() =>
-            {
-                NoteSaveStatus = "保存失败";
-            });
-        }
-    }
-
     [RelayCommand]
     public async Task ExtractTodosFromNoteAsync()
     {
-        string content = NoteBody;
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            ShowToast("便签内容为空");
-            return;
-        }
-
-        var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-        var extractedTasks = new List<string>();
-
-        foreach (var rawLine in lines)
-        {
-            string line = rawLine.Trim();
-            string taskTitle = string.Empty;
-
-            if (line.StartsWith("- [ ]", StringComparison.OrdinalIgnoreCase))
-            {
-                taskTitle = line[5..].Trim();
-            }
-            else if (line.StartsWith("- [x]", StringComparison.OrdinalIgnoreCase))
-            {
-                taskTitle = line[5..].Trim();
-            }
-            else if (line.StartsWith("* ") || line.StartsWith("- "))
-            {
-                taskTitle = line[2..].Trim();
-            }
-            else if (Regex.IsMatch(line, @"^\d+\.\s"))
-            {
-                int dotIndex = line.IndexOf('.');
-                taskTitle = line[(dotIndex + 1)..].Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(taskTitle))
-            {
-                if (taskTitle.Length > 200)
-                {
-                    taskTitle = taskTitle[..200];
-                }
-                extractedTasks.Add(taskTitle);
-            }
-        }
-
-        if (extractedTasks.Count == 0)
-        {
-            ShowToast("未检测到待办格式（如 - [ ]、*、- 或 1.）");
-            return;
-        }
-
-        string widgetId = GetActiveTodoWidgetId();
-        var repository = TodoRepository.ForStore(_todoStoreFactory(widgetId));
-        await repository.MutateAsync(data =>
-        {
-            foreach (var title in extractedTasks)
-            {
-                data.Items.Insert(0, new TodoItem
-                {
-                    Text = title,
-                    DueDate = DateTimeOffset.Now,
-                    SortOrder = data.Items.Count,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
-            }
-        }, this);
-
-        ShowToast($"已成功提取 {extractedTasks.Count} 条待办任务");
+        FlushNoteEditor?.Invoke();
+        string id = TodoTargetResolver.ResolveWidgetId(_settingsService.Settings);
+        int added = await NoteTodoExtraction.AddAsync(TodoRepository.ForStore(_todoStoreFactory(id)), NoteTodoExtraction.Candidates(NoteBody));
+        ShowToast(_localizationService.Format("Notes.TasksAdded", added));
     }
 }

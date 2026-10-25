@@ -38,6 +38,22 @@ public sealed class MarkdownSerializationSchedulerTests
     }
 
     [Fact]
+    public void Suspend_PreservesPendingDraftWithoutPublishingComposition()
+    {
+        var harness = new Harness { CurrentText = "draft" };
+        using var scheduler = harness.Create();
+        scheduler.NotifyChanged();
+        scheduler.Suspend();
+        Assert.False(harness.Timer.IsEnabled);
+        Assert.True(scheduler.HasPending);
+        Assert.Empty(harness.Published);
+        scheduler.NotifyChanged();
+        harness.Timer.Fire();
+        Assert.Single(harness.Published);
+        Assert.Equal("draft", harness.Published[0]);
+    }
+
+    [Fact]
     public void NotifyChanged_DoesNotPublishImmediately()
     {
         var harness = new Harness { CurrentText = "甲" };

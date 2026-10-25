@@ -323,7 +323,7 @@ public sealed class OnboardingExperienceTests
             strings.RootElement.GetProperty("Onboarding.Step2.Body").GetString(),
             StringComparison.Ordinal);
         Assert.Contains(
-            "映射为格子",
+            "映射为贴纸",
             strings.RootElement.GetProperty("Onboarding.Step4.Body").GetString(),
             StringComparison.Ordinal);
         Assert.DoesNotContain(

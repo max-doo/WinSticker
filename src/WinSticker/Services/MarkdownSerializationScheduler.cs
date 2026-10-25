@@ -36,6 +36,9 @@ public sealed class MarkdownSerializationScheduler : IDisposable
         _idleTimer.Start();
     }
 
+    /// <summary>Pause idle publication while native IME composition is active.</summary>
+    public void Suspend() => _idleTimer.Stop();
+
     /// <summary>
     /// Serialize and publish immediately if a change is pending, cancelling
     /// the idle window. Safe to call when nothing is pending.

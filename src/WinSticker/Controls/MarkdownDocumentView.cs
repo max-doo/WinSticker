@@ -381,6 +381,8 @@ public sealed partial class MarkdownDocumentView : UserControl
 
     private void Render()
     {
+        int generation = ++_renderParseGeneration;
+        MarkdownRenderState state = GetRenderState();
         PerformanceLogger.RecordMarkdownRender();
         double verticalOffset = _scrollViewer.VerticalOffset;
         _lastRenderedWidth = ActualWidth;
@@ -396,7 +398,7 @@ public sealed partial class MarkdownDocumentView : UserControl
         WasTruncated = false;
         if (source.Length == 0)
         {
-            CompleteRender();
+            CompleteRender(state);
             return;
         }
 
@@ -406,20 +408,20 @@ public sealed partial class MarkdownDocumentView : UserControl
             AppendText(paragraph.Inlines, source);
             _documentText.Blocks.Add(paragraph);
             RestoreScrollOffset(source, verticalOffset);
-            CompleteRender();
+            CompleteRender(state);
             return;
         }
 
         // Markdig parsing is pure CPU with no UI dependency; run it off the UI
         // thread so opening a long document does not block interaction.
-        int generation = ++_renderParseGeneration;
-        _ = RenderParsedMarkdownAsync(source, verticalOffset, generation);
+        _ = RenderParsedMarkdownAsync(source, verticalOffset, generation, state);
     }
 
     private async Task RenderParsedMarkdownAsync(
         string source,
         double verticalOffset,
-        int generation)
+        int generation,
+        MarkdownRenderState state)
     {
         MarkdownParseResult document;
         try
@@ -439,6 +441,15 @@ public sealed partial class MarkdownDocumentView : UserControl
             return;
         }
 
+        // Parsing may outlive a theme, format or source change. Never stamp
+        // old visuals with the newer state and then treat them as up to date.
+        if (!state.Equals(GetRenderState()))
+        {
+            InvalidateRender("parse-state-changed");
+            return;
+        }
+        UpdateForegrounds();
+
         WasTruncated = document.WasTruncated;
         foreach (MdBlock block in document.Document)
         {
@@ -446,7 +457,7 @@ public sealed partial class MarkdownDocumentView : UserControl
         }
 
         RestoreScrollOffset(source, verticalOffset);
-        CompleteRender();
+        CompleteRender(state);
         if (_renderInvalidated)
         {
             // An invalidation arrived while parsing; make sure a re-render is
@@ -455,12 +466,13 @@ public sealed partial class MarkdownDocumentView : UserControl
         }
     }
 
-    private void CompleteRender()
+    private void CompleteRender(MarkdownRenderState state)
     {
-        _lastRenderedState = GetRenderState();
+        _lastRenderedState = state;
         _hasRenderedState = true;
-        _renderInvalidated = false;
-        _renderInvalidationRequiresRender = false;
+        _renderInvalidated = !state.Equals(GetRenderState());
+        _renderInvalidationRequiresRender = _renderInvalidated;
+        if (_renderInvalidated) QueueInvalidatedRender();
         QueueShadowSnapshot();
     }
 
@@ -904,10 +916,16 @@ public sealed partial class MarkdownDocumentView : UserControl
                 var cellText = new RichTextBlock
                 {
                     FontSize = Math.Max(11, BaseFontSize - 0.5),
-                    Foreground = _contentForeground,
                     IsTextSelectionEnabled = true,
                     TextWrapping = TextWrapping.Wrap
                 };
+                // Cached inline UI cells must follow the document's live brush;
+                // a theme switch replaces the brush instead of mutating it.
+                cellText.SetBinding(RichTextBlock.ForegroundProperty, new Microsoft.UI.Xaml.Data.Binding
+                {
+                    Source = _documentText, Path = new PropertyPath(nameof(Foreground)),
+                    Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay
+                });
                 var cellParagraph = new Paragraph
                 {
                     FontWeight = row.IsHeader ? FontWeights.SemiBold : FontWeights.Normal,
@@ -917,6 +935,7 @@ public sealed partial class MarkdownDocumentView : UserControl
                 };
                 if (columnIndex < cells.Length)
                 {
+                    cellText.Tag = cells[columnIndex].Span.Start;
                     AppendBlockText(cellParagraph.Inlines, cells[columnIndex]);
                 }
                 cellText.Blocks.Add(cellParagraph);

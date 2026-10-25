@@ -258,6 +258,10 @@
                                         MinWidth="0"
                                         VerticalAlignment="Center"
                                         Spacing="2">
+                                        <TextBlock helpers:WidgetTextShadow.Cast="True"
+                                                   Text="{Binding Title}" Visibility="{Binding TitleVisibility}"
+                                                   FontSize="{Binding TextSize}" FontWeight="SemiBold"
+                                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
                                         <TextBlock
                                             helpers:WidgetTextShadow.Cast="True"
                                             FontSize="{Binding TextSize}"
@@ -416,6 +420,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+                <Grid x:Name="LegacyDetailContent" Grid.RowSpan="3" RowSpacing="6">
+                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                 <Border
                     x:Name="DetailMaterialSurface"
                     Grid.Row="0"
@@ -529,6 +535,8 @@
                     MaxLines="1"
                     TextTrimming="CharacterEllipsis"
                     Visibility="{Binding CreatedTimeVisibility}" />
+                </Grid>
+                <controls:NoteEditorPane x:Name="UnifiedNoteEditor" Grid.RowSpan="3" Visibility="Collapsed" />
             </Grid>
 
             <Grid x:Name="DetailEmptyState" Grid.RowSpan="3" Background="Transparent" Visibility="Collapsed">

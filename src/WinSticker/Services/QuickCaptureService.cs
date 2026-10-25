@@ -57,6 +57,25 @@ public sealed class QuickCaptureService
         return Clone(_data!);
     }
 
+    /// <summary>Create a persisted, unnamed blank note without inventing a user title.</summary>
+    public async Task<QuickCaptureItem> CreateNoteAsync()
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            await EnsureLoadedCoreAsync();
+            var item = new QuickCaptureItem
+            {
+                IsNote = true, ContentFormat = TextContentFormat.Markdown,
+                SortOrder = _data!.Items.Count == 0 ? 0 : _data.Items.Max(entry => entry.SortOrder) + 1
+            };
+            _data.Items.Add(item);
+            await SaveCoreAsync();
+            return Clone(item);
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task<QuickCaptureItem> AddItemAsync(string body)
     {
         return await AddDetailedItemAsync(null, body, QuickCaptureAppearancePreset.Default);
@@ -744,6 +763,39 @@ public sealed class QuickCaptureService
         }
     }
 
+    /// <summary>
+    /// Close or reopen a quick-panel tab without changing the note or its visibility in other hosts.
+    /// </summary>
+    public async Task<bool> SetItemClosedAsync(string itemId, bool isClosed)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            return false;
+        }
+
+        await _gate.WaitAsync();
+        try
+        {
+            await EnsureLoadedCoreAsync();
+            var item = _data!.Items.FirstOrDefault(entry =>
+                string.Equals(entry.Id, itemId, StringComparison.Ordinal) && !entry.IsDeleted);
+            var closed = _data!.ClosedQuickPanelNotes ??= [];
+            if (item is null || closed.ContainsKey(itemId) == isClosed)
+            {
+                return false;
+            }
+
+            if (isClosed) closed[itemId] = DateTimeOffset.UtcNow;
+            else closed.Remove(itemId);
+            await SaveCoreAsync();
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<bool> MovePinnedItemAsync(string itemId, int direction)
     {
         if (string.IsNullOrWhiteSpace(itemId) || direction == 0)
@@ -1252,7 +1304,7 @@ public sealed class QuickCaptureService
         string itemId,
         string? title,
         string body,
-        QuickCaptureAppearancePreset appearancePreset,
+        QuickCaptureAppearancePreset? appearancePreset = null,
         TextContentFormat? contentFormat = null)
     {
         QuickCaptureWriteResult result = await UpdateItemDetailsWithResultAsync(
@@ -1264,12 +1316,19 @@ public sealed class QuickCaptureService
         return result.Saved;
     }
 
-    public async Task<QuickCaptureWriteResult> UpdateItemDetailsWithResultAsync(
-        string itemId,
-        string? title,
-        string body,
-        QuickCaptureAppearancePreset appearancePreset,
-        TextContentFormat? contentFormat = null)
+    public Task<QuickCaptureWriteResult> UpdateItemDetailsWithResultAsync(
+        string itemId, string? title, string body,
+        QuickCaptureAppearancePreset? appearancePreset = null, TextContentFormat? contentFormat = null) =>
+        UpdateItemDetailsCoreAsync(itemId, title, body, appearancePreset, contentFormat, isNotePatch: false);
+
+    /// <summary>Atomically applies only changed note fields; null leaves a field untouched.</summary>
+    public Task<QuickCaptureWriteResult> PatchNoteAsync(string itemId, string? title = null, string? body = null,
+        QuickCaptureAppearancePreset? appearancePreset = null, TextContentFormat? contentFormat = null) =>
+        UpdateItemDetailsCoreAsync(itemId, title, body, appearancePreset, contentFormat, isNotePatch: true);
+
+    private async Task<QuickCaptureWriteResult> UpdateItemDetailsCoreAsync(
+        string itemId, string? title, string? body, QuickCaptureAppearancePreset? appearancePreset,
+        TextContentFormat? contentFormat, bool isNotePatch)
     {
         if (string.IsNullOrWhiteSpace(itemId))
         {
@@ -1288,11 +1347,12 @@ public sealed class QuickCaptureService
             }
 
             TextContentFormat effectiveFormat = NormalizeContentFormat(contentFormat ?? item.ContentFormat);
-            string normalizedBody = NormalizeBody(body, effectiveFormat);
-            string? normalizedTitle = NormalizeOptionalText(title);
+            string normalizedBody = NormalizeBody(isNotePatch && body is null ? item.Body : body, effectiveFormat);
+            // Patch semantics: a null title keeps the stored title; explicit text (even empty) replaces it.
+            string? effectiveTitle = title is null ? item.Title : NormalizeOptionalText(title);
 
-            if (item.Type != QuickCaptureItemType.Image &&
-                string.IsNullOrWhiteSpace(normalizedTitle) &&
+            if (!isNotePatch && item.Type != QuickCaptureItemType.Image &&
+                string.IsNullOrWhiteSpace(effectiveTitle) &&
                 string.IsNullOrWhiteSpace(normalizedBody))
             {
                 return new QuickCaptureWriteResult(false, false, null);
@@ -1304,7 +1364,8 @@ public sealed class QuickCaptureService
                 effectiveFormat,
                 item.Attachments);
             normalizedBody = TruncateBody(normalizedBody, out bool wasTruncated);
-            item.Title = normalizedTitle;
+            if (isNotePatch) item.IsNote = true;
+            item.Title = effectiveTitle;
             item.Body = normalizedBody;
             item.ContentFormat = effectiveFormat;
             if (item.Type != QuickCaptureItemType.Image)
@@ -1315,7 +1376,11 @@ public sealed class QuickCaptureService
                 item.Url = url;
             }
 
-            item.AppearancePreset = NormalizeAppearancePreset(appearancePreset);
+            if (appearancePreset is not null)
+            {
+                item.AppearancePreset = NormalizeAppearancePreset(appearancePreset.Value);
+            }
+
             item.UpdatedAt = DateTimeOffset.UtcNow;
             await SaveCoreAsync();
             return new QuickCaptureWriteResult(true, wasTruncated, Clone(item));
@@ -1667,6 +1732,7 @@ public sealed class QuickCaptureService
         {
             Version = data.Version,
             CurrentView = data.CurrentView,
+            ClosedQuickPanelNotes = data.ClosedQuickPanelNotes is null ? null : new(data.ClosedQuickPanelNotes, StringComparer.Ordinal),
             Items = data.Items.Select(Clone).ToList(),
             RecentItems = data.RecentItems.Select(Clone).ToList()
         };
@@ -1681,6 +1747,7 @@ public sealed class QuickCaptureService
             Body = item.Body,
             ContentFormat = item.ContentFormat,
             Title = item.Title,
+            IsNote = item.IsNote,
             Url = item.Url,
             ImagePath = item.ImagePath,
             ContentHash = item.ContentHash,

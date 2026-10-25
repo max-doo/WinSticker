@@ -14,7 +14,7 @@ public sealed partial class QuickCaptureSurfaceContent
             XamlRoot is not null,
             ViewModel.Items.Count,
             _detailItem?.Id,
-            _detailItem?.Body ?? string.Empty,
+            UsesUnifiedNote ? UnifiedNoteEditor.Session?.Body ?? string.Empty : _detailItem?.Body ?? string.Empty,
             _isCreatingDetail,
             _isDetailEditing,
             _detailHasUnsavedChanges,
@@ -44,7 +44,7 @@ public sealed partial class QuickCaptureSurfaceContent
         await OpenNewDetailAsync();
         SetDetailEditorText(pendingSaveBody);
         MarkDetailDirty();
-        if (!HasNewDetailContent())
+        if (!(UsesUnifiedNote ? !string.IsNullOrWhiteSpace(UnifiedNoteEditor.Session?.Body) : HasNewDetailContent()))
         {
             throw new InvalidOperationException(
                 "The owned Quick Capture draft was not meaningful.");
@@ -55,7 +55,7 @@ public sealed partial class QuickCaptureSurfaceContent
             !_detailHasUnsavedChanges &&
             !_isCreatingDetail &&
             _detailItem is not null &&
-            string.Equals(_detailItem.Body, pendingSaveBody, StringComparison.Ordinal);
+            string.Equals(GetDetailPresentationBody(), pendingSaveBody, StringComparison.Ordinal);
         if (!pendingSaveFlushed)
         {
             throw new InvalidOperationException(
@@ -113,7 +113,7 @@ public sealed partial class QuickCaptureSurfaceContent
         await FlushPendingDetailSaveAsync();
         return !_detailHasUnsavedChanges &&
             _detailItem is not null &&
-            string.Equals(_detailItem.Body, body, StringComparison.Ordinal);
+            string.Equals(GetDetailPresentationBody(), body, StringComparison.Ordinal);
     }
 
     internal async Task<string> DeleteAotQuickCaptureManagedAttachmentAsync(
@@ -190,10 +190,10 @@ public sealed partial class QuickCaptureSurfaceContent
         {
             if (!_detailHasUnsavedChanges &&
                 !_isSavingDetail &&
-                _detailSavedRevision >= expectedRevision &&
+                (UsesUnifiedNote || _detailSavedRevision >= expectedRevision) &&
                 _detailItem is not null &&
                 string.Equals(_detailItem.Id, itemId, StringComparison.Ordinal) &&
-                string.Equals(_detailItem.Body, expectedBody, StringComparison.Ordinal))
+                string.Equals(GetDetailPresentationBody(), expectedBody, StringComparison.Ordinal))
             {
                 return true;
             }

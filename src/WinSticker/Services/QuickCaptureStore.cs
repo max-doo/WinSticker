@@ -21,7 +21,7 @@ internal sealed partial class QuickCaptureJsonContext : JsonSerializerContext
 
 public sealed class QuickCaptureStore
 {
-    private const int CurrentVersion = 4;
+    private const int CurrentVersion = 5;
 
     private readonly string _storePath;
 
@@ -88,6 +88,13 @@ public sealed class QuickCaptureStore
         data.Version = CurrentVersion;
         data.Items ??= [];
         data.RecentItems ??= [];
+        if (data.ClosedQuickPanelNotes is null)
+        {
+            data.ClosedQuickPanelNotes = data.Items.Where(item => item is not null && item.ArchivedAt is not null)
+                .GroupBy(item => item.Id, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First().ArchivedAt!.Value, StringComparer.Ordinal);
+            foreach (var item in data.Items.Where(item => item is not null)) item.ArchivedAt = null;
+        }
 
         NormalizeItems(data.Items, isRecent: false);
         NormalizeItems(data.RecentItems, isRecent: true);
@@ -132,6 +139,9 @@ public sealed class QuickCaptureStore
         int sortOrder = 0;
         foreach (var item in items.Where(item => item is not null))
         {
+            if (!isRecent && (!string.IsNullOrWhiteSpace(item.Title) || !string.IsNullOrWhiteSpace(item.Body)) &&
+                (item.Type is QuickCaptureItemType.Text or QuickCaptureItemType.Link || item.ContentFormat == TextContentFormat.Markdown))
+                item.IsNote = true;
             if (string.IsNullOrWhiteSpace(item.Id))
             {
                 item.Id = Guid.NewGuid().ToString("N");
@@ -211,7 +221,7 @@ public sealed class QuickCaptureStore
     private static bool IsValidItem(QuickCaptureItem? item)
     {
         return item is not null &&
-               (item.IsDeleted ||
+               (item.IsDeleted || (item.IsNote && !item.IsRecent) ||
                 !string.IsNullOrWhiteSpace(item.Title) ||
                 !string.IsNullOrWhiteSpace(item.Body) ||
                 item.Attachments.Count > 0 ||

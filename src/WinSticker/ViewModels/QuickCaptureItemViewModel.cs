@@ -140,9 +140,9 @@ public sealed partial class QuickCaptureItemViewModel : ObservableObject
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-    public string PinTooltip => IsPinned
-        ? _localizationService.T("QuickCapture.Unpin")
-        : _localizationService.T("QuickCapture.Pin");
+    public string PinTooltip => _localizationService.T(NoteWorkspace.IsNote(_model)
+        ? IsPinned ? "Notes.Unfavorite" : "Notes.Favorite"
+        : IsPinned ? "QuickCapture.Unpin" : "QuickCapture.Pin");
 
     public Visibility PinnedSortControlsVisibility => _showPinnedSortControls ? Visibility.Visible : Visibility.Collapsed;
 
@@ -213,6 +213,7 @@ public sealed partial class QuickCaptureItemViewModel : ObservableObject
         Body = _model.Body,
         ContentFormat = _model.ContentFormat,
         Title = _model.Title,
+        IsNote = _model.IsNote,
         Url = _model.Url,
         ImagePath = _model.ImagePath,
         ContentHash = _model.ContentHash,
@@ -414,6 +415,8 @@ public sealed partial class QuickCaptureItemViewModel : ObservableObject
 
     private string CreateDisplayText()
     {
+        if (_model.IsNote && string.IsNullOrWhiteSpace(CopyText))
+            return _localizationService.T("Notes.Untitled");
         if (Type == QuickCaptureItemType.Image && !HasDisplayBody)
         {
             return _localizationService.T("QuickCapture.ImageItem");

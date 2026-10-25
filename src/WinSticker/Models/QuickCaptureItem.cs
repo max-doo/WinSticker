@@ -17,6 +17,9 @@ public sealed class QuickCaptureItem
 
     public string? Title { get; set; }
 
+    /// <summary>Identifies an editable note, including an intentionally empty draft.</summary>
+    public bool IsNote { get; set; }
+
     public string? Url { get; set; }
 
     public string? ImagePath { get; set; }

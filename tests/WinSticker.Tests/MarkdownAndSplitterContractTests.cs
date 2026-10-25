@@ -61,28 +61,15 @@ public sealed class MarkdownAndSplitterContractTests
         Assert.Contains("CalculateVisibleToolbarCommandCount", code, StringComparison.Ordinal);
         Assert.Contains("menuButtons[index].Visibility", code, StringComparison.Ordinal);
         Assert.Contains("SetButtonText(ListMenuButton, ListMenuButtonText", code, StringComparison.Ordinal);
-        Assert.Contains("PrepareEditorCommandViewport", code, StringComparison.Ordinal);
-        Assert.Contains("RestoreEditorViewport", code, StringComparison.Ordinal);
-        Assert.Contains("previous with", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("EditorTextBox.LostFocus +=", code, StringComparison.Ordinal);
-        Assert.Contains("PointerPressedEvent", code, StringComparison.Ordinal);
-        Assert.Contains("PointerReleasedEvent", code, StringComparison.Ordinal);
-        Assert.Contains("TappedEvent", code, StringComparison.Ordinal);
-        Assert.Contains("KeyUpEvent", code, StringComparison.Ordinal);
-        Assert.Contains("RememberEditorViewport", code, StringComparison.Ordinal);
-        Assert.Contains("_isEditorPointerActive", code, StringComparison.Ordinal);
-        Assert.Contains("SelectionChanged=\"EditorTextBox_SelectionChanged\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("EditorTextBox.SelectedText = replacement", code, StringComparison.Ordinal);
-        Assert.Contains("DispatcherQueuePriority.Low", code, StringComparison.Ordinal);
-        Assert.Contains("TryContinueMarkdownList", code, StringComparison.Ordinal);
-        Assert.Contains("MarkdownEditCommandEngine.TryCreateEdit", code, StringComparison.Ordinal);
-        Assert.Contains(
-            "LargeDocumentThreshold = MarkdownDocumentService.MaxCharacters",
-            code,
-            StringComparison.Ordinal);
-        Assert.Contains("UpdateLargeDocumentBehavior", code, StringComparison.Ordinal);
-        Assert.Contains("BeforeTextChanging=\"EditorTextBox_BeforeTextChanging\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ContainsInlineDataImage(args.NewText)", code, StringComparison.Ordinal);
+        Assert.Contains("controls:MarkdownLiveEditor", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<TextBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("EditorSurface.ApplyFormattingCommand(command)", code, StringComparison.Ordinal);
+        Assert.Contains("_pendingFormatSelection", code, StringComparison.Ordinal);
+        Assert.Contains("EditorSurface.NativeEditor.Document.Selection.SetRange", code, StringComparison.Ordinal);
+        Assert.Contains("FormattingToolbar_PointerPressed", code, StringComparison.Ordinal);
+        Assert.Contains("EditorSurface.IsComposing", code, StringComparison.Ordinal);
+        Assert.Contains("FlushAndGetText()", code, StringComparison.Ordinal);
+        Assert.Contains("ContainsInlineDataImage(source)", code, StringComparison.Ordinal);
         Assert.Contains("TextTruncated?.Invoke", code, StringComparison.Ordinal);
     }
 
@@ -598,7 +585,7 @@ public sealed class MarkdownAndSplitterContractTests
         Assert.Contains("EmptyStateVisibility = hasItems", itemSyncCode, StringComparison.Ordinal);
         Assert.Contains("(IsRecordsView || IsPinnedView) && !HasSearchText", itemSyncCode, StringComparison.Ordinal);
         Assert.Equal(
-            "DetailContent",
+            "LegacyDetailContent",
             (string?)timestamp.Parent?.Attribute(xamlNamespace + "Name"));
         Assert.DoesNotContain(
             "SelectedView is QuickCaptureViewMode.Pinned or QuickCaptureViewMode.Recent",

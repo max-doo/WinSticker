@@ -1761,6 +1761,7 @@ public partial class App : Application
             EnsureStartupPipeline().WriteSummary();
             Log("OnLaunched completed successfully");
 #if DEBUG
+            StartNativeMarkdownProbeIfRequested();
             if (Environment.GetEnvironmentVariable("WINSTICKER_DEV_DATA_ROOT") is { } probeRoot &&
                 probeRoot.Contains("architecture-shutdown-ownership-20260925",
                     StringComparison.OrdinalIgnoreCase) &&

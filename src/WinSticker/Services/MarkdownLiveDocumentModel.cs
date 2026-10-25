@@ -3,49 +3,63 @@ using System.Text;
 namespace WinSticker.Services;
 
 /// <summary>
-/// Pure document model behind the live Markdown editor. The document is a
-/// ordered list of Markdown blocks separated by blank lines (code fences
-/// keep their interior blank lines). Exactly one block at a time is active
-/// and is shown as editable source; every other block is rendered. Ported
-/// from the WorkCat MarkdownEditor paragraph model, adapted from per-line
-/// WPF FlowDocument paragraphs to markdown blocks.
+/// Lossless Markdown fragments with one stable editing transaction. Typing
+/// replaces only the active fragment; parsing is deferred until it commits.
+/// Separators belong to the document and are never reconstructed or trimmed.
 /// </summary>
 public sealed class MarkdownLiveDocumentModel
 {
     private readonly MarkdownDocumentService _markdownService = new();
     private List<string> _blocks = [string.Empty];
+    private List<string> _gaps = [string.Empty, string.Empty];
 
     public IReadOnlyList<string> Blocks => _blocks;
 
-    /// <summary>Index of the block currently edited as source; -1 when none.</summary>
+    /// <summary>Index of the source fragment being edited, or -1.</summary>
     public int ActiveIndex { get; private set; } = -1;
 
     public event EventHandler? DocumentChanged;
 
     public void Load(string markdown)
     {
-        _blocks = SplitIntoBlocks(markdown);
-        if (_blocks.Count == 0)
-        {
-            _blocks = [string.Empty];
-        }
-
+        (_blocks, _gaps) = ParseFragments(markdown ?? string.Empty);
         ActiveIndex = -1;
     }
 
-    public string Serialize() => string.Join("\n\n", _blocks);
+    public string Serialize()
+    {
+        var result = new StringBuilder();
+        for (int index = 0; index < _blocks.Count; index++)
+        {
+            result.Append(_gaps[index]);
+            result.Append(_blocks[index]);
+        }
+
+        return result.Append(_gaps[^1]).ToString();
+    }
 
     public void SetActive(int index)
     {
+        int previous = ActiveIndex;
+        int delta = CommitActiveSource();
+        if (previous >= 0 && index > previous)
+        {
+            index += delta;
+        }
+
         ActiveIndex = index >= 0 && index < _blocks.Count ? index : -1;
     }
 
-    public void Deactivate() => ActiveIndex = -1;
+    public void Deactivate()
+    {
+        CommitActiveSource();
+        ActiveIndex = -1;
+    }
 
     /// <summary>
-    /// Replace the active block's source. A blank line inside the new source
-    /// splits it into several blocks (the caret stays on the block returned),
-    /// and removing the separating blank line merges blocks back together.
+    /// Update the stable active fragment without parsing or changing its index.
+    /// The native editor still owns that entire range, including new blank lines.
+    /// Splitting here would duplicate it on the next keystroke.
     /// </summary>
     public int UpdateActiveSource(string source)
     {
@@ -55,31 +69,39 @@ public sealed class MarkdownLiveDocumentModel
             return -1;
         }
 
-        List<string> parts = SplitIntoBlocks(source);
-        if (parts.Count == 0)
+        if (!string.Equals(_blocks[index], source, StringComparison.Ordinal))
         {
-            parts = [string.Empty];
+            _blocks[index] = source;
+            DocumentChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        _blocks.RemoveAt(index);
-        _blocks.InsertRange(index, parts);
-        ActiveIndex = index + parts.Count - 1;
-        DocumentChanged?.Invoke(this, EventArgs.Empty);
-        return ActiveIndex;
+        return index;
     }
 
-    /// <summary>
-    /// Toggle the task-list checkbox at <paramref name="taskIndex"/> inside
-    /// block <paramref name="blockIndex"/> directly from its rendered state.
-    /// </summary>
-    public bool TryToggleTask(int blockIndex, int taskIndex)
+    // Commit only the active range; return its fragment-count delta.
+    private int CommitActiveSource()
     {
-        if (blockIndex < 0 || blockIndex >= _blocks.Count)
+        int index = ActiveIndex;
+        if (index < 0 || index >= _blocks.Count)
         {
-            return false;
+            return 0;
         }
 
-        if (!_markdownService.TryToggleTask(_blocks[blockIndex], taskIndex, out string updated))
+        (List<string> parts, List<string> gaps) = ParseFragments(_blocks[index]);
+        gaps[0] = _gaps[index] + gaps[0];
+        gaps[^1] += _gaps[index + 1];
+        _blocks.RemoveAt(index);
+        _blocks.InsertRange(index, parts);
+        _gaps.RemoveRange(index, 2);
+        _gaps.InsertRange(index, gaps);
+        return parts.Count - 1;
+    }
+
+    /// <summary>Toggle a rendered task directly in its source fragment.</summary>
+    public bool TryToggleTask(int blockIndex, int taskIndex)
+    {
+        if (blockIndex < 0 || blockIndex >= _blocks.Count ||
+            !_markdownService.TryToggleTask(_blocks[blockIndex], taskIndex, out string updated))
         {
             return false;
         }
@@ -89,59 +111,43 @@ public sealed class MarkdownLiveDocumentModel
         return true;
     }
 
-    /// <summary>
-    /// Split on blank lines, but never inside a fenced code block: a blank
-    /// line between ``` fences belongs to the code block, not the separator.
-    /// </summary>
-    internal static List<string> SplitIntoBlocks(string markdown)
+    private (List<string> Blocks, List<string> Gaps) ParseFragments(string source)
     {
+        // Syntax spans keep tilde fences, nested lists and tables intact. Keep
+        // the unparsed tail beyond the renderer's size limit rather than lose it.
+        var parsed = _markdownService.Parse(source);
         var blocks = new List<string>();
-        StringBuilder current = new();
-        bool inFence = false;
-        bool sawContent = false;
-        foreach (string rawLine in (markdown ?? string.Empty)
-                     .Replace("\r\n", "\n", StringComparison.Ordinal)
-                     .Replace('\r', '\n')
-                     .Split('\n'))
+        var gaps = new List<string>();
+        int end = 0;
+        foreach (var block in parsed.Document)
         {
-            string line = rawLine.TrimEnd();
-            bool fenceLine = line.Length >= 3 &&
-                             line.TrimStart().StartsWith("```", StringComparison.Ordinal);
-            bool isBlank = line.Length == 0;
-            if (!inFence && isBlank)
+            int start = Math.Clamp(block.Span.Start, end, source.Length);
+            int next = Math.Clamp(block.Span.End + 1, start, source.Length);
+            if (next == start)
             {
-                if (sawContent)
-                {
-                    blocks.Add(current.ToString());
-                    current.Clear();
-                    sawContent = false;
-                }
-
                 continue;
             }
 
-            if (current.Length > 0)
-            {
-                current.Append('\n');
-            }
-
-            current.Append(line);
-            if (line.Length > 0)
-            {
-                sawContent = true;
-            }
-
-            if (fenceLine)
-            {
-                inFence = !inFence;
-            }
+            gaps.Add(source[end..start]);
+            blocks.Add(source[start..next]);
+            end = next;
         }
 
-        if (sawContent)
+        if (blocks.Count == 0)
         {
-            blocks.Add(current.ToString());
+            return ([source], [string.Empty, string.Empty]);
         }
 
-        return blocks;
+        if (parsed.WasTruncated)
+        {
+            blocks[^1] += source[end..];
+            gaps.Add(string.Empty);
+        }
+        else
+        {
+            gaps.Add(source[end..]);
+        }
+
+        return (blocks, gaps);
     }
 }

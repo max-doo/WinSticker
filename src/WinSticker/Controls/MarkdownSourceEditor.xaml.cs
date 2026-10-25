@@ -1,80 +1,35 @@
-using System.Text.RegularExpressions;
-using WinSticker.Helpers;
 using WinSticker.Services;
-using Microsoft.UI.Dispatching;
+using WinSticker.Helpers;
 using Microsoft.UI.Input;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Windows.UI.Core;
 
 namespace WinSticker.Controls;
 
-/// <summary>
-/// Lossless Markdown source editor. Formatting commands mutate the selected
-/// range instead of replacing the whole document, preserving native undo,
-/// caret, selection, and viewport state.
-/// </summary>
+/// <summary>Formatting and save shortcuts over the continuous native Markdown editor.</summary>
 public sealed partial class MarkdownSourceEditor : UserControl
 {
-    private const int LargeDocumentThreshold = MarkdownDocumentService.MaxCharacters;
     private const double FormattingButtonWidth = 28;
     private const double FormattingButtonSpacing = 1;
-
     private bool _isSynchronizingText;
-    private bool _isApplyingTextLimit;
-    private bool _isTextLimitUpdateQueued;
-    private EditorViewportSnapshot? _lastEditorViewport;
-    private EditorViewportSnapshot? _pendingCommandViewport;
     private Func<string, string>? _textResolver;
-    private int _textRevision;
-    private bool _isTextCompositionActive;
-    private bool _isEditorPointerActive;
+    private (int Start, int End)? _pendingFormatSelection;
 
     public MarkdownSourceEditor()
     {
         InitializeComponent();
-        FormattingToolbar.AddHandler(
-            PointerPressedEvent,
-            new PointerEventHandler(FormattingToolbar_PointerPressed),
-            handledEventsToo: true);
-        FormattingMenuPanel.AddHandler(
-            PointerPressedEvent,
-            new PointerEventHandler(FormattingToolbar_PointerPressed),
-            handledEventsToo: true);
-        EditorTextBox.AddHandler(
-            PreviewKeyDownEvent,
-            new KeyEventHandler(EditorTextBox_PreviewKeyDown),
-            handledEventsToo: true);
-        EditorTextBox.AddHandler(
-            PointerPressedEvent,
-            new PointerEventHandler(EditorTextBox_PointerPressed),
-            handledEventsToo: true);
-        EditorTextBox.AddHandler(
-            PointerReleasedEvent,
-            new PointerEventHandler(EditorTextBox_PointerReleased),
-            handledEventsToo: true);
-        EditorTextBox.AddHandler(
-            TappedEvent,
-            new TappedEventHandler(EditorTextBox_Tapped),
-            handledEventsToo: true);
-        EditorTextBox.AddHandler(
-            KeyUpEvent,
-            new KeyEventHandler(EditorTextBox_KeyUp),
-            handledEventsToo: true);
-        EditorTextBox.TextCompositionStarted += (_, _) => _isTextCompositionActive = true;
-        EditorTextBox.TextCompositionEnded += (_, _) =>
-        {
-            _isTextCompositionActive = false;
-            QueueEditorViewportCapture();
-        };
+        FormattingToolbar.AddHandler(PointerPressedEvent, new PointerEventHandler(FormattingToolbar_PointerPressed), true);
+        FormattingMenuPanel.AddHandler(PointerPressedEvent, new PointerEventHandler(FormattingToolbar_PointerPressed), true);
+        AddHandler(PreviewKeyDownEvent, new KeyEventHandler(EditorSurface_PreviewKeyDown), true);
+        EditorSurface.EditorTextChanged += EditorSurface_EditorTextChanged;
         ApplyToolbarVisibility();
         ApplyLocalizedText();
     }
-
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(
         nameof(Text),
         typeof(string),
@@ -119,8 +74,8 @@ public sealed partial class MarkdownSourceEditor : UserControl
 
     public string Text
     {
-        get => (string)GetValue(TextProperty);
-        set => SetValue(TextProperty, value);
+        get => FlushAndGetText();
+        set { if ((string)GetValue(TextProperty) == value) EditorSurface.Text = value; else SetValue(TextProperty, value); }
     }
 
     public string PlaceholderText
@@ -169,85 +124,100 @@ public sealed partial class MarkdownSourceEditor : UserControl
         }
     }
 
-    public TextBox SourceTextBox => EditorTextBox;
-
+    /// <summary>Resolve attachments with the same policy as the note reader.</summary>
+    public Func<string, string?>? AttachmentResolver { get => EditorSurface.AttachmentResolver; set => EditorSurface.AttachmentResolver = value; }
+    /// <summary>Whether remote image previews are allowed for this note.</summary>
+    public bool AllowRemoteImages { get => EditorSurface.AllowRemoteImages; set => EditorSurface.AllowRemoteImages = value; }
     public event EventHandler? EditorTextChanged;
-
     public event EventHandler? TextTruncated;
-
     public event EventHandler? CommitRequested;
-
     public event EventHandler? CancelRequested;
+    internal MarkdownLiveEditor LiveEditorForProbe => EditorSurface;
+    internal MarkdownLiveEditor LiveEditor => EditorSurface;
+
+    /// <summary>Capture pending input before saving, switching notes or closing the surface.</summary>
+    public string FlushAndGetText() => EditorSurface is null ? (string)GetValue(TextProperty) : EditorSurface.FlushAndGetText();
 
     public void FocusEditor(bool selectAll = false, bool moveCaretToEnd = false)
     {
-        EditorTextBox.Focus(FocusState.Programmatic);
-        if (selectAll)
-        {
-            EditorTextBox.SelectAll();
-        }
-        else if (moveCaretToEnd)
-        {
-            EditorTextBox.Select(EditorTextBox.Text.Length, 0);
-        }
-
-        RememberEditorViewport();
+        FlushAndGetText();
+        EditorSurface.FocusEditor();
+        if (selectAll) EditorSurface.NativeEditor.Document.Selection.SetRange(0, EditorSurface.NativeSource.Length);
+        else if (moveCaretToEnd) EditorSurface.NativeEditor.Document.Selection.SetRange(EditorSurface.NativeSource.Length, EditorSurface.NativeSource.Length);
     }
 
     public bool FindNext(string? value, StringComparison comparison = StringComparison.CurrentCultureIgnoreCase)
     {
-        if (string.IsNullOrEmpty(value))
-        {
-            return false;
-        }
-
-        int start = Math.Min(
-            EditorTextBox.Text.Length,
-            EditorTextBox.SelectionStart + EditorTextBox.SelectionLength);
-        int index = EditorTextBox.Text.IndexOf(value, start, comparison);
-        if (index < 0)
-        {
-            index = EditorTextBox.Text.IndexOf(value, comparison);
-        }
-
-        if (index < 0)
-        {
-            return false;
-        }
-
-        EditorTextBox.Focus(FocusState.Programmatic);
-        EditorTextBox.Select(index, value.Length);
-        RememberEditorViewport();
+        if (string.IsNullOrEmpty(value)) return false;
+        FlushAndGetText();
+        string source = EditorSurface.NativeSource;
+        string search = MarkdownNativeBuffer.ToNative(value);
+        int start = Math.Min(source.Length, EditorSurface.NativeEditor.Document.Selection.EndPosition);
+        int index = source.IndexOf(search, start, comparison);
+        if (index < 0) index = source.IndexOf(search, comparison);
+        if (index < 0) return false;
+        EditorSurface.FocusEditor();
+        EditorSurface.NativeEditor.Document.Selection.SetRange(index, index + search.Length);
+        EditorSurface.NativeEditor.Document.Selection.ScrollIntoView(PointOptions.None);
         return true;
     }
 
     public void ApplyFormat(string action)
     {
-        if (IsReadOnly || string.IsNullOrWhiteSpace(action))
-        {
-            return;
-        }
-
-        if (!TryResolveCommand(action, out MarkdownEditCommand command))
-        {
-            return;
-        }
-
-        EditorViewportSnapshot viewport = PrepareEditorCommandViewport();
-        if (!MarkdownEditCommandEngine.TryCreateEdit(
-                EditorTextBox.Text,
-                EditorTextBox.SelectionStart,
-                EditorTextBox.SelectionLength,
-                command,
-                out MarkdownTextEdit edit))
-        {
-            return;
-        }
-
-        ApplyTextEdit(edit);
-        RestoreEditorViewport(viewport);
+        if (IsReadOnly || !TryResolveCommand(action, out var command)) return;
+        if (_pendingFormatSelection is { } selection)
+            EditorSurface.NativeEditor.Document.Selection.SetRange(selection.Start, selection.End);
+        _pendingFormatSelection = null;
+        EditorSurface.ApplyFormattingCommand(command);
+        EditorSurface.FocusEditor();
     }
 
+    private static void OnTextPropertyChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var host = (MarkdownSourceEditor)sender;
+        if (host._isSynchronizingText) return;
+        host._pendingFormatSelection = null;
+        host.EditorSurface.Text = args.NewValue as string ?? string.Empty;
+    }
+
+    private void EditorSurface_EditorTextChanged(object? sender, EventArgs args)
+    {
+        if (_isSynchronizingText) return;
+        string source = EditorSurface.Text;
+        bool truncated = source.Length > MarkdownDocumentService.MaxCharacters && !ContainsInlineDataImage(source);
+        if (truncated) { source = TruncateText(source); EditorSurface.Text = source; }
+        _isSynchronizingText = true;
+        try { SetValue(TextProperty, source); }
+        finally { _isSynchronizingText = false; }
+        EditorTextChanged?.Invoke(this, EventArgs.Empty);
+        if (truncated) TextTruncated?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void FormattingToolbar_PointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        var selection = EditorSurface.NativeEditor.Document.Selection;
+        _pendingFormatSelection = (selection.StartPosition, selection.EndPosition);
+    }
+
+    private void EditorSurface_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (EditorSurface.IsComposing || EditorSurface.NativeEditor.FocusState == FocusState.Unfocused) return;
+        bool control = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        bool shift = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+        if ((EnableCtrlSSaveShortcut && TextBoxEditorShortcutHelper.IsCtrlSaveShortcut(e.Key, control, shift)) ||
+            (e.Key == VirtualKey.Enter && SettingsService.ShouldSubmitEditorOnEnter(EditorEnterBehavior, control)))
+        {
+            e.Handled = true;
+            FlushAndGetText();
+            CommitRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            FlushAndGetText();
+            CancelRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
     private static bool TryResolveCommand(string action, out MarkdownEditCommand command)
     {
         command = action switch
@@ -268,39 +238,16 @@ public sealed partial class MarkdownSourceEditor : UserControl
             "Heading" or "List" or "Task" or "Quote" or "Table";
     }
 
-    private static void OnTextPropertyChanged(
-        DependencyObject sender,
-        DependencyPropertyChangedEventArgs args)
-    {
-        var editor = (MarkdownSourceEditor)sender;
-        string value = args.NewValue as string ?? string.Empty;
-        editor.UpdateLargeDocumentBehavior(value.Length);
-        if (editor.EditorTextBox.Text == value)
-        {
-            return;
-        }
-
-        editor._isSynchronizingText = true;
-        try
-        {
-            editor._textRevision++;
-            editor._lastEditorViewport = null;
-            editor._pendingCommandViewport = null;
-            editor.EditorTextBox.Text = value;
-        }
-        finally
-        {
-            editor._isSynchronizingText = false;
-        }
-    }
-
     private static void OnToolbarVisibilityChanged(
         DependencyObject sender,
         DependencyPropertyChangedEventArgs args) =>
         ((MarkdownSourceEditor)sender).ApplyToolbarVisibility();
 
-    private void ApplyToolbarVisibility() =>
+    private void ApplyToolbarVisibility()
+    {
         SetToolbarVisibility();
+        if (EditorSurface is not null) EditorSurface.IsLivePreviewEnabled = ShowFormattingToolbar;
+    }
 
     private void SetToolbarVisibility()
     {
@@ -405,57 +352,6 @@ public sealed partial class MarkdownSourceEditor : UserControl
         }
     }
 
-    private void EditorTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        UpdateLargeDocumentBehavior(EditorTextBox.Text.Length);
-        if (_isSynchronizingText)
-        {
-            return;
-        }
-
-        _textRevision++;
-        SetValue(TextProperty, EditorTextBox.Text);
-        EditorTextChanged?.Invoke(this, EventArgs.Empty);
-        QueueEditorViewportCapture();
-    }
-
-    private void EditorTextBox_BeforeTextChanging(
-        TextBox sender,
-        TextBoxBeforeTextChangingEventArgs args)
-    {
-        if (_isApplyingTextLimit ||
-            args.NewText.Length <= MarkdownDocumentService.MaxCharacters ||
-            ContainsInlineDataImage(args.NewText))
-        {
-            return;
-        }
-
-        args.Cancel = true;
-        if (_isTextLimitUpdateQueued)
-        {
-            return;
-        }
-
-        _isTextLimitUpdateQueued = true;
-        string truncated = TruncateText(args.NewText);
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            _isTextLimitUpdateQueued = false;
-            _isApplyingTextLimit = true;
-            try
-            {
-                EditorTextBox.Text = truncated;
-                EditorTextBox.Select(truncated.Length, 0);
-            }
-            finally
-            {
-                _isApplyingTextLimit = false;
-            }
-
-            TextTruncated?.Invoke(this, EventArgs.Empty);
-        });
-    }
-
     private static string TruncateText(string text)
     {
         int length = MarkdownDocumentService.MaxCharacters;
@@ -471,318 +367,6 @@ public sealed partial class MarkdownSourceEditor : UserControl
         text.Contains(
             "data:image/",
             StringComparison.OrdinalIgnoreCase);
-
-    private void EditorTextBox_SelectionChanged(object sender, RoutedEventArgs e)
-    {
-        if (_isEditorPointerActive)
-        {
-            RememberEditorViewport();
-        }
-    }
-
-    private void EditorTextBox_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        _isEditorPointerActive = true;
-        QueueEditorViewportCapture();
-    }
-
-    private void EditorTextBox_PointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        RememberEditorViewport();
-        _isEditorPointerActive = false;
-    }
-
-    private void EditorTextBox_Tapped(object sender, TappedRoutedEventArgs e)
-    {
-        RememberEditorViewport();
-        _isEditorPointerActive = false;
-    }
-
-    private void EditorTextBox_KeyUp(object sender, KeyRoutedEventArgs e) =>
-        RememberEditorViewport();
-
-    private void QueueEditorViewportCapture()
-    {
-        if (EditorTextBox.Text.Length > LargeDocumentThreshold)
-        {
-            return;
-        }
-
-        int revision = _textRevision;
-        DispatcherQueue.TryEnqueue(
-            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-            () =>
-            {
-                if (revision == _textRevision &&
-                    EditorTextBox.FocusState != FocusState.Unfocused)
-                {
-                    RememberEditorViewport();
-                }
-            });
-    }
-
-    private void RememberEditorViewport()
-    {
-        if (EditorTextBox.Text.Length > LargeDocumentThreshold)
-        {
-            return;
-        }
-
-        _lastEditorViewport = CaptureEditorViewport();
-    }
-
-    private void UpdateLargeDocumentBehavior(int textLength)
-    {
-        bool isLargeDocument = textLength > LargeDocumentThreshold;
-        EditorTextBox.IsSpellCheckEnabled = !isLargeDocument;
-        if (isLargeDocument)
-        {
-            _lastEditorViewport = null;
-            _pendingCommandViewport = null;
-        }
-    }
-
-    private void FormattingToolbar_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        // The editor pointer session locks the last user selection before the
-        // toolbar can alter TextBox focus/selection. Use the live value only as
-        // a fallback when no snapshot exists for the current text revision.
-        EditorViewportSnapshot current = CaptureEditorViewport();
-        _pendingCommandViewport =
-            _lastEditorViewport is { } previous && previous.TextRevision == _textRevision
-                ? previous with
-                {
-                    HorizontalOffset = current.HorizontalOffset,
-                    VerticalOffset = current.VerticalOffset
-                }
-                : current;
-    }
-
-    private void EditorTextBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        bool control = IsKeyDown(VirtualKey.Control);
-        bool shift = IsKeyDown(VirtualKey.Shift);
-        if (_isTextCompositionActive)
-        {
-            return;
-        }
-
-        if (EnableCtrlSSaveShortcut &&
-            TextBoxEditorShortcutHelper.IsCtrlSaveShortcut(
-                e.Key,
-                control,
-                shift))
-        {
-            e.Handled = true;
-            CommitRequested?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
-        if (control && e.Key is VirtualKey.B or VirtualKey.I or VirtualKey.K)
-        {
-            e.Handled = true;
-            ApplyFormat(e.Key switch
-            {
-                VirtualKey.B => "Bold",
-                VirtualKey.I => "Italic",
-                _ => "Link"
-            });
-            return;
-        }
-
-        if (e.Key == VirtualKey.Enter &&
-            SettingsService.ShouldSubmitEditorOnEnter(EditorEnterBehavior, control))
-        {
-            e.Handled = true;
-            CommitRequested?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
-        if (e.Key == VirtualKey.Escape)
-        {
-            e.Handled = true;
-            CancelRequested?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-
-        if (IsReadOnly)
-        {
-            return;
-        }
-
-        if (ShowFormattingToolbar && e.Key == VirtualKey.Tab)
-        {
-            e.Handled = true;
-            IndentSelection(outdent: shift);
-            return;
-        }
-
-        if (ShowFormattingToolbar && !control && !shift &&
-            e.Key == VirtualKey.Enter && TryContinueMarkdownList())
-        {
-            e.Handled = true;
-        }
-    }
-
-    private static bool IsKeyDown(VirtualKey key) =>
-        InputKeyboardSource.GetKeyStateForCurrentThread(key)
-            .HasFlag(CoreVirtualKeyStates.Down);
-
-    private EditorViewportSnapshot PrepareEditorCommandViewport()
-    {
-        EditorViewportSnapshot snapshot =
-            _pendingCommandViewport is { } pending && pending.TextRevision == _textRevision
-                ? pending
-                : _lastEditorViewport is { } previous && previous.TextRevision == _textRevision
-                    ? previous
-                    : CaptureEditorViewport();
-        _pendingCommandViewport = null;
-
-        int start = Math.Clamp(snapshot.SelectionStart, 0, EditorTextBox.Text.Length);
-        int length = Math.Clamp(
-            snapshot.SelectionLength,
-            0,
-            EditorTextBox.Text.Length - start);
-        EditorTextBox.Select(start, length);
-        return snapshot with { SelectionStart = start, SelectionLength = length };
-    }
-
-    private EditorViewportSnapshot CaptureEditorViewport()
-    {
-        ScrollViewer? scrollViewer = FindDescendant<ScrollViewer>(EditorTextBox);
-        return new EditorViewportSnapshot(
-            EditorTextBox.SelectionStart,
-            EditorTextBox.SelectionLength,
-            scrollViewer?.HorizontalOffset ?? 0,
-            scrollViewer?.VerticalOffset ?? 0,
-            _textRevision);
-    }
-
-    private void RestoreEditorViewport(EditorViewportSnapshot viewport)
-    {
-        int start = Math.Clamp(EditorTextBox.SelectionStart, 0, EditorTextBox.Text.Length);
-        int length = Math.Clamp(
-            EditorTextBox.SelectionLength,
-            0,
-            EditorTextBox.Text.Length - start);
-
-        EditorTextBox.Focus(FocusState.Programmatic);
-        EditorTextBox.Select(start, length);
-        RestoreScrollOffset();
-        _lastEditorViewport = viewport with
-        {
-            SelectionStart = start,
-            SelectionLength = length,
-            TextRevision = _textRevision
-        };
-
-        DispatcherQueue.TryEnqueue(
-            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-            RestoreScrollOffset);
-
-        void RestoreScrollOffset()
-        {
-            FindDescendant<ScrollViewer>(EditorTextBox)?.ChangeView(
-                viewport.HorizontalOffset,
-                viewport.VerticalOffset,
-                null,
-                disableAnimation: true);
-        }
-    }
-
-    private void ApplyTextEdit(MarkdownTextEdit edit)
-    {
-        ReplaceTextRange(edit.Start, edit.Length, edit.Replacement);
-        EditorTextBox.Select(edit.SelectionStart, edit.SelectionLength);
-    }
-
-    private void ReplaceTextRange(int start, int length, string replacement)
-    {
-        start = Math.Clamp(start, 0, EditorTextBox.Text.Length);
-        length = Math.Clamp(length, 0, EditorTextBox.Text.Length - start);
-        EditorTextBox.Select(start, length);
-        EditorTextBox.SelectedText = replacement;
-    }
-
-    private void IndentSelection(bool outdent)
-    {
-        MarkdownEditCommand command = outdent
-            ? MarkdownEditCommand.Outdent
-            : MarkdownEditCommand.Indent;
-        if (MarkdownEditCommandEngine.TryCreateEdit(
-                EditorTextBox.Text,
-                EditorTextBox.SelectionStart,
-                EditorTextBox.SelectionLength,
-                command,
-                out MarkdownTextEdit edit))
-        {
-            ApplyTextEdit(edit);
-        }
-    }
-
-    private bool TryContinueMarkdownList()
-    {
-        int selectionStart = EditorTextBox.SelectionStart;
-        int selectionLength = EditorTextBox.SelectionLength;
-        string text = EditorTextBox.Text;
-        int lineStart = FindEditorLineStart(text, selectionStart);
-        string line = text[lineStart..selectionStart];
-        Match match = MarkdownListLineRegex().Match(line);
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(match.Groups["content"].Value))
-        {
-            string newline = DetectEditorNewline(text);
-            ReplaceTextRange(lineStart, selectionStart + selectionLength - lineStart, newline);
-            EditorTextBox.Select(lineStart + newline.Length, 0);
-            return true;
-        }
-
-        string marker = match.Groups["marker"].Value;
-        if (int.TryParse(match.Groups["number"].Value, out int number))
-        {
-            marker = $"{number + 1}{match.Groups["punctuation"].Value}";
-        }
-
-        string continuation = DetectEditorNewline(text) +
-                              match.Groups["indent"].Value +
-                              marker + " " +
-                              match.Groups["task"].Value;
-        ReplaceTextRange(selectionStart, selectionLength, continuation);
-        EditorTextBox.Select(selectionStart + continuation.Length, 0);
-        return true;
-    }
-
-    private static int FindEditorLineStart(string text, int position)
-    {
-        for (int index = Math.Min(position, text.Length) - 1; index >= 0; index--)
-        {
-            if (text[index] is '\r' or '\n')
-            {
-                return index + 1;
-            }
-        }
-
-        return 0;
-    }
-
-    private static string DetectEditorNewline(string text)
-    {
-        if (text.Contains("\r\n", StringComparison.Ordinal))
-        {
-            return "\r\n";
-        }
-
-        return text.Contains('\r') ? "\r" : Environment.NewLine;
-    }
 
     private void ApplyLocalizedText()
     {
@@ -812,7 +396,7 @@ public sealed partial class MarkdownSourceEditor : UserControl
             FormattingToolbar,
             T("Markdown.Editor.Toolbar", "Formatting"));
         AutomationProperties.SetName(
-            EditorTextBox,
+            EditorSurface,
             T("Markdown.Editor.Source", "Markdown source editor"));
     }
 
@@ -847,33 +431,4 @@ public sealed partial class MarkdownSourceEditor : UserControl
             : value;
     }
 
-    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
-    {
-        int count = VisualTreeHelper.GetChildrenCount(root);
-        for (int index = 0; index < count; index++)
-        {
-            DependencyObject child = VisualTreeHelper.GetChild(root, index);
-            if (child is T match)
-            {
-                return match;
-            }
-
-            if (FindDescendant<T>(child) is { } nested)
-            {
-                return nested;
-            }
-        }
-
-        return null;
-    }
-
-    [GeneratedRegex(@"^(?<indent>\s*)(?:(?<number>\d+)(?<punctuation>[.)])|(?<marker>[-+*]))\s+(?<task>\[[ xX]\]\s+)?(?<content>.*)$")]
-    private static partial Regex MarkdownListLineRegex();
-
-    private readonly record struct EditorViewportSnapshot(
-        int SelectionStart,
-        int SelectionLength,
-        double HorizontalOffset,
-        double VerticalOffset,
-        int TextRevision);
 }

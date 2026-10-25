@@ -97,7 +97,7 @@ public sealed class GlanceWidgetInstanceManagementTests
             featureWidgets,
             StringComparison.Ordinal);
         Assert.Equal(
-            "关闭格子“{0}”",
+            "关闭贴纸“{0}”",
             chineseStrings.RootElement
                 .GetProperty("Widget.FeatureWidget.DisableConfirmTitle")
                 .GetString());

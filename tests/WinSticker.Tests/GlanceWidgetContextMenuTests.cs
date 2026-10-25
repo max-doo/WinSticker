@@ -82,7 +82,7 @@ public sealed class GlanceWidgetContextMenuTests
             "世界时钟",
             document.RootElement.GetProperty("Glance.WorldClock.Title").GetString());
         Assert.Equal(
-            "贴片大小",
+            "贴纸大小",
             document.RootElement.GetProperty("Glance.Size.Title").GetString());
     }
 

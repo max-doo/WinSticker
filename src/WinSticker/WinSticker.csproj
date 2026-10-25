@@ -486,4 +486,7 @@
     </ItemGroup>
   </Target>
 
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <Compile Include="..\..\tests\WinSticker.NativeMarkdownProbe\*.cs" />
+  </ItemGroup>
 </Project>

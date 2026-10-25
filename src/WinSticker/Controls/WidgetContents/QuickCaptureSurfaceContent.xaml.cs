@@ -115,6 +115,7 @@ public sealed partial class QuickCaptureSurfaceContent :
             throw;
         }
         ResponsiveContentGrid.DataContext = ViewModel;
+        ConfigureUnifiedNotes();
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         if (config.Metadata.TryGetValue(MasterPaneWidthMetadataKey, out string? persisted) &&
             double.TryParse(persisted, NumberStyles.Float, CultureInfo.InvariantCulture, out double width))
@@ -126,6 +127,7 @@ public sealed partial class QuickCaptureSurfaceContent :
         DetailMarkdownEditor.TextTruncated += DetailMarkdownEditor_TextTruncated;
         DetailMarkdownEditor.CommitRequested += DetailMarkdownEditor_CommitRequested;
         DetailMarkdownView.AttachmentResolver = ResolveDetailAttachmentPath;
+        DetailMarkdownEditor.AttachmentResolver = ResolveDetailAttachmentPath;
         DetailMarkdownView.AttachmentOpenRequested += DetailMarkdownView_AttachmentOpenRequested;
         DetailBodyReaderSurface.AddHandler(
             UIElement.DoubleTappedEvent,
@@ -262,7 +264,7 @@ public sealed partial class QuickCaptureSurfaceContent :
             shouldCaptureDetail ? _detailItem?.Id : null,
             shouldCaptureDetail && _isDetailEditing,
             shouldCaptureDetail && _isDetailEditing
-                ? DetailMarkdownEditor.Text
+                ? GetDetailPresentationBody()
                 : null,
             shouldCaptureDetail && !_isDualPane && _showDetailInSinglePane);
     }
@@ -436,6 +438,8 @@ public sealed partial class QuickCaptureSurfaceContent :
             forceSinglePane,
             forceDualPane);
         bool enteredDualPane = !_isDualPane && layout.IsDualPane;
+        if (_isDualPane && !layout.IsDualPane && _detailItem is not null)
+            _showDetailInSinglePane = true;
         _isDualPane = layout.IsDualPane;
 
         if (_isDualPane)
@@ -940,35 +944,18 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private async Task OpenNewDetailAsync()
     {
+        if (!await UnifiedNoteEditor.FlushAsync()) return;
         await FlushPendingDetailSaveAsync();
-        if (_detailHasUnsavedChanges)
+        if (_detailHasUnsavedChanges) return;
+        var createdNote = await ViewModel.NoteService.CreateNoteAsync();
+        await ViewModel.RefreshItemsAsync();
+        if (ViewModel.Items.FirstOrDefault(item => item.Id == createdNote.Id) is { } createdModel)
         {
-            return;
+            OpenDetail(createdModel);
+            _showDetailInSinglePane = true;
+            ApplyResponsiveLayout();
+            UnifiedNoteEditor.FocusBody();
         }
-
-        _detailAutoSaveTimer?.Stop();
-        _isCreatingDetail = true;
-        _detailItem = null;
-        _detailAppearance = QuickCaptureAppearancePreset.Default;
-        _detailContentFormat = ViewModel.EditorContentFormat;
-        _pendingDetailAttachments.Clear();
-        _isDetailEditing = true;
-        _detailEditRevision = 0;
-        _detailSavedRevision = 0;
-        _detailHasUnsavedChanges = false;
-        _showDetailInSinglePane = !_isDualPane;
-        SetDetailEditorText(string.Empty);
-        DetailMarkdownEditor.ShowFormattingToolbar =
-            _detailContentFormat == TextContentFormat.Markdown;
-        DetailTimestampText.Text = _localizationService.Format(
-            "QuickCapture.Detail.Created",
-            DateTimeOffset.Now.ToString("yyyy/M/d HH:mm"));
-        RefreshDetailAttachments();
-        ApplyDetailMaterialSurface();
-        ApplyResponsiveLayout();
-        RefreshDetailPresentation();
-        DispatcherQueue.TryEnqueue(() =>
-            DetailMarkdownEditor.FocusEditor(moveCaretToEnd: false));
     }
 
     private void OpenDetail(QuickCaptureItemViewModel item)
@@ -978,6 +965,7 @@ public sealed partial class QuickCaptureSurfaceContent :
         _detailItem = item;
         _detailAppearance = item.AppearancePreset;
         _pendingDetailAttachments.Clear();
+        if (TryOpenUnifiedNote(item)) return;
         _isDetailEditing = !item.IsRecent &&
             (!_isDualPane || SettingsService.NormalizeQuickCaptureWideOpenMode(
                 _settingsService.Settings.QuickCaptureWideOpenMode) ==
@@ -994,6 +982,7 @@ public sealed partial class QuickCaptureSurfaceContent :
             _detailContentFormat == TextContentFormat.Markdown;
         DetailMarkdownView.Markdown = item.Body;
         DetailMarkdownView.ContentFormat = _detailContentFormat;
+        DetailMarkdownEditor.AllowRemoteImages =
         DetailMarkdownView.AllowRemoteImages =
             _settingsService.Settings.QuickCaptureAllowRemoteImages;
         DetailMarkdownView.AreTaskListsInteractive =
@@ -1036,6 +1025,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private void RefreshDetailPresentation()
     {
+        if (RefreshUnifiedNotePresentation()) return;
         bool hasDetail = _isCreatingDetail || _detailItem is not null;
         bool isReadOnly = _detailItem?.IsRecent == true;
         DetailEmptyState.Visibility = _isDualPane &&
@@ -1099,7 +1089,8 @@ public sealed partial class QuickCaptureSurfaceContent :
         {
             DetailMarkdownView.Markdown = GetDetailPresentationBody();
             DetailMarkdownView.ContentFormat = _detailContentFormat;
-            DetailMarkdownView.AllowRemoteImages =
+            DetailMarkdownEditor.AllowRemoteImages =
+        DetailMarkdownView.AllowRemoteImages =
                 _settingsService.Settings.QuickCaptureAllowRemoteImages;
             DetailMarkdownView.AreTaskListsInteractive =
                 !isReadOnly && _detailContentFormat == TextContentFormat.Markdown;
@@ -1125,6 +1116,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private bool BeginDetailEditing()
     {
+        if (UsesUnifiedNote) { UnifiedNoteEditor.FocusBody(); return true; }
         if (_isDetailEditing ||
             _detailItem?.IsRecent == true ||
             (!_isCreatingDetail && _detailItem is null))
@@ -1204,6 +1196,8 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private async Task FlushPendingDetailSaveAsync()
     {
+        if (UsesUnifiedNote) { await FlushUnifiedNoteAsync(); return; }
+        DetailMarkdownEditor.FlushAndGetText();
         _detailAutoSaveTimer?.Stop();
         if (_isCreatingDetail && !HasNewDetailContent())
         {
@@ -1226,6 +1220,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private async Task<bool> SaveDetailAsync(bool completeEditing)
     {
+        if (UsesUnifiedNote) return await FlushUnifiedNoteAsync();
         _detailAutoSaveTimer?.Stop();
         await _detailSaveGate.WaitAsync();
         try
@@ -1235,6 +1230,9 @@ public sealed partial class QuickCaptureSurfaceContent :
             do
             {
                 saved = await SaveDetailCoreAsync();
+                // A native edit can still be inside its idle window while the
+                // store write is awaited. Publish it before deciding to finish.
+                DetailMarkdownEditor.FlushAndGetText();
                 if (!saved)
                 {
                     return false;
@@ -1276,8 +1274,8 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private async Task<bool> SaveDetailCoreAsync()
     {
+        string body = DetailMarkdownEditor.FlushAndGetText();
         long revisionAtStart = _detailEditRevision;
-        string body = DetailMarkdownEditor.Text;
         if (_detailItem?.IsRecent == true)
         {
             _detailSavedRevision = revisionAtStart;
@@ -1390,6 +1388,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private void RefreshDetailAfterSave()
     {
+        DetailMarkdownEditor.FlushAndGetText();
         if (_detailItem is { } refreshed)
         {
             if (!_detailHasUnsavedChanges &&
@@ -1399,7 +1398,7 @@ public sealed partial class QuickCaptureSurfaceContent :
             }
 
             DetailMarkdownView.Markdown = _isDetailEditing
-                ? DetailMarkdownEditor.Text
+                ? GetDetailPresentationBody()
                 : refreshed.Body;
             DetailMarkdownView.ContentFormat = _detailContentFormat;
             DetailPinIcon.IsPinned = refreshed.IsPinned;
@@ -1425,6 +1424,12 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private void SetDetailEditorText(string value)
     {
+        if (UsesUnifiedNote)
+        {
+            UnifiedNoteEditor.MarkdownEditor.Text = value ?? string.Empty;
+            UnifiedNoteEditor.FlushNative();
+            return;
+        }
         _suppressDetailEditorChanges = true;
         try
         {
@@ -1684,6 +1689,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private string GetDetailPresentationBody()
     {
+        if (UsesUnifiedNote) { UnifiedNoteEditor.FlushNative(); return UnifiedNoteEditor.Session?.Body ?? string.Empty; }
         if (_isCreatingDetail || _isDetailEditing)
         {
             return DetailMarkdownEditor.Text;
@@ -1964,7 +1970,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
             var pinItem = new MenuFlyoutItem
             {
-                Text = T(item.IsPinned ? "QuickCapture.Unpin" : "QuickCapture.Pin"),
+                Text = NoteWorkspace.IsNote(item.ToModel()) ? T(item.IsPinned ? "Notes.Unfavorite" : "Notes.Favorite") : T(item.IsPinned ? "QuickCapture.Unpin" : "QuickCapture.Pin"),
                 Icon = new FontIcon { Glyph = "\uE718" }
             };
             pinItem.Click += async (_, _) =>
@@ -2036,7 +2042,10 @@ public sealed partial class QuickCaptureSurfaceContent :
             appearanceItem.Click += async (_, _) =>
             {
                 owner.Hide();
-                if (!await ViewModel.SetAppearanceAsync(item, preset))
+                bool changed = NoteWorkspace.IsNote(item.ToModel())
+                    ? await ChangeUnifiedNoteAppearanceAsync(item, preset)
+                    : await ViewModel.SetAppearanceAsync(item, preset);
+                if (!changed)
                 {
                     return;
                 }
@@ -2076,6 +2085,23 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private async Task DeleteQuickCaptureItemAsync(QuickCaptureItemViewModel item)
     {
+        if (NoteWorkspace.IsNote(item.ToModel()) && _noteWorkspace is not null)
+        {
+            var session = _noteWorkspace.Acquire(item.ToModel(),
+                () => new DispatcherQueueSessionTimer(DispatcherQueue, TimeSpan.FromMilliseconds(600)), DispatcherQueue);
+            try
+            {
+                if (await _noteWorkspace.DeleteAsync(session))
+                {
+                    await ViewModel.RefreshItemsAsync();
+                    if (_detailItem?.Id == item.Id) _detailItem = null;
+                    ReconcileDetailSelection();
+                    RefreshDetailPresentation();
+                }
+            }
+            finally { _noteWorkspace.Release(session); }
+            return;
+        }
         QuickCaptureDeletedItemSnapshot? snapshot = null;
         await RunAsync(async () => snapshot = await ViewModel.DeleteItemAsync(item));
         if (snapshot is null)
@@ -3093,6 +3119,7 @@ public sealed partial class QuickCaptureSurfaceContent :
 
     private void ClearDetailForViewChange()
     {
+        UnifiedNoteEditor.Open(null);
         _detailAutoSaveTimer?.Stop();
         foreach (QuickCaptureItemViewModel item in ViewModel.Items)
         {
@@ -3246,6 +3273,8 @@ public sealed partial class QuickCaptureSurfaceContent :
         }
 
         _isDisposed = true;
+        UnifiedNoteEditor.NoteChanged -= UnifiedNoteChanged;
+        UnifiedNoteEditor.Dispose();
         _detailImageLoadVersion++;
         DetailPrimaryImage.Source = null;
         SetDetailPrimaryImageEstimatedBytes(0);

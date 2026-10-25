@@ -6,31 +6,31 @@ public sealed class MarkdownLiveEditorContractTests
         "src/WinSticker/Controls/MarkdownLiveEditor.cs"));
 
     [Fact]
-    public void Editor_UsesDebouncedSerializationAndBlockReconciliation()
+    public void Editor_UsesDebouncedCaptureAndSourceOnlyHistory()
     {
         string code = ReadEditor();
 
         Assert.Contains("MarkdownSerializationScheduler", code, StringComparison.Ordinal);
-        Assert.Contains("MarkdownBlockReconciler.Plan", code, StringComparison.Ordinal);
-        Assert.Contains("_committedBlocks", code, StringComparison.Ordinal);
+        Assert.Contains("MarkdownNativeBuffer", code, StringComparison.Ordinal);
+        Assert.Contains("Document.UndoLimit = 0", code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Editor_BlockListIsVirtualized()
+    public void Editor_UsesOneContinuousNativeEditingSurface()
     {
         string code = ReadEditor();
 
-        Assert.Contains("ItemsRepeater", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("StackPanel", code, StringComparison.Ordinal);
+        Assert.Contains("RichEditBox", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ItemsRepeater", code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Editor_RecycledElementsAreRewiredThroughPrepareAndClearing()
+    public void Editor_ChangesPresentationWithoutReplacingSource()
     {
         string code = ReadEditor();
 
-        Assert.Contains("ElementPrepared", code, StringComparison.Ordinal);
-        Assert.Contains("ElementClearing", code, StringComparison.Ordinal);
+        Assert.Contains("CharacterFormat.Hidden", code, StringComparison.Ordinal);
+        Assert.Contains("BatchDisplayUpdates", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -38,21 +38,23 @@ public sealed class MarkdownLiveEditorContractTests
     {
         string code = ReadEditor();
 
-        // The keystroke path is Model_DocumentChanged -> scheduler.NotifyChanged;
-        // serializing or assigning Text there would reintroduce the WorkCat
-        // per-keystroke O(document) rebuild.
+        int start = code.IndexOf("private void EditorTextChanging", StringComparison.Ordinal);
+        int end = code.IndexOf("private string CaptureSource", start, StringComparison.Ordinal);
+        string keystrokePath = code[start..end];
+        Assert.DoesNotContain("GetText(", keystrokePath, StringComparison.Ordinal);
+        Assert.DoesNotContain("Parse(", keystrokePath, StringComparison.Ordinal);
         Assert.DoesNotContain("Text = _model.Serialize()", code, StringComparison.Ordinal);
         Assert.DoesNotContain("RebuildBlocks", code, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Editor_SupportsCrossBlockArrowNavigation()
+    public void Editor_LeavesContinuousArrowSelectionToNativeControl()
     {
         string code = ReadEditor();
 
-        Assert.Contains("CommitAndNavigateToBlock", code, StringComparison.Ordinal);
-        Assert.Contains("VirtualKey.Up", code, StringComparison.Ordinal);
-        Assert.Contains("VirtualKey.Down", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CommitAndNavigateToBlock", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("VirtualKey.Up", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("VirtualKey.Down", code, StringComparison.Ordinal);
     }
 
     [Fact]

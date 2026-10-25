@@ -37,6 +37,7 @@ public sealed partial class QuickPanelWindow : Window
     private bool _hasPositioned;
     private bool _isWindowDragging;
     private bool _isWindowResizing;
+    private bool _isHidingPanel;
     private string _resizeDirection = string.Empty;
     private const int MinPanelWidth = 380;
     private const int MinPanelHeight = 420;
@@ -549,12 +550,19 @@ public sealed partial class QuickPanelWindow : Window
             await todoViewModel.InitializeAsync();
         }
     }
-    public void HidePanel()
+    public async void HidePanel()
     {
-        if (!IsPanelVisible) return;
-        IsPanelVisible = false;
-        PopupHideStoryboard.Completed += OnPopupHideCompleted;
-        PopupHideStoryboard.Begin();
+        if (!IsPanelVisible || _isHidingPanel) return;
+        _isHidingPanel = true;
+        try
+        {
+            NotesView.FlushEditor();
+            if (!await _viewModel.TrySaveCurrentNoteAsync()) return;
+            IsPanelVisible = false;
+            PopupHideStoryboard.Completed += OnPopupHideCompleted;
+            PopupHideStoryboard.Begin();
+        }
+        finally { _isHidingPanel = false; }
     }
     private void OnPopupHideCompleted(object? sender, object e)
     {

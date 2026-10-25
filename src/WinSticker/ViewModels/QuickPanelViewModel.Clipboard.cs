@@ -21,7 +21,8 @@ public sealed partial class QuickPanelViewModel
 
     public ObservableCollection<QuickCaptureItem> FilteredClipboardItems { get; } = [];
 
-    private readonly List<QuickCaptureItem> _allClipboardItems = [];
+    private readonly object _clipboardProjectionLock = new();
+    private List<QuickCaptureItem> _allClipboardItems = [];
 
     private void InitializeClipboard()
     {
@@ -43,12 +44,12 @@ public sealed partial class QuickPanelViewModel
         try
         {
             QuickCaptureStoreData data = await _quickCaptureService.GetDataAsync();
-            _allClipboardItems.Clear();
+            var items = new List<QuickCaptureItem>();
 
             // RecentItems represents clipboard captures; Pinned items are in Items.Where(i => i.IsPinned).
             if (data.RecentItems is { Count: > 0 })
             {
-                _allClipboardItems.AddRange(data.RecentItems);
+                items.AddRange(data.RecentItems);
             }
 
             // Also check for pinned records in Items
@@ -56,14 +57,21 @@ public sealed partial class QuickPanelViewModel
             {
                 foreach (var item in data.Items.Where(i => i.IsPinned))
                 {
-                    if (!_allClipboardItems.Any(existing => existing.Id == item.Id))
+                    if (!items.Any(existing => existing.Id == item.Id))
                     {
-                        _allClipboardItems.Add(item);
+                        items.Add(item);
                     }
                 }
             }
 
-            ApplyClipboardFilter();
+            RunOnUi(() =>
+            {
+                lock (_clipboardProjectionLock)
+                {
+                    _allClipboardItems = items;
+                    ApplyClipboardFilter();
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -82,6 +90,8 @@ public sealed partial class QuickPanelViewModel
     {
         RunOnUi(() =>
         {
+            lock (_clipboardProjectionLock)
+            {
             IEnumerable<QuickCaptureItem> query = _allClipboardItems;
 
             // Apply category filter
@@ -113,6 +123,7 @@ public sealed partial class QuickPanelViewModel
             }
 
             ClipboardCountText = $"{FilteredClipboardItems.Count} 条记录";
+            }
         });
     }
 

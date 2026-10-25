@@ -618,7 +618,7 @@ public sealed class JsonSerializationBaselineContractTests : IDisposable
             """);
         QuickCaptureStoreData legacyQuick = await new QuickCaptureStore(quickDirectory).LoadAsync();
         Assert.Equal(QuickCaptureViewMode.Recent, legacyQuick.CurrentView);
-        Assert.Equal(4, legacyQuick.Version);
+        Assert.Equal(5, legacyQuick.Version);
         Assert.Empty(legacyQuick.Items);
         Assert.Empty(legacyQuick.RecentItems);
 
