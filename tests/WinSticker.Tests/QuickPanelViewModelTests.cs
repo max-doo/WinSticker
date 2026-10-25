@@ -7,6 +7,94 @@ namespace WinSticker.Tests;
 
 public sealed class QuickPanelViewModelTests
 {
+    [Fact]
+    public async Task ClipboardRefresh_UnchangedSnapshotPreservesRowsWithoutCollectionNotifications()
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-refresh-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (vm, quickCapture, _) = CreateTestEnvironment(testDir);
+            using (vm)
+            {
+                await quickCapture.AddRecentClipboardItemAsync("first", 20);
+                await quickCapture.AddRecentClipboardItemAsync("second", 20);
+                await vm.LoadClipboardHistoryAsync();
+                var rows = vm.FilteredClipboardItems.ToArray();
+                int notifications = 0;
+                vm.FilteredClipboardItems.CollectionChanged += (_, _) => notifications++;
+
+                await vm.LoadClipboardHistoryAsync();
+                vm.ApplyClipboardFilter();
+
+                Assert.Equal(0, notifications);
+                Assert.Equal(rows.Length, vm.FilteredClipboardItems.Count);
+                for (int index = 0; index < rows.Length; index++)
+                    Assert.Same(rows[index], vm.FilteredClipboardItems[index]);
+            }
+        }
+        finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
+    }
+
+    [Fact]
+    public async Task ClipboardRefresh_NewCaptureInsertsOnlyNewRowAndPreservesFavoriteFiltering()
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-diff-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (vm, quickCapture, _) = CreateTestEnvironment(testDir);
+            using (vm)
+            {
+                await quickCapture.AddRecentClipboardItemAsync("existing", 20);
+                await vm.LoadClipboardHistoryAsync();
+                var existing = Assert.Single(vm.FilteredClipboardItems);
+                var changes = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+                vm.FilteredClipboardItems.CollectionChanged += (_, args) => changes.Add(args.Action);
+
+                await quickCapture.AddRecentClipboardItemAsync("new capture", 20);
+                await vm.LoadClipboardHistoryAsync();
+
+                Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Add], changes);
+                Assert.Same(existing, vm.FilteredClipboardItems.Single(item => item.Id == existing.Id));
+                Assert.Equal("new capture", vm.FilteredClipboardItems[0].Body);
+
+                await vm.ToggleFavoriteAsync(vm.FilteredClipboardItems[0]);
+                await vm.LoadClipboardHistoryAsync();
+                Assert.True(vm.FilteredClipboardItems[0].IsPinned);
+                vm.SetClipboardFilter(QuickPanelFilter.Favorites);
+                Assert.Single(vm.FilteredClipboardItems);
+                Assert.DoesNotContain(System.Collections.Specialized.NotifyCollectionChangedAction.Reset, changes);
+            }
+        }
+        finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
+    }
+
+    [Fact]
+    public async Task ClipboardRefresh_EditedPinnedRecordReplacesOnlyChangedRow()
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-edit-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (vm, quickCapture, _) = CreateTestEnvironment(testDir);
+            using (vm)
+            {
+                var record = await quickCapture.AddDetailedItemAsync(null, "before edit", QuickCaptureAppearancePreset.Default, pin: true);
+                await quickCapture.AddRecentClipboardItemAsync("unchanged capture", 20);
+                await vm.LoadClipboardHistoryAsync();
+                var unchanged = vm.FilteredClipboardItems.Single(item => item.IsRecent);
+                var changes = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+                vm.FilteredClipboardItems.CollectionChanged += (_, args) => changes.Add(args.Action);
+
+                Assert.True(await quickCapture.UpdateItemAsync(record.Id, "after edit"));
+                await vm.LoadClipboardHistoryAsync();
+
+                Assert.Equal("after edit", vm.FilteredClipboardItems.Single(item => item.Id == record.Id).Body);
+                Assert.Same(unchanged, vm.FilteredClipboardItems.Single(item => item.Id == unchanged.Id));
+                Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Replace], changes);
+            }
+        }
+        finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
+    }
+
     private static (QuickPanelViewModel vm, QuickCaptureService quickCapture, SettingsService settings) CreateTestEnvironment(string testDir)
     {
         Directory.CreateDirectory(testDir);

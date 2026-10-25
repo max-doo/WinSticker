@@ -389,6 +389,19 @@ public sealed partial class TodoCalendarContent : UserControl
         }
 
         sp.Children.Add(tb);
+
+        if (!string.IsNullOrEmpty(chip.StepProgress))
+        {
+            sp.Children.Add(new TextBlock
+            {
+                Text = chip.StepProgress,
+                FontSize = 9,
+                Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.9
+            });
+        }
+
         border.Child = sp;
         ToolTipService.SetToolTip(border, chip.Text);
 

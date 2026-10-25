@@ -357,30 +357,16 @@ public sealed partial class SettingsWindow
 
     private async Task<bool> ConfirmFeatureWidgetResetAsync(WidgetKind kind)
     {
-        if (SettingsRoot.XamlRoot is null)
-        {
-            return false;
-        }
-
         string titleKey = kind == WidgetKind.QuickCapture
             ? "QuickCapture.Name"
             : $"{kind}.Title";
         string widgetName = _localizationService.T(titleKey);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.Format("Settings.FeatureWidgets.ResetDialogTitle", widgetName),
-            PrimaryButtonText = _localizationService.T("Settings.FeatureWidgets.ResetConfirm"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.T("Settings.FeatureWidgets.ResetDialogBody"),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await ConfirmDialog.ShowAsync(
+            SettingsRoot.XamlRoot,
+            _localizationService,
+            _localizationService.Format("Settings.FeatureWidgets.ResetDialogTitle", widgetName),
+            _localizationService.T("Settings.FeatureWidgets.ResetDialogBody"),
+            _localizationService.T("Settings.FeatureWidgets.ResetConfirm"));
     }
 
     private void FeatureWidgetToggle_Toggled(object sender, RoutedEventArgs e)

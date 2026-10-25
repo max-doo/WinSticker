@@ -286,7 +286,10 @@ public sealed partial class TodoCalendarViewModel : ObservableObject, IDisposabl
                     item.Text,
                     item.IsCompleted,
                     TodoItem.GetColorMarkerHex(item.ColorMarker),
-                    item.IsImportant))
+                    item.IsImportant,
+                    item.Steps.Count > 0
+                        ? $"{item.Steps.Count(step => step.IsCompleted)}/{item.Steps.Count}"
+                        : null))
                 .ToList();
             var (visible, overflow) = TodoCalendarProjection.AssignSlots(chips, MaxTasksPerCell);
             cell.SetCell(visible, overflow);

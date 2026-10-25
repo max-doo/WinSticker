@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using WinSticker.Models;
+using WinSticker.Services;
 using WinSticker.ViewModels;
 
 namespace WinSticker.Controls;
@@ -88,5 +89,18 @@ public sealed partial class QuickPanelNotesView : UserControl
     private async void Library_ItemClick(object sender, ItemClickEventArgs args)
     {
         if (args.ClickedItem is QuickPanelNoteItem note && _attachedViewModel is not null && await _attachedViewModel.SelectNoteAsync(note)) ClosedNotesFlyout.Hide();
+    }
+    private async void LibraryDeleteButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (sender is not FrameworkElement { DataContext: QuickPanelNoteItem note } || _attachedViewModel is null) return;
+        ClosedNotesFlyout.Hide();
+        LocalizationService localization = _attachedViewModel.NoteLocalization;
+        bool confirmed = await ConfirmDialog.ShowAsync(
+            XamlRoot,
+            localization,
+            localization.T("QuickCapture.DeleteConfirm.Title"),
+            localization.Format("QuickCapture.DeleteConfirm.Body", note.DisplayTitle),
+            localization.T("Common.Delete"));
+        if (confirmed) await _attachedViewModel.DeleteNoteAsync(note);
     }
 }

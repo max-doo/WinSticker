@@ -226,23 +226,14 @@ public sealed partial class SettingsWindow
         int visit = _backupSettingsViewModel.VisitGeneration;
         // Remote deletes are irreversible — confirm first, in the same
         // style as every other destructive dialog in settings.
-        var confirmDialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.T("Settings.CloudBackup.DeleteSnapshot.Title"),
-            PrimaryButtonText = _localizationService.T("Common.Delete"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.Format(
+        if (!await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.CloudBackup.DeleteSnapshot.Title"),
+                _localizationService.Format(
                     "Settings.CloudBackup.DeleteSnapshot.Body",
                     snapshot.Title),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-
-        if (await confirmDialog.ShowAsync() != ContentDialogResult.Primary)
+                _localizationService.T("Common.Delete")))
         {
             return;
         }

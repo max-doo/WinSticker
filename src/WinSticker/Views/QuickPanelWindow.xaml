@@ -12,21 +12,10 @@
     mc:Ignorable="d">
 
     <Grid x:Name="RootGrid"
-          PreviewKeyDown="RootGrid_PreviewKeyDown"
-          RenderTransformOrigin="0.5,0.5">
-        <Grid.RenderTransform>
-            <TranslateTransform x:Name="PopupTranslateTransform"/>
-        </Grid.RenderTransform>
+          PreviewKeyDown="RootGrid_PreviewKeyDown">
 
         <Grid.Resources>
             <Storyboard x:Name="PopupShowStoryboard">
-                <DoubleAnimation Storyboard.TargetName="RootGrid"
-                                 Storyboard.TargetProperty="Opacity"
-                                 From="0" To="1" Duration="0:0:0.167">
-                    <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut"/>
-                    </DoubleAnimation.EasingFunction>
-                </DoubleAnimation>
                 <DoubleAnimation Storyboard.TargetName="PopupTranslateTransform"
                                  Storyboard.TargetProperty="Y"
                                  From="4" To="0" Duration="0:0:0.167">
@@ -36,13 +25,6 @@
                 </DoubleAnimation>
             </Storyboard>
             <Storyboard x:Name="PopupHideStoryboard">
-                <DoubleAnimation Storyboard.TargetName="RootGrid"
-                                 Storyboard.TargetProperty="Opacity"
-                                 From="1" To="0" Duration="0:0:0.083">
-                    <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseIn"/>
-                    </DoubleAnimation.EasingFunction>
-                </DoubleAnimation>
                 <DoubleAnimation Storyboard.TargetName="PopupTranslateTransform"
                                  Storyboard.TargetProperty="Y"
                                  From="0" To="-2" Duration="0:0:0.083">
@@ -61,6 +43,9 @@
 
         <!-- Content Area -->
         <Grid Margin="16,14,16,14" RowSpacing="10">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="PopupTranslateTransform"/>
+            </Grid.RenderTransform>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/> <!-- Title / Window Header -->
                 <RowDefinition Height="Auto"/> <!-- Main Navigation Tabs (剪贴板, 待办, 便签) -->

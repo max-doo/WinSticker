@@ -98,10 +98,12 @@ public sealed class WidgetTextShadowContractTests
             "src/WinSticker/Controls/WidgetShell.xaml"));
 
         // Explicitly styled widget text bypasses the implicit style and opts
-        // in locally; icon glyphs drawn through TextBlocks opt out.
+        // in locally; icon glyphs drawn through TextBlocks opt out. The count
+        // covers the base card text plus the master-card step surface: two
+        // progress-count texts, the inline step row, and the completion nudge.
         string todo = File.ReadAllText(TestPaths.FromRepository(
             "src/WinSticker/Controls/WidgetContents/TodoWidgetContent.xaml"));
-        Assert.Equal(7, CountOccurrences(todo, "helpers:WidgetTextShadow.Cast=\"True\""));
+        Assert.Equal(11, CountOccurrences(todo, "helpers:WidgetTextShadow.Cast=\"True\""));
         string titleIcon = File.ReadAllText(TestPaths.FromRepository(
             "src/WinSticker/Controls/WidgetTitleIcon.xaml"));
         Assert.Equal(2, CountOccurrences(titleIcon, "helpers:WidgetTextShadow.Cast=\"False\""));

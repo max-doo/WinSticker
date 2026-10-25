@@ -637,20 +637,12 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = Localization.Format("Glance.Instances.DeleteTitle", selected.Name),
-            Content = new TextBlock
-            {
-                Text = Localization.T("Glance.Instances.DeleteDescription"),
-                TextWrapping = TextWrapping.Wrap
-            },
-            PrimaryButtonText = Localization.T("Common.Delete"),
-            CloseButtonText = Localization.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (!await ConfirmDialog.ShowAsync(
+                XamlRoot,
+                Localization,
+                Localization.Format("Glance.Instances.DeleteTitle", selected.Name),
+                Localization.T("Glance.Instances.DeleteDescription"),
+                Localization.T("Common.Delete")))
         {
             return;
         }

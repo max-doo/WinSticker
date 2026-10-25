@@ -24,6 +24,7 @@ public sealed partial class TodoItemViewModel : ObservableObject
     private bool _isEditing;
     private bool _isCopySelected;
     private bool _isExpanded;
+    private bool _isStepsExpanded;
     private string _editText = string.Empty;
     private bool _isRecurringHistoryLead;
     private bool _isRecurringHistoryExpanded;
@@ -100,6 +101,56 @@ public sealed partial class TodoItemViewModel : ObservableObject
 
     public Visibility StepProgressVisibility => Steps.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
+    public int TotalStepCount => Steps.Count;
+
+    public bool AreAllStepsCompleted => Steps.Count > 0 && CompletedStepCount == Steps.Count;
+
+    // The master-card progress count keeps the neutral secondary look while
+    // steps remain and turns success-green only when every step is done,
+    // mirroring the overdue/caution split in the due-status row.
+    public Visibility StepProgressPartialVisibility =>
+        Steps.Count > 0 && !AreAllStepsCompleted ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility StepProgressAllVisibility =>
+        Steps.Count > 0 && AreAllStepsCompleted ? Visibility.Visible : Visibility.Collapsed;
+
+    public string StepProgressListGlyph => "\uE8FD";
+
+    public string StepProgressChevronGlyph => IsStepsExpanded ? "\uE70D" : "\uE70E";
+
+    // Master-card expansion is pure UI state: it lives on the item (so
+    // ListView container recycling cannot shuffle it between rows) and is
+    // intentionally not projected into the persisted TodoItem.
+    public bool IsStepsExpanded
+    {
+        get => _isStepsExpanded;
+        internal set
+        {
+            if (SetProperty(ref _isStepsExpanded, value))
+            {
+                OnPropertyChanged(nameof(StepsExpandedVisibility));
+                OnPropertyChanged(nameof(StepProgressChevronGlyph));
+                OnPropertyChanged(nameof(StepProgressToggleText));
+                OnPropertyChanged(nameof(StepNudgeVisibility));
+            }
+        }
+    }
+
+    public Visibility StepsExpandedVisibility => IsStepsExpanded
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string StepProgressToggleText => IsStepsExpanded
+        ? Format("Todo.Steps.Collapse", CompletedStepCount, Steps.Count)
+        : Format("Todo.Steps.Expand", CompletedStepCount, Steps.Count);
+
+    public Visibility StepNudgeVisibility =>
+        IsStepsExpanded && AreAllStepsCompleted && !IsCompleted
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    public string StepNudgeText => LocalizedText("Todo.Steps.CompleteItem");
+
     public Visibility AttachmentSummaryVisibility => Attachments.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
     public string AttachmentSummaryText => Attachments.Count == 0 ? string.Empty : $"{Attachments.Count}";
@@ -155,6 +206,7 @@ public sealed partial class TodoItemViewModel : ObservableObject
                 OnPropertyChanged(nameof(TextDecorations));
                 OnPropertyChanged(nameof(HasActiveSnooze));
                 OnPropertyChanged(nameof(ReminderMetadataVisibility));
+                OnPropertyChanged(nameof(StepNudgeVisibility));
             }
         }
     }
@@ -588,6 +640,8 @@ public sealed partial class TodoItemViewModel : ObservableObject
         OnPropertyChanged(nameof(CreatedText));
         OnPropertyChanged(nameof(CompletionToggleText));
         OnPropertyChanged(nameof(ImportantToggleText));
+        OnPropertyChanged(nameof(StepProgressToggleText));
+        OnPropertyChanged(nameof(StepNudgeText));
     }
 
     internal void RefreshDetailProperties()
@@ -599,6 +653,12 @@ public sealed partial class TodoItemViewModel : ObservableObject
         OnPropertyChanged(nameof(CompletedStepCount));
         OnPropertyChanged(nameof(StepProgressText));
         OnPropertyChanged(nameof(StepProgressVisibility));
+        OnPropertyChanged(nameof(TotalStepCount));
+        OnPropertyChanged(nameof(AreAllStepsCompleted));
+        OnPropertyChanged(nameof(StepProgressPartialVisibility));
+        OnPropertyChanged(nameof(StepProgressAllVisibility));
+        OnPropertyChanged(nameof(StepProgressToggleText));
+        OnPropertyChanged(nameof(StepNudgeVisibility));
         OnPropertyChanged(nameof(AttachmentSummaryText));
         OnPropertyChanged(nameof(AttachmentSummaryVisibility));
     }

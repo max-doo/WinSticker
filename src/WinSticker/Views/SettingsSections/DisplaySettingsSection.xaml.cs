@@ -518,18 +518,16 @@ public sealed partial class DisplaySettingsSection : UserControl
                 surface.BoundScreenId?.Trim(),
                 screen.StableId.Trim(),
                 StringComparison.OrdinalIgnoreCase));
-        var dialog = new ContentDialog
-        {
-            Title = Format("Settings.Displays.MoveAll.ConfirmTitle", screen.Number),
-            Content = elsewhere == 0
-                ? Format("Settings.Displays.MoveAll.ConfirmBodyAllHere", surfaces.Count)
-                : Format("Settings.Displays.MoveAll.ConfirmBody", surfaces.Count, elsewhere),
-            PrimaryButtonText = T("Settings.Displays.MoveAll.ConfirmButton"),
-            CloseButtonText = T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        string moveAllBody = elsewhere == 0
+            ? Format("Settings.Displays.MoveAll.ConfirmBodyAllHere", surfaces.Count)
+            : Format("Settings.Displays.MoveAll.ConfirmBody", surfaces.Count, elsewhere);
+        if (!await ConfirmDialog.ShowAsync(
+                XamlRoot,
+                global::WinSticker.App.Current.LocalizationService,
+                Format("Settings.Displays.MoveAll.ConfirmTitle", screen.Number),
+                moveAllBody,
+                T("Settings.Displays.MoveAll.ConfirmButton"),
+                ContentDialogButton.Primary))
         {
             return;
         }

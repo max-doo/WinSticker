@@ -383,23 +383,15 @@ public sealed partial class SettingsWindow
         // If update is already downloaded, show install confirmation dialog.
         if (ViewModel.IsUpdateDownloaded)
         {
-            if (SettingsRoot.XamlRoot is null) return;
+            bool installConfirmed = await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.Update.InstallConfirmTitle"),
+                _localizationService.T("Settings.Update.InstallConfirmBody"),
+                _localizationService.T("Settings.Update.OneClick.Install"),
+                ContentDialogButton.Primary);
 
-            var dialog = new ContentDialog
-            {
-                XamlRoot = SettingsRoot.XamlRoot,
-                Title = _localizationService.T("Settings.Update.InstallConfirmTitle"),
-                Content = new TextBlock
-                {
-                    Text = _localizationService.T("Settings.Update.InstallConfirmBody"),
-                    TextWrapping = TextWrapping.Wrap
-                },
-                PrimaryButtonText = _localizationService.T("Settings.Update.OneClick.Install"),
-                CloseButtonText = _localizationService.T("Common.Cancel"),
-                DefaultButton = ContentDialogButton.Primary
-            };
-
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            if (!installConfirmed) return;
 
             if (!await CreatePreUpdateRecoverySnapshotAsync())
             {

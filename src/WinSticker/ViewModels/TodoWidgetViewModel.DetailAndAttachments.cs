@@ -423,6 +423,11 @@ public sealed partial class TodoWidgetViewModel
                 item.CancelEdit();
                 item.IsExpanded = false;
             }
+
+            if (item.IsStepsExpanded)
+            {
+                item.IsStepsExpanded = false;
+            }
         }
     }
 

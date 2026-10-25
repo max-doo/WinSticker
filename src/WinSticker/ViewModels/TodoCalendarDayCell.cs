@@ -7,7 +7,10 @@ public sealed record TodoCalendarTaskChip(
     string Text,
     bool IsCompleted,
     string ColorHex,
-    bool IsImportant);
+    bool IsImportant,
+    // "2/5" when the task has steps, null otherwise. Calendar chips stay
+    // compact: read-only count, no inline expansion on the day grid.
+    string? StepProgress = null);
 
 public sealed partial class TodoCalendarDayCell : ObservableObject
 {

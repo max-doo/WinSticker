@@ -69,47 +69,32 @@ public sealed partial class SettingsWindow
         var result = ViewModel.RepairDragDropPermission();
         if (result.RequiresStartupSettings)
         {
-            var dialog = new ContentDialog
-            {
-                XamlRoot = SettingsRoot.XamlRoot,
-                Title = _localizationService.T("Settings.AutoStart.Title"),
-                PrimaryButtonText = _localizationService.T(
-                    "Settings.AutoStart.OpenSystemSettings"),
-                CloseButtonText = _localizationService.T("Common.Cancel"),
-                DefaultButton = ContentDialogButton.Primary,
-                Content = new TextBlock
-                {
-                    Text = _localizationService.T(
-                        "Settings.AutoStart.WindowsDisabled"),
-                    TextWrapping = TextWrapping.Wrap
-                }
-            };
+            bool openSystemSettings = await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.AutoStart.Title"),
+                _localizationService.T("Settings.AutoStart.WindowsDisabled"),
+                _localizationService.T("Settings.AutoStart.OpenSystemSettings"),
+                ContentDialogButton.Primary);
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            if (openSystemSettings)
             {
-                await OpenStartupAppsSettingsAsync();
-            }
+                await OpenStartupAppsSettingsAsync();            }
 
             return;
         }
 
         if (result.NeedsRelaunch)
         {
-            var dialog = new ContentDialog
-            {
-                XamlRoot = SettingsRoot.XamlRoot,
-                Title = _localizationService.T("Settings.DragDropPermission.RelaunchTitle"),
-                PrimaryButtonText = _localizationService.T("Settings.DragDropPermission.RelaunchButton"),
-                CloseButtonText = _localizationService.T("Common.Cancel"),
-                DefaultButton = ContentDialogButton.Primary,
-                Content = new TextBlock
-                {
-                    Text = _localizationService.T("Settings.DragDropPermission.RelaunchBody"),
-                    TextWrapping = TextWrapping.Wrap
-                }
-            };
+            bool relaunch = await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.DragDropPermission.RelaunchTitle"),
+                _localizationService.T("Settings.DragDropPermission.RelaunchBody"),
+                _localizationService.T("Settings.DragDropPermission.RelaunchButton"),
+                ContentDialogButton.Primary);
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            if (relaunch)
             {
                 if (DragDropPermissionService.TryRelaunchAsExplorerUser(
                         $"--await-parent-exit {Environment.ProcessId}"))
@@ -237,27 +222,20 @@ public sealed partial class SettingsWindow
                     "Settings.DataBackup.RestoreNewerVersionWarning",
                     preparation.AppVersion)}"
                 : string.Empty;
-            var dialog = new ContentDialog
-            {
-                XamlRoot = SettingsRoot.XamlRoot,
-                Title = _localizationService.T("Settings.DataBackup.RestoreConfirmTitle"),
-                PrimaryButtonText = _localizationService.T("Settings.DataBackup.RestoreConfirmButton"),
-                CloseButtonText = _localizationService.T("Common.Cancel"),
-                DefaultButton = ContentDialogButton.Close,
-                Content = new TextBlock
-                {
-                    Text = _localizationService.Format(
-                        "Settings.DataBackup.RestoreConfirmBody",
-                        preparation.BackupCreatedAtUtc.ToLocalTime().ToString("g"),
-                        preparation.AppVersion,
-                        preparation.FileCount,
-                        ViewModel.FormatBytes(preparation.TotalUncompressedBytes),
-                        integrityWarning + newerVersionWarning),
-                    TextWrapping = TextWrapping.Wrap
-                }
-            };
+            bool restoreConfirmed = await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.DataBackup.RestoreConfirmTitle"),
+                _localizationService.Format(
+                    "Settings.DataBackup.RestoreConfirmBody",
+                    preparation.BackupCreatedAtUtc.ToLocalTime().ToString("g"),
+                    preparation.AppVersion,
+                    preparation.FileCount,
+                    ViewModel.FormatBytes(preparation.TotalUncompressedBytes),
+                    integrityWarning + newerVersionWarning),
+                _localizationService.T("Settings.DataBackup.RestoreConfirmButton"));
 
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            if (!restoreConfirmed)
             {
                 await App.Current.DataBackupService.CancelPendingRestoreAsync();
                 return;
@@ -462,28 +440,15 @@ public sealed partial class SettingsWindow
 
     private async void DeleteSnapshotButton_Click(object sender, RoutedEventArgs e)
     {
-        if (SettingsRoot.XamlRoot is null || sender is not Button { DataContext: BackupSnapshotListItem item })
-        {
-            return;
-        }
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.T("Settings.DataBackup.Snapshots.DeleteConfirmTitle"),
-            PrimaryButtonText = _localizationService.T("Settings.DataBackup.Snapshots.Delete"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.Format(
+        if (sender is not Button { DataContext: BackupSnapshotListItem item } ||
+            !await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.DataBackup.Snapshots.DeleteConfirmTitle"),
+                _localizationService.Format(
                     "Settings.DataBackup.Snapshots.DeleteConfirmBody",
                     item.Title),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                _localizationService.T("Settings.DataBackup.Snapshots.Delete")))
         {
             return;
         }
@@ -542,21 +507,14 @@ public sealed partial class SettingsWindow
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.T("Settings.Dialog.RestoreTitle"),
-            PrimaryButtonText = _localizationService.T("Common.Restore"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.T("Settings.Dialog.RestoreBody"),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
+        bool restore = await ConfirmDialog.ShowAsync(
+            SettingsRoot.XamlRoot,
+            _localizationService,
+            _localizationService.T("Settings.Dialog.RestoreTitle"),
+            _localizationService.T("Settings.Dialog.RestoreBody"),
+            _localizationService.T("Common.Restore"));
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (!restore)
         {
             return;
         }

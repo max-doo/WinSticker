@@ -1060,24 +1060,12 @@ public sealed partial class SettingsWindow
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.T(
-                "Settings.WidgetGroups.DissolveDialog.Title"),
-            PrimaryButtonText = _localizationService.T(
-                "Settings.WidgetGroups.DissolveDialog.Confirm"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.T(
-                    "Settings.WidgetGroups.DissolveDialog.Description"),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (!await ConfirmDialog.ShowAsync(
+                SettingsRoot.XamlRoot,
+                _localizationService,
+                _localizationService.T("Settings.WidgetGroups.DissolveDialog.Title"),
+                _localizationService.T("Settings.WidgetGroups.DissolveDialog.Description"),
+                _localizationService.T("Settings.WidgetGroups.DissolveDialog.Confirm")))
         {
             return;
         }

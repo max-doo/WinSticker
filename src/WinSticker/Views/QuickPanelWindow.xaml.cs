@@ -22,6 +22,7 @@ using Windows.Graphics;
 using Windows.System;
 using WinRT;
 using WinRT.Interop;
+using DispatcherQueuePriority = Microsoft.UI.Dispatching.DispatcherQueuePriority;
 namespace WinSticker.Views;
 public sealed partial class QuickPanelWindow : Window
 {
@@ -38,6 +39,10 @@ public sealed partial class QuickPanelWindow : Window
     private bool _isWindowDragging;
     private bool _isWindowResizing;
     private bool _isHidingPanel;
+    private bool _isClosed;
+    private bool _refreshQueued;
+    private bool _refreshing;
+    private int _visibilityVersion;
     private string _resizeDirection = string.Empty;
     private const int MinPanelWidth = 380;
     private const int MinPanelHeight = 420;
@@ -66,6 +71,8 @@ public sealed partial class QuickPanelWindow : Window
     private ICompositionSupportsSystemBackdrop? _backdropTarget;
     private bool _micaControllerAttached;
     private bool _acrylicControllerAttached;
+    private (bool IsDark, Windows.UI.Color Accent, string Material, double Opacity,
+        double Intensity, string BorderStyle, string BorderColorMode)? _appliedMaterial;
     private const int DefaultPanelWidth = 520;
     private const int DefaultPanelHeight = 620;
     public bool IsPanelVisible { get; private set; }
@@ -104,6 +111,7 @@ public sealed partial class QuickPanelWindow : Window
         }
         Activated += OnWindowActivated;
         Closed += OnWindowClosed;
+        RootGrid.ActualThemeChanged += (_, _) => ApplyMaterialFromSettings();
         UpdateTabPresenter();
     }
     private void ConfigureWindow()
@@ -522,8 +530,11 @@ public sealed partial class QuickPanelWindow : Window
             _ => new CornerRadius(8)
         };
     }
-    public async void ShowPanel()
+    public void ShowPanel()
     {
+        if (_isClosed) return;
+        using var timing = PerformanceLogger.Measure("QuickPanel.Show");
+        _visibilityVersion++;
         var fg = Win32Helper.GetForegroundWindow();
         if (fg != IntPtr.Zero && fg != _hwnd)
         {
@@ -535,7 +546,8 @@ public sealed partial class QuickPanelWindow : Window
             _hasPositioned = true;
         }
         ApplyMaterialFromSettings();
-        RootGrid.Opacity = 0;
+        PopupHideStoryboard.Stop();
+        PopupShowStoryboard.Stop();
         PopupTranslateTransform.Y = 4;
         _appWindow?.Show();
         IsPanelVisible = true;
@@ -543,22 +555,56 @@ public sealed partial class QuickPanelWindow : Window
         Activate();
         Win32Helper.SetForegroundWindow(_hwnd);
         PopupShowStoryboard.Begin();
-        (App.Current as App)?.RefreshQuickCaptureClipboardService(captureCurrent: true);
-        await _viewModel.RefreshAllAsync();
-        if (_todoContent?.ViewModel is { } todoViewModel)
+        // A cached store can complete synchronously. Refreshing here would
+        // rebuild bound controls before XAML has presented the window at all.
+        if (!_refreshQueued)
         {
-            await todoViewModel.InitializeAsync();
+            _refreshQueued = true;
+            CompositionTarget.Rendering += OnPanelRendering;
         }
+    }
+    private void OnPanelRendering(object? sender, object args)
+    {
+        CancelQueuedRefresh();
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, RefreshPanelAsync);
+    }
+    private void CancelQueuedRefresh()
+    {
+        if (!_refreshQueued) return;
+        CompositionTarget.Rendering -= OnPanelRendering;
+        _refreshQueued = false;
+    }
+    private async void RefreshPanelAsync()
+    {
+        if (_isClosed || !IsPanelVisible || _refreshing) return;
+        _refreshing = true;
+        using var timing = PerformanceLogger.Measure("QuickPanel.Refresh");
+        try
+        {
+            (App.Current as App)?.RefreshQuickCaptureClipboardService(captureCurrent: true);
+            await _viewModel.RefreshAllAsync();
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[QuickPanel] Refresh failed: {ex}");
+        }
+        finally { _refreshing = false; }
     }
     public async void HidePanel()
     {
         if (!IsPanelVisible || _isHidingPanel) return;
         _isHidingPanel = true;
+        int version = ++_visibilityVersion;
         try
         {
             NotesView.FlushEditor();
             if (!await _viewModel.TrySaveCurrentNoteAsync()) return;
+            if (_isClosed || version != _visibilityVersion) return;
             IsPanelVisible = false;
+            CancelQueuedRefresh();
+            PopupShowStoryboard.Stop();
+            PopupHideStoryboard.Stop();
+            PopupHideStoryboard.Completed -= OnPopupHideCompleted;
             PopupHideStoryboard.Completed += OnPopupHideCompleted;
             PopupHideStoryboard.Begin();
         }
@@ -699,6 +745,7 @@ public sealed partial class QuickPanelWindow : Window
     }
     private void UpdateTabPresenter()
     {
+        using var timing = PerformanceLogger.Measure("QuickPanel.SwitchTab", _viewModel.ActiveTab.ToString());
         MainTabSegmented.SelectedIndex = _viewModel.ActiveTab switch
         {
             QuickPanelTab.Clipboard => 0,
@@ -711,7 +758,8 @@ public sealed partial class QuickPanelWindow : Window
         NotesView.Visibility = _viewModel.ActiveTab == QuickPanelTab.Notes ? Visibility.Visible : Visibility.Collapsed;
         if (_viewModel.ActiveTab == QuickPanelTab.Todo)
         {
-            EnsureTodoContent();
+            // Let navigation paint before constructing the shared task editor.
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, EnsureTodoContent);
         }
     }
 
@@ -725,7 +773,7 @@ public sealed partial class QuickPanelWindow : Window
     /// </summary>
     private void EnsureTodoContent()
     {
-        if (_todoContent is not null)
+        if (_isClosed || _viewModel.ActiveTab != QuickPanelTab.Todo || _todoContent is not null)
         {
             return;
         }
@@ -744,7 +792,13 @@ public sealed partial class QuickPanelWindow : Window
         var content = new Controls.WidgetContents.TodoWidgetContent(viewModel);
         _todoContent = content;
         TodoViewHost.Content = content;
-        _ = viewModel.InitializeAsync();
+        InitializeTodoAsync(viewModel);
+    }
+    private async void InitializeTodoAsync(TodoWidgetViewModel viewModel)
+    {
+        using var timing = PerformanceLogger.Measure("QuickPanel.InitializeTodo");
+        try { await viewModel.InitializeAsync(); }
+        catch (Exception ex) { App.Log($"[QuickPanel] Todo initialization failed: {ex}"); }
     }
     private void MainTabSegmented_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -831,6 +885,12 @@ public sealed partial class QuickPanelWindow : Window
             _settingsService.Settings.WidgetShell.WidgetMaterialType);
         double surfaceOpacity = Math.Clamp(_settingsService.Settings.WidgetShell.WidgetOpacity, 0.0, 1.0);
         double materialIntensity = Math.Clamp(_settingsService.Settings.WidgetShell.WidgetMaterialIntensity, 0.0, 1.0);
+        var appearance = (isDark, accentColor, materialType, surfaceOpacity, materialIntensity,
+            _settingsService.Settings.WidgetShell.WidgetBorderStyle,
+            _settingsService.Settings.WidgetShell.WidgetBorderColorMode);
+        if (_appliedMaterial is { } applied && applied.Equals(appearance)) return;
+        using var timing = PerformanceLogger.Measure("QuickPanel.ApplyMaterial", materialType);
+        bool succeeded = false;
         try
         {
             Win32Helper.SetWindowTheme(_hwnd, isDark);
@@ -888,6 +948,7 @@ public sealed partial class QuickPanelWindow : Window
                     true);
                 RootGrid.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x01, 0x00, 0x00, 0x00));
             }
+            succeeded = true;
         }
         catch (Exception ex)
         {
@@ -901,6 +962,7 @@ public sealed partial class QuickPanelWindow : Window
         var (thickness, borderColor) = GetPopupBorderVisuals(isDark, accentColor);
         PopupBorderOverlay.BorderThickness = new Thickness(thickness);
         PopupBorderOverlay.BorderBrush = borderColor.A == 0 ? null : new SolidColorBrush(borderColor);
+        _appliedMaterial = succeeded ? appearance : null;
     }
     private static Windows.UI.Color BuildNativeBackdropTintColor(
         bool isDark, Windows.UI.Color accentColor, double materialIntensity)
@@ -922,14 +984,12 @@ public sealed partial class QuickPanelWindow : Window
         _backdropConfiguration ??= new SystemBackdropConfiguration();
         _backdropConfiguration.IsInputActive = true;
         _backdropConfiguration.Theme = isDark ? SystemBackdropTheme.Dark : SystemBackdropTheme.Light;
-        if (_micaController is not null)
+        MicaKind kind = useAlt ? MicaKind.BaseAlt : MicaKind.Base;
+        _micaController ??= new MicaController { Kind = kind };
+        if (_micaController.Kind != kind)
         {
-            DisposeMicaController();
+            _micaController.Kind = kind;
         }
-        _micaController = new MicaController
-        {
-            Kind = useAlt ? MicaKind.BaseAlt : MicaKind.Base
-        };
         DetachAcrylicControllerTarget();
         if (!_micaControllerAttached)
         {
@@ -965,14 +1025,16 @@ public sealed partial class QuickPanelWindow : Window
         _backdropConfiguration ??= new SystemBackdropConfiguration();
         _backdropConfiguration.IsInputActive = true;
         _backdropConfiguration.Theme = isDark ? SystemBackdropTheme.Dark : SystemBackdropTheme.Light;
-        if (_acrylicController is not null && !_acrylicController.IsClosed)
+        if (_acrylicController?.IsClosed == true)
         {
             DisposeAcrylicController();
         }
-        _acrylicController = new DesktopAcrylicController
+        DesktopAcrylicKind kind = useBase ? DesktopAcrylicKind.Base : DesktopAcrylicKind.Thin;
+        _acrylicController ??= new DesktopAcrylicController { Kind = kind };
+        if (_acrylicController.Kind != kind)
         {
-            Kind = useBase ? DesktopAcrylicKind.Base : DesktopAcrylicKind.Thin
-        };
+            _acrylicController.Kind = kind;
+        }
         DetachMicaControllerTarget();
         if (!_acrylicControllerAttached)
         {
@@ -1089,6 +1151,9 @@ public sealed partial class QuickPanelWindow : Window
     #endregion
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        _isClosed = true;
+        CancelQueuedRefresh();
+        PopupHideStoryboard.Completed -= OnPopupHideCompleted;
         RemoveSubclass();
         _todoContent?.ViewModel?.Dispose();
         _viewModel.RequestPasteItem -= OnViewModelRequestPasteItem;

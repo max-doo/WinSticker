@@ -31,24 +31,17 @@ public sealed partial class SettingsWindow
         var data = await App.Current.QuickCaptureService.GetDataAsync();
         int recordCount = data.Items.Count(item => !item.IsDeleted);
         int recentCount = data.RecentItems.Count(item => !item.IsDeleted);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.T("QuickCapture.ClearDataTitle"),
-            PrimaryButtonText = _localizationService.T("QuickCapture.ClearData"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.Format(
-                    "QuickCapture.ClearDataDescriptionWithCount",
-                    recordCount,
-                    recentCount),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
+        bool confirmed = await ConfirmDialog.ShowAsync(
+            SettingsRoot.XamlRoot,
+            _localizationService,
+            _localizationService.T("QuickCapture.ClearDataTitle"),
+            _localizationService.Format(
+                "QuickCapture.ClearDataDescriptionWithCount",
+                recordCount,
+                recentCount),
+            _localizationService.T("QuickCapture.ClearData"));
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (!confirmed)
         {
             return;
         }
@@ -69,23 +62,16 @@ public sealed partial class SettingsWindow
 
         var data = await App.Current.QuickCaptureService.GetDataAsync();
         int recentCount = data.RecentItems.Count(item => !item.IsDeleted);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = _localizationService.T("QuickCapture.ClearRecentTitle"),
-            PrimaryButtonText = _localizationService.T("QuickCapture.ClearRecent"),
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = _localizationService.Format(
-                    "QuickCapture.ClearRecentDescriptionWithCount",
-                    recentCount),
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
+        bool confirmed = await ConfirmDialog.ShowAsync(
+            SettingsRoot.XamlRoot,
+            _localizationService,
+            _localizationService.T("QuickCapture.ClearRecentTitle"),
+            _localizationService.Format(
+                "QuickCapture.ClearRecentDescriptionWithCount",
+                recentCount),
+            _localizationService.T("QuickCapture.ClearRecent"));
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (!confirmed)
         {
             return;
         }
@@ -370,26 +356,12 @@ public sealed partial class SettingsWindow
 
     private async Task<bool> ConfirmManagedStorageActionAsync(string title, string message, string primaryButtonText)
     {
-        if (SettingsRoot.XamlRoot is null)
-        {
-            return false;
-        }
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = SettingsRoot.XamlRoot,
-            Title = title,
-            PrimaryButtonText = primaryButtonText,
-            CloseButtonText = _localizationService.T("Common.Cancel"),
-            DefaultButton = ContentDialogButton.Close,
-            Content = new TextBlock
-            {
-                Text = message,
-                TextWrapping = TextWrapping.Wrap
-            }
-        };
-
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await ConfirmDialog.ShowAsync(
+            SettingsRoot.XamlRoot,
+            _localizationService,
+            title,
+            message,
+            primaryButtonText);
     }
 
     private async Task ShowInfoDialogAsync(string title, string message)

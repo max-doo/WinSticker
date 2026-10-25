@@ -55,9 +55,10 @@ public sealed partial class QuickPanelViewModel
             // Also check for pinned records in Items
             if (data.Items is { Count: > 0 })
             {
+                var ids = items.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
                 foreach (var item in data.Items.Where(i => i.IsPinned))
                 {
-                    if (!items.Any(existing => existing.Id == item.Id))
+                    if (ids.Add(item.Id))
                     {
                         items.Add(item);
                     }
@@ -68,6 +69,15 @@ public sealed partial class QuickPanelViewModel
             {
                 lock (_clipboardProjectionLock)
                 {
+                    // The store returns clones. Keep the displayed objects for
+                    // unchanged records so their templates and images survive.
+                    var previous = _allClipboardItems.ToDictionary(item => item.Id, StringComparer.Ordinal);
+                    for (int index = 0; index < items.Count; index++)
+                    {
+                        if (previous.TryGetValue(items[index].Id, out var existing) &&
+                            HasSameClipboardPresentation(existing, items[index]))
+                            items[index] = existing;
+                    }
                     _allClipboardItems = items;
                     ApplyClipboardFilter();
                 }
@@ -78,6 +88,14 @@ public sealed partial class QuickPanelViewModel
             App.Log($"[QuickPanel] Failed to load clipboard history: {ex.Message}");
         }
     }
+
+    private static bool HasSameClipboardPresentation(QuickCaptureItem left, QuickCaptureItem right) =>
+        left.Type == right.Type && left.Body == right.Body && left.Title == right.Title &&
+        left.Url == right.Url && left.ImagePath == right.ImagePath && left.ContentHash == right.ContentHash &&
+        left.IsPinned == right.IsPinned && left.IsRecent == right.IsRecent &&
+        left.CreatedAt == right.CreatedAt && left.UpdatedAt == right.UpdatedAt &&
+        left.Attachments.Select(file => (file.Id, file.FilePath))
+            .SequenceEqual(right.Attachments.Select(file => (file.Id, file.FilePath)));
 
     [RelayCommand]
     public void SetClipboardFilter(QuickPanelFilter filter)
@@ -116,10 +134,33 @@ public sealed partial class QuickPanelViewModel
 
             var results = query.OrderByDescending(item => item.CreatedAt).ToList();
 
-            FilteredClipboardItems.Clear();
-            foreach (var item in results)
+            var ids = results.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+            for (int index = FilteredClipboardItems.Count - 1; index >= 0; index--)
             {
-                FilteredClipboardItems.Add(item);
+                if (!ids.Contains(FilteredClipboardItems[index].Id))
+                    FilteredClipboardItems.RemoveAt(index);
+            }
+            for (int index = 0; index < results.Count; index++)
+            {
+                var item = results[index];
+                if (index < FilteredClipboardItems.Count && FilteredClipboardItems[index].Id == item.Id)
+                {
+                    if (!ReferenceEquals(FilteredClipboardItems[index], item))
+                        FilteredClipboardItems[index] = item;
+                    continue;
+                }
+                int oldIndex = -1;
+                for (int candidate = index + 1; candidate < FilteredClipboardItems.Count; candidate++)
+                {
+                    if (FilteredClipboardItems[candidate].Id == item.Id) { oldIndex = candidate; break; }
+                }
+                if (oldIndex >= 0)
+                {
+                    FilteredClipboardItems.Move(oldIndex, index);
+                    if (!ReferenceEquals(FilteredClipboardItems[index], item))
+                        FilteredClipboardItems[index] = item;
+                }
+                else FilteredClipboardItems.Insert(index, item);
             }
 
             ClipboardCountText = $"{FilteredClipboardItems.Count} 条记录";

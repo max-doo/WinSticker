@@ -354,31 +354,46 @@
                                     IsHitTestVisible="False"
                                     Visibility="{Binding DetailSelectionVisibility}" />
 
-                                <CheckBox
-                                    x:Name="TodoCompletionCheckBox"
-                                    Grid.Column="0"
-                                    AutomationProperties.Name="{Binding CompletionToggleText}"
-                                    Click="ItemCompletionCheckBox_Click"
-                                    IsChecked="{Binding IsCompleted, Mode=OneWay}"
-                                    Style="{StaticResource TodoNativeCompletionCheckBoxStyle}"
-                                    ToolTipService.ToolTip="{Binding CompletionToggleText}" />
-
-                                <Border
-                                    Grid.Column="1"
-                                    Width="3"
-                                    Height="20"
-                                    Margin="0,0,5,0"
+                                <!-- The checkbox, color marker, and content stack live in one
+                                     vertically-centered row grid: the checkbox tracks the top of
+                                     the centered content block (the title's first line) instead of
+                                     the card top, so expanding steps keeps the checkbox aligned
+                                     with the task text rather than floating at the card's corner. -->
+                                <Grid
+                                    Grid.ColumnSpan="3"
                                     VerticalAlignment="Center"
-                                    Background="{Binding ColorMarkerBrush}"
-                                    CornerRadius="1.5"
-                                    Visibility="{Binding ColorMarkerVisibility}" />
+                                    ColumnSpacing="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
 
-                                <StackPanel
-                                    Grid.Column="2"
-                                    Margin="0"
-                                    VerticalAlignment="Center"
-                                    Opacity="{Binding ContentOpacity}"
-                                    Spacing="2">
+                                    <CheckBox
+                                        x:Name="TodoCompletionCheckBox"
+                                        Grid.Column="0"
+                                        Margin="0,1,0,0"
+                                        AutomationProperties.Name="{Binding CompletionToggleText}"
+                                        Click="ItemCompletionCheckBox_Click"
+                                        IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                        Style="{StaticResource TodoNativeCompletionCheckBoxStyle}"
+                                        ToolTipService.ToolTip="{Binding CompletionToggleText}" />
+
+                                    <Border
+                                        Grid.Column="1"
+                                        Width="3"
+                                        Height="20"
+                                        Margin="0,1,5,0"
+                                        VerticalAlignment="Top"
+                                        Background="{Binding ColorMarkerBrush}"
+                                        CornerRadius="1.5"
+                                        Visibility="{Binding ColorMarkerVisibility}" />
+
+                                    <StackPanel
+                                        Grid.Column="2"
+                                        Margin="0"
+                                        Opacity="{Binding ContentOpacity}"
+                                        Spacing="2">
                                     <TextBlock
                                         helpers:WidgetTextShadow.Cast="True"
                                         FontSize="{Binding ElementName=TodoListView, Path=DataContext.TextSize}"
@@ -390,7 +405,7 @@
                                         TextTrimming="CharacterEllipsis"
                                         TextWrapping="Wrap" />
 
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,58,0" Spacing="6">
                                         <TextBlock
                                             helpers:WidgetTextShadow.Cast="True"
                                             FontSize="{Binding ElementName=TodoListView, Path=DataContext.SecondaryTextSize}"
@@ -411,6 +426,96 @@
                                             <FontIcon FontSize="{Binding ElementName=TodoListView, Path=DataContext.SmallIconSize}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Glyph="&#xE723;" />
                                             <TextBlock helpers:WidgetTextShadow.Cast="True" FontSize="{Binding ElementName=TodoListView, Path=DataContext.SecondaryTextSize}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{Binding AttachmentSummaryText}" />
                                         </StackPanel>
+                                        <!-- The trailing 58px margin above keeps the step chip clear of
+                                             the hover-only TodoItemActionHost that floats over the card's
+                                             right edge; without it the chip and the copy/star buttons
+                                             fight for the same hit area. -->
+                                        <Button
+                                            x:Name="TodoStepProgressButton"
+                                            Margin="2,0,0,0"
+                                            MinHeight="22"
+                                            Padding="7,0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.Name="{Binding StepProgressToggleText}"
+                                            Click="TodoStepProgressButton_Click"
+                                            CornerRadius="4"
+                                            Style="{StaticResource SubtleButtonStyle}"
+                                            ToolTipService.ToolTip="{Binding StepProgressToggleText}"
+                                            Visibility="{Binding StepProgressVisibility}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon FontSize="{Binding ElementName=TodoListView, Path=DataContext.SmallIconSize}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Glyph="{Binding StepProgressListGlyph}" />
+                                                <TextBlock helpers:WidgetTextShadow.Cast="True" FontSize="{Binding ElementName=TodoListView, Path=DataContext.SecondaryTextSize}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{Binding StepProgressText}" Visibility="{Binding StepProgressPartialVisibility}" />
+                                                <TextBlock helpers:WidgetTextShadow.Cast="True" FontSize="{Binding ElementName=TodoListView, Path=DataContext.SecondaryTextSize}" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Text="{Binding StepProgressText}" Visibility="{Binding StepProgressAllVisibility}" />
+                                                <FontIcon FontSize="{Binding ElementName=TodoListView, Path=DataContext.SmallIconSize}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Glyph="{Binding StepProgressChevronGlyph}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- Master-card inline step region: check-only by design. Structural
+                                         editing (add/rename/delete) stays in the detail page; the card
+                                         optimizes the high-frequency act of ticking steps off. -->
+                                    <StackPanel
+                                        x:Name="TodoCardStepsPanel"
+                                        Margin="0,2,58,0"
+                                        Spacing="3"
+                                        Visibility="{Binding StepsExpandedVisibility}">
+                                        <ProgressBar
+                                            x:Name="TodoStepProgressBar"
+                                            Height="3"
+                                            HorizontalAlignment="Stretch"
+                                            AutomationProperties.Name="{Binding StepProgressToggleText}"
+                                            Maximum="{Binding TotalStepCount}"
+                                            Minimum="0"
+                                            Value="{Binding CompletedStepCount}" />
+                                        <ItemsControl x:Name="TodoCardStepsItemsControl" ItemsSource="{Binding StepItemsSource}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid MinHeight="28" ColumnSpacing="4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="24" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox
+                                                            x:Name="CardStepCheckBox"
+                                                            Grid.Column="0"
+                                                            AutomationProperties.Name="{Binding Text}"
+                                                            Click="CardStepCheckBox_Click"
+                                                            IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                                            Style="{StaticResource TodoNativeCompletionCheckBoxStyle}"
+                                                            ToolTipService.ToolTip="{Binding Text}" />
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            Margin="0,0,4,0"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="{Binding ElementName=TodoListView, Path=DataContext.SecondaryTextSize}"
+                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                            helpers:WidgetTextShadow.Cast="True"
+                                                            MaxLines="1"
+                                                            Opacity="{Binding ContentOpacity}"
+                                                            Text="{Binding Text}"
+                                                            TextDecorations="{Binding TextDecorations}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button
+                                            x:Name="TodoStepNudgeButton"
+                                            Margin="0,2,0,0"
+                                            MinHeight="24"
+                                            Padding="8,3"
+                                            HorizontalAlignment="Left"
+                                            AutomationProperties.Name="{Binding StepNudgeText}"
+                                            Click="TodoStepNudgeButton_Click"
+                                            CornerRadius="4"
+                                            Style="{StaticResource SubtleButtonStyle}"
+                                            ToolTipService.ToolTip="{Binding StepNudgeText}"
+                                            Visibility="{Binding StepNudgeVisibility}">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <FontIcon FontSize="11" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Glyph="&#xE73E;" />
+                                                <TextBlock helpers:WidgetTextShadow.Cast="True" FontSize="{Binding ElementName=TodoListView, Path=DataContext.SecondaryTextSize}" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Text="{Binding StepNudgeText}" />
+                                            </StackPanel>
+                                        </Button>
                                     </StackPanel>
 
                                     <Button
@@ -426,6 +531,7 @@
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
+                                </Grid>
 
                                 <Border
                                     x:Name="TodoItemActionHost"
