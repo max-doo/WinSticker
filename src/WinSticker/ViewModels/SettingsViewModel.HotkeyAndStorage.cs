@@ -159,4 +159,28 @@ public partial class SettingsViewModel
             }
         }
     }
+
+    public bool QuickPanelShowTodoTab
+    {
+        get => _settingsService.Settings.Core.QuickPanelShowTodoTab;
+        set
+        {
+            if (_settingsService.Settings.Core.QuickPanelShowTodoTab == value) return;
+            _settingsService.Settings.Core.QuickPanelShowTodoTab = value;
+            OnPropertyChanged();
+            _settingsService.SaveDebounced();
+        }
+    }
+
+    public bool QuickPanelShowNotesTab
+    {
+        get => _settingsService.Settings.Core.QuickPanelShowNotesTab;
+        set
+        {
+            if (_settingsService.Settings.Core.QuickPanelShowNotesTab == value) return;
+            _settingsService.Settings.Core.QuickPanelShowNotesTab = value;
+            OnPropertyChanged();
+            _settingsService.SaveDebounced();
+        }
+    }
 }

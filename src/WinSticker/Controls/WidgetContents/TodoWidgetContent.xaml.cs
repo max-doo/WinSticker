@@ -576,6 +576,10 @@ public sealed partial class TodoWidgetContent : UserControl
         CustomDueDatePicker.PlaceholderText = localization.T("Todo.Due.Custom");
         CustomDueDateCancelButton.Content = localization.T("Common.Cancel");
         CustomDueDateSaveButton.Content = localization.T("Common.Save");
+        DetailNewTitle.Text = localization.T("Todo.Draft.Title");
+        DetailCancelButton.Content = localization.T("Common.Cancel");
+        DetailSaveButton.Content = localization.T("Todo.Draft.Create");
+        DetailDeleteMenuItem.Text = localization.T("Common.Delete");
     }
 
     public void OpenAddEditor() => _ = OpenAddEditorAsync();
@@ -689,34 +693,36 @@ public sealed partial class TodoWidgetContent : UserControl
         EnsureWideDetailSelection();
     }
 
-    // 切换内容模式（进日历、换筛选）都会把列表藏起来，正在新建的明细
-    // 必须先落盘，否则标题会随未保存的编辑一起丢失。
     private async Task<bool> FinalizeCreatingDetailBeforeModeSwitchAsync()
     {
-        if (ViewModel is null || !ViewModel.IsCreatingDetailItem)
-        {
+        return await DiscardCreatingDetailAsync();
+    }
+
+    private async Task<bool> DiscardCreatingDetailAsync()
+    {
+        if (ViewModel is not { IsCreatingDetailItem: true, SelectedDetailItem: { } item })
             return true;
-        }
 
-        if (!await SaveActiveNotesAsync(keepEditing: false))
-        {
+        string notes = _notesEditingItemId == item.Id ? DetailNotesEditor.FlushAndGetText() : item.Notes;
+        bool hasChanges = !string.IsNullOrWhiteSpace(DetailTitleTextBox.Text) ||
+            !string.IsNullOrWhiteSpace(DetailNewStepTextBox.Text) || !string.IsNullOrWhiteSpace(notes) ||
+            item.Steps.Count > 0 || item.Attachments.Count > 0 || item.IsImportant ||
+            item.DueDate is not null || item.ColorMarker is not null;
+        var localization = App.Current.LocalizationService;
+        if (hasChanges && !await ConfirmDialog.ShowAsync(XamlRoot, localization,
+            localization.T("Todo.Draft.DiscardTitle"), localization.T("Todo.Draft.DiscardBody"),
+            localization.T("Todo.Draft.Discard")))
             return false;
-        }
 
-        bool hasTitle = !string.IsNullOrWhiteSpace(DetailTitleTextBox.Text);
-        TodoItemViewModel? finalized = await ViewModel.FinalizeDetailAsync(
-            DetailTitleTextBox.Text,
-            closeDetail: true);
-        if (hasTitle && finalized is null)
-        {
-            return false;
-        }
-
-        if (finalized is not null)
-        {
-            ShowTodoStatus("Todo.Status.Saved");
-        }
-
+        EndNotesEditing();
+        // Draft imports can create private copies; recycle only those copies,
+        // never the original linked files.
+        FileService? files = (App.Current as App)?.FileService;
+        foreach (var attachment in item.Attachments.Where(a => a.IsManagedCopy).ToArray())
+            await AttachmentStorageService.TryDeleteManagedCopyAsync(attachment.FilePath,
+                ViewModel.StoreAttachmentDirectoryForDraft, files is null ? null : path => files.DeleteEntryAsync(path, recycle: true));
+        ViewModel.CloseDetail();
+        DetailNewStepTextBox.Text = string.Empty;
         return true;
     }
 
@@ -839,6 +845,13 @@ public sealed partial class TodoWidgetContent : UserControl
             return;
         }
 
+        if (ViewModel.IsCreatingDetailItem)
+        {
+            if (await DiscardCreatingDetailAsync())
+                ApplyMasterDetailVisibility();
+            return;
+        }
+
         _isClosingDetail = true;
         try
         {
@@ -933,6 +946,13 @@ public sealed partial class TodoWidgetContent : UserControl
         _isSavingDetailDraft = true;
         try
         {
+            if (ViewModel.IsCreatingDetailItem && !string.IsNullOrWhiteSpace(DetailNewStepTextBox.Text))
+            {
+                await AddDetailStepAsync();
+                if (!string.IsNullOrWhiteSpace(DetailNewStepTextBox.Text))
+                    return;
+            }
+
             if (!await SaveActiveNotesAsync(keepEditing: false))
             {
                 return;
@@ -1003,7 +1023,10 @@ public sealed partial class TodoWidgetContent : UserControl
             e.Handled = true;
             if (ShouldSubmitTodoEditor(e))
             {
-                await CloseDetailAsync();
+                if (ViewModel?.IsCreatingDetailItem == true)
+                    DetailSaveButton_Click(DetailSaveButton, new RoutedEventArgs());
+                else
+                    await CloseDetailAsync();
             }
             else
             {

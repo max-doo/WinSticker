@@ -2,6 +2,7 @@ using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using Markdig.Extensions.TaskLists;
 using Markdig.Extensions.Tables;
+using System.Text.RegularExpressions;
 
 namespace WinSticker.Services;
 
@@ -17,11 +18,14 @@ public sealed record MarkdownNativeTask(int Start, int LineStart, int LineEnd, b
 
 /// <summary>A complex block displayed by the existing native Markdown reader.</summary>
 public sealed record MarkdownNativeEmbeddedBlock(int Start, int Length, string Source);
+public sealed record MarkdownNativeLink(int Start, int Length, string Url);
 
 /// <summary>Immutable presentation snapshot, safe to compute away from the UI thread.</summary>
 public sealed record MarkdownNativeSyntax(IReadOnlyList<MarkdownNativeSpan> Spans, IReadOnlyList<MarkdownNativeTask> Tasks)
 {
+    private static readonly Regex WebLink = new(@"https?://[^\s<>\u3000-\u303f\uff00-\uff65]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     public IReadOnlyList<MarkdownNativeEmbeddedBlock> EmbeddedBlocks { get; init; } = [];
+    public IReadOnlyList<MarkdownNativeLink> Links { get; init; } = [];
 
     public static MarkdownNativeSyntax Parse(string nativeText)
     {
@@ -30,12 +34,24 @@ public sealed record MarkdownNativeSyntax(IReadOnlyList<MarkdownNativeSpan> Span
         var spans = new List<MarkdownNativeSpan>();
         var tasks = new List<MarkdownNativeTask>();
         var embedded = new List<MarkdownNativeEmbeddedBlock>();
+        var links = new List<MarkdownNativeLink>();
         void Add(int start, int length, MarkdownNativeStyle style, int heading = 0)
         {
             if (start >= 0 && length > 0 && start + length <= source.Length)
                 spans.Add(new(start, length, style, heading));
         }
         void Hide(int start, int length) => Add(start, length, MarkdownNativeStyle.Hidden);
+        void AddWebLinks(int start, int length)
+        {
+            if (start < 0 || length <= 0 || start + length > source.Length) return;
+            foreach (Match match in WebLink.Matches(source.Substring(start, length)))
+            {
+                string url = match.Value.TrimEnd('.', ',', '!', '?', ';', ':');
+                if (!MarkdownDocumentService.IsRemoteImage(url)) continue;
+                links.Add(new(start + match.Index, url.Length, url));
+                Add(start + match.Index, url.Length, MarkdownNativeStyle.Link);
+            }
+        }
         foreach (Block block in parsed.Document.Descendants<Block>())
         {
             bool standaloneImage = block is ParagraphBlock { Inline: { FirstChild: LinkInline { IsImage: true } image } } && image.NextSibling is null;
@@ -126,11 +142,26 @@ public sealed record MarkdownNativeSyntax(IReadOnlyList<MarkdownNativeSpan> Span
                 Hide(inline.Span.Start, code.DelimiterCount);
                 Hide(inline.Span.End + 1 - code.DelimiterCount, code.DelimiterCount);
             }
+            else if (inline is LinkInline { IsAutoLink: true, IsImage: false } autoLink && MarkdownDocumentService.IsRemoteImage(autoLink.Url))
+            {
+                AddWebLinks(inline.Span.Start, inline.Span.Length);
+            }
+            else if (inline is AutolinkInline auto && MarkdownDocumentService.IsRemoteImage(auto.Url))
+            {
+                int start = inline.Span.Start + 1;
+                int length = inline.Span.Length - 2;
+                links.Add(new(start, length, auto.Url));
+                Add(start, length, MarkdownNativeStyle.Link);
+            }
             else if (inline is LinkInline link && !link.IsAutoLink && link.FirstChild is { } first && link.LastChild is { } last)
             {
                 Add(first.Span.Start, last.Span.End + 1 - first.Span.Start, MarkdownNativeStyle.Link);
                 Hide(inline.Span.Start, first.Span.Start - inline.Span.Start);
                 Hide(last.Span.End + 1, inline.Span.End - last.Span.End);
+            }
+            else if (inline is LiteralInline && inline.Parent is not LinkInline)
+            {
+                AddWebLinks(inline.Span.Start, inline.Span.Length);
             }
             else if (inline is TaskList task)
             {
@@ -143,6 +174,6 @@ public sealed record MarkdownNativeSyntax(IReadOnlyList<MarkdownNativeSpan> Span
                 if (task.Checked) Add(start + 3, lineEnd - start - 3, MarkdownNativeStyle.Strike);
             }
         }
-        return new(spans.OrderBy(s => s.Start).ThenByDescending(s => s.Length).ToArray(), tasks) { EmbeddedBlocks = embedded };
+        return new(spans.OrderBy(s => s.Start).ThenByDescending(s => s.Length).ToArray(), tasks) { EmbeddedBlocks = embedded, Links = links };
     }
 }

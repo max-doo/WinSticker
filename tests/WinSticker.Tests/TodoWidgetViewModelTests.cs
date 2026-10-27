@@ -572,6 +572,24 @@ public sealed class TodoWidgetViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ClearCompletedButton_IsVisibleOnlyOnCompletedFilter()
+    {
+        var settingsService = new SettingsService();
+        settingsService.Settings.TodoShowClearCompletedButton = true;
+        var viewModel = CreateViewModel("todo-widget", settingsService);
+        await viewModel.InitializeAsync();
+
+        foreach (TodoFilter filter in Enum.GetValues<TodoFilter>().Where(filter => filter != TodoFilter.Completed))
+        {
+            viewModel.SelectedFilter = filter;
+            Assert.Equal(Visibility.Collapsed, viewModel.ClearCompletedButtonVisibility);
+        }
+
+        viewModel.SelectedFilter = TodoFilter.Completed;
+        Assert.Equal(Visibility.Visible, viewModel.ClearCompletedButtonVisibility);
+    }
+
+    [Fact]
     public async Task TodayFilter_ShowsTasksDueTodayOnly()
     {
         var viewModel = CreateViewModel("todo-widget");
@@ -1040,6 +1058,21 @@ public sealed class TodoWidgetViewModelTests : IDisposable
         Assert.Null(finalized);
         Assert.False(viewModel.IsCreatingDetailItem);
         Assert.Null(viewModel.SelectedDetailItem);
+        Assert.Empty(viewModel.Items);
+        Assert.Empty((await CreateStore("todo-widget").LoadAsync()).Items);
+    }
+
+    [Fact]
+    public async Task NewDetail_DiscardKeepsDraftContentOutOfStore()
+    {
+        var viewModel = CreateViewModel("todo-widget");
+        await viewModel.InitializeAsync();
+        TodoItemViewModel draft = viewModel.OpenNewDetail();
+        Assert.NotNull(await viewModel.AddStepAsync(draft.Id, "draft step"));
+        Assert.True(await viewModel.UpdateNotesAsync(draft.Id, "**draft**"));
+        Assert.True(await viewModel.SetImportantAsync(draft.Id, true));
+        Assert.True(await viewModel.SetColorMarkerAsync(draft.Id, TodoItem.BlueColorMarker));
+        viewModel.CloseDetail();
         Assert.Empty(viewModel.Items);
         Assert.Empty((await CreateStore("todo-widget").LoadAsync()).Items);
     }

@@ -127,7 +127,7 @@
             <ListView
                 x:Name="HistoryListView"
                 ItemsSource="{Binding FilteredClipboardItems}"
-                SelectionMode="None"
+                SelectionMode="Single"
                 IsItemClickEnabled="True"
                 ItemClick="HistoryListView_ItemClick"
                 DoubleTapped="HistoryListView_DoubleTapped"
@@ -171,6 +171,7 @@
                                             <FontIcon Glyph="&#xE735;"/>
                                         </MenuFlyoutItem.Icon>
                                     </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="保存为随记" Click="FlyoutSaveAsNote_Click" IsEnabled="{Binding IsRecent}" Visibility="{Binding Converter={StaticResource ItemIsNotImage}}"/>
                                     <MenuFlyoutItem Text="删除" Click="FlyoutDelete_Click">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE74D;"/>

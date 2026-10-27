@@ -105,6 +105,27 @@ public sealed class MarkdownNativeBufferTests
 
 public sealed class MarkdownNativeSyntaxTests
 {
+    [Theory]
+    [InlineData("址：（https://ggfw.hrss.gd.gov.cn/employment/internet/portal/#/home）提", "https://ggfw.hrss.gd.gov.cn/employment/internet/portal/#/home")]
+    [InlineData("https://docs.qq.com/form/page/DUFhveG5QUWR1TXRm，以上步骤请在11", "https://docs.qq.com/form/page/DUFhveG5QUWR1TXRm")]
+    [InlineData("https://jyjzx.scut.edu.cn/2026/1027/c37785a638575/page.htm", "https://jyjzx.scut.edu.cn/2026/1027/c37785a638575/page.htm")]
+    public void BareLinks_StopAtChinesePunctuation(string source, string expected)
+    {
+        var link = Assert.Single(MarkdownNativeSyntax.Parse(source).Links);
+        Assert.Equal(expected, source.Substring(link.Start, link.Length));
+        Assert.Equal(expected, link.Url);
+    }
+
+    [Fact]
+    public void BareWebLinks_KeepSourceOffsetsAndIgnoreCode()
+    {
+        const string source = "Visit https://example.com/path.\r`https://code.example`\r<https://second.example>";
+        var syntax = MarkdownNativeSyntax.Parse(source);
+        Assert.Equal(2, syntax.Links.Count);
+        Assert.Equal("https://example.com/path", source.Substring(syntax.Links[0].Start, syntax.Links[0].Length));
+        Assert.Equal("https://second.example", source.Substring(syntax.Links[1].Start, syntax.Links[1].Length));
+    }
+
     [Fact]
     public void HiddenRanges_PreserveHeadingAndInlineContent()
     {

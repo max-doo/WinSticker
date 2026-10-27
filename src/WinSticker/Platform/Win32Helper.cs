@@ -20,6 +20,14 @@ namespace WinSticker.Platform;
 /// </remarks>
 public static partial class Win32Helper
 {
+    // Native owner-group reorders arrive through the same WINDOWPOS callback
+    // as our own calls. Tag synchronous positioning (including batch commits)
+    // so desktop-owned windows can preserve only unsolicited shell reorders.
+    [ThreadStatic]
+    private static int s_applicationPositionChangeDepth;
+
+    internal static bool IsApplicationPositionChange => s_applicationPositionChangeDepth > 0;
+
     // ── shell: fullscreen-app detection (display topology gate, spec 5.6) ──
 
     public const int QueryUserNotificationStateBusy = 2;
@@ -242,7 +250,15 @@ public static partial class Win32Helper
             CallbackDepth.RecordWindowOperation();
         }
 
-        return SetWindowPosNative(hWnd, hWndInsertAfter, X, Y, cx, cy, uFlags);
+        s_applicationPositionChangeDepth++;
+        try
+        {
+            return SetWindowPosNative(hWnd, hWndInsertAfter, X, Y, cx, cy, uFlags);
+        }
+        finally
+        {
+            s_applicationPositionChangeDepth--;
+        }
     }
 
     // ── DeferWindowPos: atomic multi-window position batch ──────────
@@ -277,7 +293,15 @@ public static partial class Win32Helper
             CallbackDepth.RecordWindowOperation();
         }
 
-        return EndDeferWindowPosNative(hWinPosInfo);
+        s_applicationPositionChangeDepth++;
+        try
+        {
+            return EndDeferWindowPosNative(hWinPosInfo);
+        }
+        finally
+        {
+            s_applicationPositionChangeDepth--;
+        }
     }
 
     [LibraryImport("user32.dll", EntryPoint = "ShowWindow", SetLastError = true)]

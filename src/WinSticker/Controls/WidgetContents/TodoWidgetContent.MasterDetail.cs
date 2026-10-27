@@ -117,14 +117,15 @@ public sealed partial class TodoWidgetContent
 
     private void ApplyDetailSaveButtonVisibility()
     {
-        bool showSave = ViewModel?.SelectedDetailItem is not null;
-        DetailSaveButton.Visibility = showSave
+        bool creating = ViewModel?.IsCreatingDetailItem == true;
+        DetailDraftActions.Visibility = creating
             ? Visibility.Visible
             : Visibility.Collapsed;
-        if (_isDualPane)
-        {
-            DetailBackColumn.Width = new GridLength(0);
-        }
+        DetailCreatedText.Visibility = creating ? Visibility.Collapsed : Visibility.Visible;
+        DetailNewTitle.Visibility = creating ? Visibility.Visible : Visibility.Collapsed;
+        DetailDeleteButton.Visibility = creating ? Visibility.Collapsed : Visibility.Visible;
+        DetailBackColumn.Width = new GridLength(_isDualPane && !creating ? 0 : 30);
+        DetailBackButton.Visibility = _isDualPane && !creating ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void ApplyMasterDetailVisibility()

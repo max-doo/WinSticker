@@ -48,7 +48,8 @@ public sealed class SettingsSliceOwnershipContractTests
         // and lastRunVersion.
         // +2 = autoDownloadUpdates + showUpdateToastNotification (background
         // auto-download and update toasts).
-        Assert.Equal(249, FacadeProperties.Length);
+        // +2 = optional Quick Panel Todo and Notes tabs.
+        Assert.Equal(251, FacadeProperties.Length);
 
         foreach (PropertyInfo facade in FacadeProperties)
         {

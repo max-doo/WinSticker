@@ -27,19 +27,13 @@ public sealed class TodoDetailHeaderLayoutContractTests
         Assert.Contains("x:Name=\"DetailDeleteButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"DetailDeleteButton_Click\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("DetailMoreButton", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("DetailDeleteMenuItem", xaml, StringComparison.Ordinal);
+        Assert.Contains("DetailDeleteMenuItem", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("DetailDeleteMenuItem_Click", code, StringComparison.Ordinal);
         Assert.Contains("ViewModel.FinalizeDetailAsync(", code, StringComparison.Ordinal);
         Assert.Contains("ShowTodoStatus(\"Todo.Status.Saved\")", code, StringComparison.Ordinal);
-        Assert.True(
-            xaml.IndexOf("x:Name=\"DetailSaveButton\"", StringComparison.Ordinal) <
-            xaml.IndexOf("x:Name=\"DetailHeaderActions\"", StringComparison.Ordinal));
-        Assert.Contains("Grid.Column=\"1\"", xaml[xaml.IndexOf(
-            "x:Name=\"DetailSaveButton\"", StringComparison.Ordinal)..], StringComparison.Ordinal);
-        Assert.Contains(
-            "bool showSave = ViewModel?.SelectedDetailItem is not null",
-            masterDetailCode,
-            StringComparison.Ordinal);
+        Assert.True(xaml.IndexOf("x:Name=\"DetailDraftActions\"", StringComparison.Ordinal) <
+            xaml.IndexOf("x:Name=\"DetailSaveButton\"", StringComparison.Ordinal));
+        Assert.Contains("DetailDraftActions.Visibility = creating", masterDetailCode, StringComparison.Ordinal);
         Assert.Contains(
             "if (e.PropertyName == nameof(TodoWidgetViewModel.SelectedDetailItem))",
             code,
@@ -53,12 +47,9 @@ public sealed class TodoDetailHeaderLayoutContractTests
             "ViewModel.UpdateItemTextAsync(item.Id, DetailTitleTextBox.Text)",
             code,
             StringComparison.Ordinal);
+        Assert.Contains("_isDualPane && !creating", masterDetailCode, StringComparison.Ordinal);
         Assert.Contains(
-            "DetailBackColumn.Width = new GridLength(0)",
-            masterDetailCode,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Grid.Row=\"2\"\n                Margin=\"8,0,8,4\"",
+            "<Grid Grid.Row=\"2\" Margin=\"8,0,8,4\">",
             xaml.ReplaceLineEndings("\n"),
             StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(xaml, "Text=\"{Binding CreatedText}\""));
@@ -99,7 +90,7 @@ public sealed class TodoDetailHeaderLayoutContractTests
     }
 
     [Fact]
-    public void FilterChange_FinalizesAnActiveDraftBeforeChangingContext()
+    public void FilterChange_ConfirmsDiscardBeforeChangingContext()
     {
         string code = File.ReadAllText(TestPaths.FromRepository(
             "src/WinSticker/Controls/WidgetContents/TodoWidgetContent.xaml.cs"));
@@ -109,7 +100,7 @@ public sealed class TodoDetailHeaderLayoutContractTests
             code,
             StringComparison.Ordinal);
         Assert.Contains("if (ViewModel.IsCreatingDetailItem)", code, StringComparison.Ordinal);
-        Assert.Contains("closeDetail: true", code, StringComparison.Ordinal);
+        Assert.Contains("return await DiscardCreatingDetailAsync();", code, StringComparison.Ordinal);
         Assert.Contains("SelectFilter(filter);", code, StringComparison.Ordinal);
     }
 

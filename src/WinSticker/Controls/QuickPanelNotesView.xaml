@@ -123,7 +123,7 @@
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:QuickPanelNoteItem">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" MaxWidth="110" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" MaxWidth="110" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" helpers:WidgetTextShadow.Cast="True"/>
                             <Button Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="3" Style="{StaticResource SubtleButtonStyle}" Click="CloseNoteButton_Click" svc:Localized.AutomationNameKey="Common.Close" svc:Localized.ToolTipKey="Common.Close" VerticalAlignment="Center">
                                 <FontIcon FontSize="9" Glyph="&#xE8BB;"/>
                             </Button>

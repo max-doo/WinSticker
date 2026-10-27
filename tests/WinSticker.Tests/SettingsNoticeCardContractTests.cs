@@ -34,7 +34,7 @@ public sealed class SettingsNoticeCardContractTests
     }
 
     [Theory]
-    [InlineData("src/WinSticker/Views/SettingsWindow.xaml", 3)]
+    [InlineData("src/WinSticker/Views/SettingsWindow.xaml", 2)]
     [InlineData("src/WinSticker/Views/SettingsSections/SearchSettingsSection.xaml", 1)]
     public void Notices_AreNativeInfoBarsWithTitleAndMessageProperties(string path, int expectedCount)
     {
@@ -46,11 +46,9 @@ public sealed class SettingsNoticeCardContractTests
 
         int headerKeyNotices = CountOccurrences(xaml,
             "svc:Localized.DescriptionKey=\"Settings.GlobalHotkey.ElevatedNotice.Description\"");
-        int storeNotice = CountOccurrences(xaml,
-            "svc:Localized.HeaderKey=\"Settings.About.Channel.Store\"");
         int cloudNotice = CountOccurrences(xaml,
             "svc:Localized.HeaderKey=\"Settings.CloudBackup.SyncNotice.Title\"");
-        Assert.True(headerKeyNotices + storeNotice + cloudNotice >= expectedCount,
+        Assert.True(headerKeyNotices + cloudNotice >= expectedCount,
             $"{path}: notice InfoBars must carry HeaderKey/DescriptionKey");
     }
 

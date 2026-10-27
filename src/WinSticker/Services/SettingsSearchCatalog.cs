@@ -126,6 +126,8 @@ internal static class SettingsSearchCatalog
         new("InteractionWindowSettings", "Settings.GlobalHotkey.ElevatedNotice.Title", "Settings.GlobalHotkey.ElevatedNotice.Description"),
         new("InteractionWindowSettings", "Settings.QuickPanel.Title", "Settings.QuickPanel.Description"),
         new("InteractionWindowSettings", "Settings.QuickPanel.AutoPaste.Title", "Settings.QuickPanel.AutoPaste.Description"),
+        new("InteractionWindowSettings", "Settings.QuickPanel.ShowTodoTab.Title", "Settings.QuickPanel.ShowTodoTab.Description"),
+        new("InteractionWindowSettings", "Settings.QuickPanel.ShowNotesTab.Title", "Settings.QuickPanel.ShowNotesTab.Description"),
         new("InteractionWindowSettings", "Settings.ShowDesktopBehavior.Title", "Settings.ShowDesktopBehavior.Description"),
         new("InteractionWindowSettings", "Settings.OpenMethod.Title", "Settings.OpenMethod.Description"),
         new("InteractionWindowSettings", "Settings.Interaction.Hover.Title", "Settings.Interaction.Hover.Description"),
@@ -254,7 +256,5 @@ internal static class SettingsSearchCatalog
         new("About", "Settings.Update.ShowReleaseNotesAfterUpdate", "Settings.Update.ShowReleaseNotesAfterUpdateDescription"),
         new("About", "Settings.Update.Status", null),
         new("About", "Settings.Update.Details", null),
-        new("About", "Settings.About.FeedbackTitle", "Settings.About.FeedbackDescription"),
-        new("About", "Settings.About.StoreSupportTitle", "Settings.About.StoreSupportDescription"),
     ];
 }

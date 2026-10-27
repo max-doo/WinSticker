@@ -10,6 +10,7 @@ namespace WinSticker.Controls;
 
 public sealed partial class QuickPanelClipboardView : UserControl
 {
+    public event EventHandler? KeyboardInputRequested;
     public QuickPanelViewModel? ViewModel => DataContext as QuickPanelViewModel;
 
     public QuickPanelClipboardView()
@@ -55,13 +56,45 @@ public sealed partial class QuickPanelClipboardView : UserControl
     {
         if (ClipboardSearchBox.Visibility == Visibility.Collapsed)
         {
-            ClipboardSearchBox.Visibility = Visibility.Visible;
-            ClipboardSearchBox.UpdateLayout();
-            ClipboardSearchBox.Focus(FocusState.Programmatic);
+            OpenSearch();
         }
         else
         {
             CollapseSearchBox();
+        }
+    }
+
+    public void OpenSearch()
+    {
+        KeyboardInputRequested?.Invoke(this, EventArgs.Empty);
+        ClipboardSearchBox.Visibility = Visibility.Visible;
+        ClipboardSearchBox.UpdateLayout();
+        ClipboardSearchBox.Focus(FocusState.Programmatic);
+    }
+
+    public void HandleNavigationKey(Windows.System.VirtualKey key)
+    {
+        int count = HistoryListView.Items.Count;
+        if (count == 0) return;
+        int index = HistoryListView.SelectedIndex;
+        if (key == Windows.System.VirtualKey.Enter)
+        {
+            if (HistoryListView.Items[Math.Max(0, index)] is QuickCaptureItem item)
+                ViewModel?.PasteClipboardItemCommand.Execute(item);
+            return;
+        }
+        index = key switch
+        {
+            Windows.System.VirtualKey.Home => 0,
+            Windows.System.VirtualKey.End => count - 1,
+            Windows.System.VirtualKey.Up => index < 0 ? count - 1 : Math.Max(0, index - 1),
+            Windows.System.VirtualKey.Down => Math.Min(count - 1, index + 1),
+            _ => index
+        };
+        if (index >= 0)
+        {
+            HistoryListView.SelectedIndex = index;
+            HistoryListView.ScrollIntoView(HistoryListView.Items[index]);
         }
     }
 
@@ -147,6 +180,14 @@ public sealed partial class QuickPanelClipboardView : UserControl
         if (sender is FrameworkElement fe && fe.DataContext is QuickCaptureItem item && ViewModel is not null)
         {
             ViewModel.ToggleFavoriteCommand.Execute(item);
+        }
+    }
+
+    private void FlyoutSaveAsNote_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is QuickCaptureItem item && ViewModel is not null)
+        {
+            ViewModel.SaveClipboardAsNoteCommand.Execute(item);
         }
     }
 

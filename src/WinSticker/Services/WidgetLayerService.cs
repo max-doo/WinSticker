@@ -1156,6 +1156,16 @@ public static class WidgetLayerService
                 return false;
             }
 
+            // Desktop ownership preserves Show Desktop visibility, but Explorer
+            // also tries to raise every owned window when the desktop activates.
+            // Preserve the resting order before that native transaction commits.
+            if (!DesktopOwnerZOrderGuard.Install(windowHandle))
+            {
+                App.Log($"[WidgetLayer] Desktop order guard install failed hwnd=0x{windowHandle.ToInt64():X}");
+                RestoreOriginalOwner(windowHandle);
+                return false;
+            }
+
             // A suppressed desktop-pinned click funnels through here on every
             // message (WM_MOUSEACTIVATE plus the XAML routed event). When the
             // owner is unchanged and the window already rests in the desktop
@@ -1390,6 +1400,7 @@ public static class WidgetLayerService
             return;
         }
 
+        DesktopOwnerZOrderGuard.Remove(windowHandle);
         Win32Helper.SetLastError(0);
         _ = Win32Helper.SetWindowLongPtr(
             windowHandle,

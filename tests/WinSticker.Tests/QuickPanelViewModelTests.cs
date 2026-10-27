@@ -7,6 +7,107 @@ namespace WinSticker.Tests;
 
 public sealed class QuickPanelViewModelTests
 {
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void TabNavigation_OnlyCyclesVisibleTabs(bool showTodo, bool showNotes)
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-tabs-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (vm, _, settings) = CreateTestEnvironment(testDir, settings =>
+            {
+                settings.Settings.Core.QuickPanelShowTodoTab = showTodo;
+                settings.Settings.Core.QuickPanelShowNotesTab = showNotes;
+                settings.Settings.Core.QuickPanelDefaultTab = QuickPanelTab.Notes;
+            });
+            using (vm)
+            {
+                Assert.Equal(showNotes ? QuickPanelTab.Notes : QuickPanelTab.Clipboard, vm.ActiveTab);
+                var visible = new List<QuickPanelTab> { QuickPanelTab.Clipboard };
+                if (showTodo) visible.Add(QuickPanelTab.Todo);
+                if (showNotes) visible.Add(QuickPanelTab.Notes);
+                vm.SelectTab(QuickPanelTab.Clipboard);
+                foreach (var tab in visible.Skip(1).Append(QuickPanelTab.Clipboard))
+                {
+                    vm.CycleTab();
+                    Assert.Equal(tab, vm.ActiveTab);
+                }
+                foreach (var tab in visible.Skip(1).Reverse().Append(QuickPanelTab.Clipboard))
+                {
+                    vm.CycleTab(backward: true);
+                    Assert.Equal(tab, vm.ActiveTab);
+                }
+                vm.SelectTab(QuickPanelTab.Todo);
+                Assert.Equal(showTodo ? QuickPanelTab.Todo : QuickPanelTab.Clipboard, vm.ActiveTab);
+                vm.SelectTab(QuickPanelTab.Notes);
+                Assert.Equal(showNotes ? QuickPanelTab.Notes : QuickPanelTab.Clipboard, vm.ActiveTab);
+            }
+        }
+        finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
+    }
+
+    [Theory]
+    [InlineData(QuickPanelTab.Todo)]
+    [InlineData(QuickPanelTab.Notes)]
+    public async Task HidingActiveTab_ReturnsToClipboardAndPersists(QuickPanelTab tab)
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-hide-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (vm, _, settings) = CreateTestEnvironment(testDir);
+            using (vm)
+            {
+                vm.SelectTab(tab);
+                settings.Settings.Core.QuickPanelShowTodoTab = false;
+                settings.Settings.Core.QuickPanelShowNotesTab = false;
+                await settings.SaveAsync();
+                Assert.Equal(QuickPanelTab.Clipboard, vm.ActiveTab);
+                Assert.True(vm.IsTabVisible(QuickPanelTab.Clipboard));
+
+                var reloaded = new SettingsService(testDir);
+                await reloaded.LoadAsync();
+                Assert.False(reloaded.Settings.Core.QuickPanelShowTodoTab);
+                Assert.False(reloaded.Settings.Core.QuickPanelShowNotesTab);
+                settings.Settings.Core.QuickPanelShowTodoTab = true;
+                settings.Settings.Core.QuickPanelShowNotesTab = true;
+                await settings.SaveAsync();
+                Assert.Equal(QuickPanelTab.Clipboard, vm.ActiveTab);
+                vm.SelectTab(tab);
+                Assert.Equal(tab, vm.ActiveTab);
+            }
+        }
+        finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
+    }
+
+    [Fact]
+    public async Task ClipboardPaste_CommandWaitsForTheEntireWindowOperation()
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-paste-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (vm, _, _) = CreateTestEnvironment(testDir);
+            using (vm)
+            {
+                var item = new QuickCaptureItem { Id = "paste-fixture", Body = "browser text" };
+                var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                QuickCaptureItem? received = null;
+                vm.PasteItemAsync = selected => { received = selected; return finished.Task; };
+
+                Task operation = vm.PasteClipboardItemCommand.ExecuteAsync(item);
+                Assert.Same(item, received);
+                Assert.False(operation.IsCompleted);
+                Assert.False(vm.PasteClipboardItemCommand.CanExecute(item));
+                finished.SetResult();
+                await operation;
+                Assert.True(vm.PasteClipboardItemCommand.CanExecute(item));
+            }
+        }
+        finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
+    }
+
     [Fact]
     public async Task ClipboardRefresh_UnchangedSnapshotPreservesRowsWithoutCollectionNotifications()
     {
@@ -95,13 +196,14 @@ public sealed class QuickPanelViewModelTests
         finally { try { Directory.Delete(testDir, recursive: true); } catch { } }
     }
 
-    private static (QuickPanelViewModel vm, QuickCaptureService quickCapture, SettingsService settings) CreateTestEnvironment(string testDir)
+    private static (QuickPanelViewModel vm, QuickCaptureService quickCapture, SettingsService settings) CreateTestEnvironment(string testDir, Action<SettingsService>? configure = null)
     {
         Directory.CreateDirectory(testDir);
         var quickCaptureStore = new QuickCaptureStore(Path.Combine(testDir, "quick-capture"));
         var quickCaptureService = new QuickCaptureService(quickCaptureStore);
         var settingsService = new SettingsService(testDir);
         var localizationService = new LocalizationService(settingsService);
+        configure?.Invoke(settingsService);
 
         string widgetsDir = Path.Combine(testDir, "widgets");
         Directory.CreateDirectory(widgetsDir);

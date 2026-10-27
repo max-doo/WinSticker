@@ -49,14 +49,14 @@ public sealed partial class QuickPanelViewModel
             // RecentItems represents clipboard captures; Pinned items are in Items.Where(i => i.IsPinned).
             if (data.RecentItems is { Count: > 0 })
             {
-                items.AddRange(data.RecentItems);
+                items.AddRange(data.RecentItems.Where(item => !item.IsDeleted));
             }
 
             // Also check for pinned records in Items
             if (data.Items is { Count: > 0 })
             {
                 var ids = items.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-                foreach (var item in data.Items.Where(i => i.IsPinned))
+                foreach (var item in data.Items.Where(i => i.IsPinned && !i.IsDeleted))
                 {
                     if (ids.Add(item.Id))
                     {
@@ -174,26 +174,22 @@ public sealed partial class QuickPanelViewModel
         if (item is null) return;
 
         bool newPinned = !item.IsPinned;
+        bool changed = item.IsRecent
+            ? await _quickCaptureService.SetRecentPinnedAsync(item.Id, newPinned)
+            : await _quickCaptureService.SetPinnedAsync(item.Id, newPinned);
+        if (!changed) return;
         item.IsPinned = newPinned;
-
-        if (item.IsRecent)
-        {
-            if (newPinned)
-            {
-                await _quickCaptureService.SaveRecentItemToRecordsAsync(item.Id, pin: true);
-            }
-            else
-            {
-                await _quickCaptureService.SetPinnedAsync(item.Id, false);
-            }
-        }
-        else
-        {
-            await _quickCaptureService.SetPinnedAsync(item.Id, newPinned);
-        }
 
         ApplyClipboardFilter();
         ShowToast(newPinned ? "已添加到收藏" : "已取消收藏");
+    }
+
+    [RelayCommand]
+    public async Task SaveClipboardAsNoteAsync(QuickCaptureItem? item)
+    {
+        if (item is null || !item.IsRecent || item.Type == QuickCaptureItemType.Image) return;
+        var saved = await _quickCaptureService.SaveRecentItemToRecordsAsync(item.Id, pin: false);
+        ShowToast(saved is null ? "保存失败，请重试" : "已保存为随记，剪贴板记录仍会保留");
     }
 
     [RelayCommand]
@@ -219,7 +215,11 @@ public sealed partial class QuickPanelViewModel
     public async Task CopyClipboardItemAsync(QuickCaptureItem? item)
     {
         if (item is null) return;
+        await TryCopyClipboardItemAsync(item);
+    }
 
+    public async Task<bool> TryCopyClipboardItemAsync(QuickCaptureItem item)
+    {
         try
         {
             var dataPackage = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
@@ -239,10 +239,13 @@ public sealed partial class QuickPanelViewModel
             Clipboard.SetContent(dataPackage);
             Clipboard.Flush();
             ShowToast("已复制到剪贴板");
+            return true;
         }
         catch (Exception ex)
         {
             App.Log($"[QuickPanel] Copy failed: {ex.Message}");
+            ShowToast("复制失败，请重试");
+            return false;
         }
     }
 
@@ -251,8 +254,8 @@ public sealed partial class QuickPanelViewModel
     {
         if (item is null) return;
 
-        await CopyClipboardItemAsync(item);
-        RequestPasteItem?.Invoke(this, item);
+        if (PasteItemAsync is { } paste) await paste(item);
+        else await TryCopyClipboardItemAsync(item);
     }
 
     /// <summary>

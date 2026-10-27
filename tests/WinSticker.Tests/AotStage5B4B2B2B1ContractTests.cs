@@ -36,7 +36,7 @@ public sealed class AotStage5B4B2B2B1ContractTests
 
         Assert.Contains("DetailNewStepTextBox.Text", surface, StringComparison.Ordinal);
         Assert.Contains("AddDetailStepAsync", surface, StringComparison.Ordinal);
-        Assert.Contains("EnsureDetailItemPersistedAsync", product, StringComparison.Ordinal);
+        Assert.Contains("GetSelectedDetailItemAsync", product, StringComparison.Ordinal);
         Assert.Contains("ViewModel.AddStepAsync", product, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"DetailStepsItemsControl\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("new TodoStep", surface, StringComparison.Ordinal);

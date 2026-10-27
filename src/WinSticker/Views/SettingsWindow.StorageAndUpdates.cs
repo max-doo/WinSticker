@@ -14,7 +14,6 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Shapes;
 using System.Runtime.InteropServices;
-using Windows.System;
 using WinRT.Interop;
 
 namespace WinSticker.Views;
@@ -326,43 +325,6 @@ public sealed partial class SettingsWindow
         {
             ViewModel.SetQuickAccessBusy(false);
         }
-    }
-
-    private void OpenWebsiteButton_Click(object sender, RoutedEventArgs e)
-    {
-        Win32Helper.OpenFile(ViewModel.OfficialWebsiteLink);
-    }
-
-    private async void ShowStoreSupportDialogButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (SettingsRoot.XamlRoot is null ||
-            ViewModel.StoreSupportCardVisibility != Visibility.Visible)
-        {
-            return;
-        }
-
-        SupportWinStickerDialog.XamlRoot = SettingsRoot.XamlRoot;
-        SupportWinStickerDialog.Title = _localizationService.T("Settings.About.StoreSupportTitle");
-        SupportWinStickerDialog.CloseButtonText = _localizationService.T("Settings.Dialog.SupportClose");
-        await SupportWinStickerDialog.ShowAsync();
-    }
-
-    private async void OpenMicrosoftStoreButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            bool launched = await Launcher.LaunchUriAsync(new Uri(ViewModel.MicrosoftStoreAppLink));
-            if (launched)
-            {
-                return;
-            }
-        }
-        catch (Exception ex)
-        {
-            App.Log($"[SettingsWindow] Failed to launch Microsoft Store app: {ex}");
-        }
-
-        Win32Helper.OpenFile(ViewModel.MicrosoftStoreLink);
     }
 
     private async void OneClickUpdateButton_Click(object sender, RoutedEventArgs e)

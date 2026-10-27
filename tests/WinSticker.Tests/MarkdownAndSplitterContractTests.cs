@@ -538,7 +538,7 @@ public sealed class MarkdownAndSplitterContractTests
             todoXaml.ReplaceLineEndings("\n"),
             StringComparison.Ordinal);
         Assert.Contains(
-            "BorderBrush=\"Transparent\"\n                        BorderThickness=\"0\"",
+            "BorderBrush=\"Transparent\"\n                            BorderThickness=\"0\"",
             todoXaml.ReplaceLineEndings("\n"),
             StringComparison.Ordinal);
         Assert.Contains(

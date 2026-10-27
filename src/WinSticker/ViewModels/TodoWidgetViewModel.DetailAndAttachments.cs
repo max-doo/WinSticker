@@ -8,6 +8,7 @@ namespace WinSticker.ViewModels;
 
 public sealed partial class TodoWidgetViewModel
 {
+    internal string StoreAttachmentDirectoryForDraft => _store.AttachmentDirectory;
     public void SetFilter(TodoFilter filter)
     {
         SelectedFilter = filter;

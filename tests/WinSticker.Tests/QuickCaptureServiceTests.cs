@@ -807,6 +807,42 @@ public sealed class QuickCaptureServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ClipboardFavorite_SurvivesRecopyLimitClearAndReload_WithoutCreatingNote()
+    {
+        var service = CreateService();
+        var favorite = (await service.AddRecentClipboardItemAsync("favorite", 10))!;
+        Assert.True(await service.SetRecentPinnedAsync(favorite.Id, true));
+        for (int i = 0; i < 12; i++) await service.AddRecentClipboardItemAsync($"other {i}", 10);
+        await service.AddRecentClipboardItemAsync("favorite", 10);
+        await service.ClearRecentAsync();
+
+        var reloaded = CreateService();
+        var data = await reloaded.GetDataAsync();
+        var kept = Assert.Single(data.RecentItems.Where(item => !item.IsDeleted));
+        Assert.Equal(favorite.Id, kept.Id);
+        Assert.True(kept.IsPinned);
+        Assert.Empty(data.Items.Where(item => !item.IsDeleted));
+        Assert.True(await reloaded.SetRecentPinnedAsync(kept.Id, false));
+        await reloaded.ClearRecentAsync();
+        Assert.Empty((await CreateService().GetDataAsync()).RecentItems.Where(item => !item.IsDeleted));
+    }
+
+    [Fact]
+    public async Task ClipboardFavorite_ImageSurvivesRecopyAndClear()
+    {
+        var service = CreateService();
+        var favorite = (await service.AddRecentClipboardImageAsync([1, 2, 3], 10))!;
+        Assert.True(await service.SetRecentPinnedAsync(favorite.Id, true));
+        await service.AddRecentClipboardItemAsync("other", 10);
+        await service.AddRecentClipboardImageAsync([1, 2, 3], 10);
+        await service.ClearRecentAsync();
+        var kept = Assert.Single((await CreateService().GetDataAsync()).RecentItems.Where(item => !item.IsDeleted));
+        Assert.Equal(favorite.Id, kept.Id);
+        Assert.True(kept.IsPinned);
+        Assert.True(File.Exists(kept.ImagePath));
+    }
+
+    [Fact]
     public async Task SaveRecentItemToRecordsAsync_CreatesRecord()
     {
         var service = CreateService();

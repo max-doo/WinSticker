@@ -749,20 +749,7 @@
                                 FontSize="{StaticResource TodoDetailActionIconSize}"
                                 Glyph="&#xE72B;" />
                         </Button>
-                        <Button
-                            x:Name="DetailSaveButton"
-                            Grid.Column="1"
-                            HorizontalAlignment="Left"
-                            AutomationProperties.Name="{Binding ElementName=RootGrid, Path=DataContext.DetailSaveText}"
-                            Click="DetailSaveButton_Click"
-                            IsEnabled="{Binding CanSaveEdit}"
-                            Style="{StaticResource TodoDetailConfirmButtonStyle}"
-                            ToolTipService.ToolTip="{Binding ElementName=RootGrid, Path=DataContext.DetailSaveText}"
-                            Visibility="Collapsed">
-                            <FontIcon
-                                FontSize="{StaticResource TodoDetailActionIconSize}"
-                                Glyph="&#xE73E;" />
-                        </Button>
+                        <TextBlock x:Name="DetailNewTitle" Grid.Column="1" VerticalAlignment="Center" FontWeight="SemiBold" Visibility="Collapsed" />
                         <StackPanel
                             x:Name="DetailHeaderActions"
                             Grid.Column="2"
@@ -780,16 +767,9 @@
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     Glyph="{Binding ImportantGlyph}" />
                             </Button>
-                            <Button
-                                x:Name="DetailDeleteButton"
-                                AutomationProperties.Name="{Binding ElementName=RootGrid, Path=DataContext.DeleteText}"
-                                Click="DetailDeleteButton_Click"
-                                Style="{StaticResource TodoDetailHeaderIconButtonStyle}"
-                                ToolTipService.ToolTip="{Binding ElementName=RootGrid, Path=DataContext.DeleteText}">
-                                <FontIcon
-                                    FontSize="{StaticResource TodoDetailActionIconSize}"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Glyph="&#xE74D;" />
+                            <Button x:Name="DetailDeleteButton" Style="{StaticResource TodoDetailHeaderIconButtonStyle}" AutomationProperties.Name="{Binding ElementName=RootGrid, Path=DataContext.DetailMoreActionsText}">
+                                <FontIcon FontSize="{StaticResource TodoDetailActionIconSize}" Glyph="&#xE712;" />
+                                <Button.Flyout><MenuFlyout><MenuFlyoutItem x:Name="DetailDeleteMenuItem" Click="DetailDeleteButton_Click" Text="{Binding ElementName=RootGrid, Path=DataContext.DeleteText}" /></MenuFlyout></Button.Flyout>
                             </Button>
                         </StackPanel>
                         </Grid>
@@ -1045,14 +1025,21 @@
                             </Grid>
                         </Border>
 
-                        <controls:MarkdownLiveEditor
-                            x:Name="DetailNotesEditor"
-                            MinHeight="116"
-                            MaxHeight="360"
-                            EditorTextChanged="DetailNotesEditor_EditorTextChanged"
-                            FontSize="{Binding ElementName=RootGrid, Path=DataContext.ContentTextSize}"
-                            PlaceholderText="{Binding ElementName=RootGrid, Path=DataContext.DetailNotesPlaceholderText}"
-                            Visibility="Collapsed" />
+                        <Border
+                            x:Name="DetailNotesEditorHost"
+                            Background="{ThemeResource WidgetLayerFillSecondaryBrush}"
+                            BorderBrush="{ThemeResource WidgetLayerStrokeBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource WidgetCornerRadiusSmall}"
+                            Visibility="Collapsed">
+                            <controls:MarkdownLiveEditor
+                                x:Name="DetailNotesEditor"
+                                MinHeight="116"
+                                MaxHeight="360"
+                                EditorTextChanged="DetailNotesEditor_EditorTextChanged"
+                                FontSize="{Binding ElementName=RootGrid, Path=DataContext.ContentTextSize}"
+                                PlaceholderText="{Binding ElementName=RootGrid, Path=DataContext.DetailNotesPlaceholderText}" />
+                        </Border>
 
                         <Grid
                             x:Name="DetailNotesSaveFailure"
@@ -1102,15 +1089,15 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <TextBlock
-                Grid.Row="2"
-                Margin="8,0,8,4"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                FontSize="{Binding ElementName=RootGrid, Path=DataContext.ContentSecondaryTextSize}"
-                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                Text="{Binding CreatedText}"
-                TextTrimming="CharacterEllipsis" />
+            <Grid Grid.Row="2" Margin="8,0,8,4">
+                <TextBlock x:Name="DetailCreatedText" HorizontalAlignment="Left" VerticalAlignment="Center"
+                    FontSize="{Binding ElementName=RootGrid, Path=DataContext.ContentSecondaryTextSize}"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{Binding CreatedText}" TextTrimming="CharacterEllipsis" />
+                <StackPanel x:Name="DetailDraftActions" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                    <Button x:Name="DetailCancelButton" Click="DetailBackButton_Click" />
+                    <Button x:Name="DetailSaveButton" Click="DetailSaveButton_Click" IsEnabled="{Binding CanSaveEdit}" Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </Grid>
         </Grid>
 
         <Border

@@ -24,6 +24,7 @@ public sealed partial class MarkdownLiveEditor : UserControl
     private readonly RichEditBox _editor = new()
     {
         AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
+        SelectionFlyout = null,
         IsSpellCheckEnabled = false, IsTextPredictionEnabled = false,
         BorderThickness = new Thickness(0), Padding = new Thickness(8, 6, 16, 8),
         Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent)
@@ -40,6 +41,9 @@ public sealed partial class MarkdownLiveEditor : UserControl
     internal RichEditBox NativeEditorForProbe => _editor;
     internal Task PresentationForProbe => _presentationTask;
     internal void RenderForProbe() => RenderViewport();
+    internal void ShowLinkHintForProbe() => ShowLinkHint();
+    internal void ClearLinkHintForProbe() => ClearLinkHover();
+    internal bool IsLinkHintOpenForProbe => _linkToolTip?.IsOpen == true;
     internal FrameworkElement[] ComplexViewsForProbe => _embedded.Where(state => state.View is not null && _tasks.Children.Contains(state.View)).Select(state => (FrameworkElement)state.View!).ToArray();
     internal ScrollViewer? ScrollerForProbe => _nativeScroller;
     internal double InputCallbackMillisecondsForProbe { get; private set; }
@@ -79,6 +83,10 @@ public sealed partial class MarkdownLiveEditor : UserControl
     private int _viewStart = -1;
     private int _viewEnd = -1;
     private ScrollViewer? _nativeScroller;
+    private Point? _linkPressPoint;
+    private MarkdownNativeLink? _hoveredLink;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _linkHoverTimer;
+    private ToolTip? _linkToolTip;
     internal RichEditBox NativeEditor => _editor;
     internal bool IsComposing => _composing;
     internal bool HasPendingSource => _dirty || _composing;
@@ -125,6 +133,11 @@ public sealed partial class MarkdownLiveEditor : UserControl
         _editor.TextCompositionStarted += (_, _) => { _composing = true; _scheduler.Suspend(); RememberSelection(); };
         _editor.TextCompositionEnded += (_, _) => { _composing = false; _scheduler.NotifyChanged(); };
         _editor.PreviewKeyDown += EditorKeyDown;
+        _editor.AddHandler(PointerPressedEvent, new PointerEventHandler(LinkPointerPressed), true);
+        _editor.AddHandler(PointerReleasedEvent, new PointerEventHandler(LinkPointerReleased), true);
+        _editor.AddHandler(PointerMovedEvent, new PointerEventHandler(LinkPointerMoved), true);
+        _editor.AddHandler(PointerExitedEvent, new PointerEventHandler((_, _) => ClearLinkHover()), true);
+        _editor.AddHandler(PointerCanceledEvent, new PointerEventHandler((_, _) => { _linkPressPoint = null; ClearLinkHover(); }), true);
         _editor.Paste += async (_, args) => { args.Handled = true; await PasteTextAsync(); };
         _editor.GotFocus += (_, _) => QueuePresentation();
         _editor.LostFocus += (_, _) => { FlushAndGetText(); QueuePresentation(); };
@@ -149,6 +162,7 @@ public sealed partial class MarkdownLiveEditor : UserControl
         };
         _editor.Unloaded += (_, _) =>
         {
+            ClearLinkHover();
             FlushAndGetText();
             if (_nativeScroller is not null) _nativeScroller.ViewChanged -= NativeViewChanged;
             var visual = ElementCompositionPreview.GetElementVisual(_tasks);
@@ -191,6 +205,96 @@ public sealed partial class MarkdownLiveEditor : UserControl
     public bool IsReadOnly { get => (bool)GetValue(IsReadOnlyProperty); set => SetValue(IsReadOnlyProperty, value); }
     public bool AllowRemoteImages { get => (bool)GetValue(AllowRemoteImagesProperty); set => SetValue(AllowRemoteImagesProperty, value); }
     public event EventHandler? EditorTextChanged;
+
+    private void LinkPointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        ClearLinkHover();
+        var point = args.GetCurrentPoint(_editor);
+        _linkPressPoint = point.Properties.IsLeftButtonPressed && IsControlDown() ? point.Position : null;
+    }
+
+    private async void LinkPointerReleased(object sender, PointerRoutedEventArgs args)
+    {
+        Point? pressed = _linkPressPoint;
+        _linkPressPoint = null;
+        Point point = args.GetCurrentPoint(_editor).Position;
+        if (!IsLivePreviewEnabled || pressed is null || _composing || !IsControlDown() ||
+            Math.Abs(point.X - pressed.Value.X) > 3 || Math.Abs(point.Y - pressed.Value.Y) > 3 ||
+            _editor.Document.Selection.Length != 0) return;
+
+        FlushAndGetText();
+        var syntax = _syntaxRevision == _revision ? _syntax : MarkdownNativeSyntax.Parse(_buffer.NativeText);
+        var link = LinkAtPoint(point, syntax);
+        if (link is null) return;
+        try { await Launcher.LaunchUriAsync(new Uri(link.Url)); }
+        catch (Exception error) { App.Log($"[Markdown] Failed to open link: {error}"); }
+    }
+
+    private static bool IsControlDown() => InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+        .HasFlag(CoreVirtualKeyStates.Down);
+
+    private MarkdownNativeLink? LinkAtPoint(Point point, MarkdownNativeSyntax syntax)
+    {
+        // RichEdit's client coordinates include the ScrollViewer content offset.
+        var documentPoint = new Point(point.X, point.Y + (_nativeScroller?.VerticalOffset ?? 0));
+        var position = _editor.Document.GetRangeFromPoint(documentPoint, PointOptions.ClientCoordinates).StartPosition;
+        foreach (var link in syntax.Links)
+        {
+            for (int index = Math.Max(link.Start, position - 1); index <= position && index < link.Start + link.Length; index++)
+            {
+                var character = _editor.Document.GetRange(index, index + 1);
+                character.GetRect(PointOptions.ClientCoordinates, out Rect bounds, out _);
+                if (!bounds.Contains(documentPoint)) continue;
+                return link;
+            }
+        }
+        return null;
+    }
+
+    private void LinkPointerMoved(object sender, PointerRoutedEventArgs args)
+    {
+        var point = args.GetCurrentPoint(_editor);
+        if (args.Pointer.PointerDeviceType != Microsoft.UI.Input.PointerDeviceType.Mouse ||
+            point.Properties.IsLeftButtonPressed || !IsLivePreviewEnabled || _dirty || _composing || _syntaxRevision != _revision)
+        {
+            ClearLinkHover();
+            return;
+        }
+        var link = LinkAtPoint(point.Position, _syntax);
+        if (link == _hoveredLink) return;
+        ClearLinkHover();
+        if (link is null) return;
+        _hoveredLink = link;
+        if (_linkHoverTimer is null)
+        {
+            _linkHoverTimer = DispatcherQueue.CreateTimer();
+            _linkHoverTimer.Interval = TimeSpan.FromMilliseconds(600);
+            _linkHoverTimer.IsRepeating = false;
+            _linkHoverTimer.Tick += (_, _) =>
+            {
+                if (_hoveredLink is null || !IsLoaded) return;
+                ShowLinkHint();
+            };
+        }
+        _linkHoverTimer.Start();
+    }
+
+    private void ShowLinkHint()
+    {
+        _linkToolTip ??= new ToolTip { PlacementTarget = _editor, Placement = Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Mouse };
+        _linkToolTip.XamlRoot = _editor.XamlRoot;
+        _linkToolTip.Content = App.Current.LocalizationService.T("Markdown.Editor.CtrlClickLink");
+        ToolTipService.SetToolTip(_editor, _linkToolTip);
+        _linkToolTip.IsOpen = true;
+    }
+
+    private void ClearLinkHover()
+    {
+        _linkHoverTimer?.Stop();
+        _hoveredLink = null;
+        if (_linkToolTip is not null) _linkToolTip.IsOpen = false;
+        ToolTipService.SetToolTip(_editor, null);
+    }
 
     /// <summary>Focus the continuous native editor without replacing its text.</summary>
     public void FocusEditor()
@@ -272,6 +376,7 @@ public sealed partial class MarkdownLiveEditor : UserControl
     private void EditorTextChanging(RichEditBox sender, RichEditBoxTextChangingEventArgs args)
     {
         if (_internalChange || _decorating || !args.IsContentChanging) return;
+        ClearLinkHover();
 #if DEBUG
         long inputStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 #endif
@@ -339,11 +444,11 @@ public sealed partial class MarkdownLiveEditor : UserControl
         QueuePresentation(force: true);
     }
 
-    private void NativeViewChanged(object? sender, ScrollViewerViewChangedEventArgs args) => QueuePresentation();
+    private void NativeViewChanged(object? sender, ScrollViewerViewChangedEventArgs args) { ClearLinkHover(); QueuePresentation(); }
 
     private void QueuePresentation(bool force = false)
     {
-        if (force) _viewStart = -1;
+        if (force) { _viewStart = -1; _viewEnd = -1; }
         if (_renderQueued || _composing || _dirty || !IsLoaded) return;
         _renderQueued = true;
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>

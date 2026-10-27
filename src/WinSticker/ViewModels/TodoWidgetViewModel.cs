@@ -346,6 +346,8 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
             if (SetProperty(ref _selectedFilter, value))
             {
                 RefreshVisibleItems();
+                OnPropertyChanged(nameof(ClearCompletedButtonVisibility));
+                OnPropertyChanged(nameof(FooterVisibility));
                 OnPropertyChanged(nameof(IsAllTasksCompletedEmptyState));
                 OnPropertyChanged(nameof(EmptyStateTitle));
                 OnPropertyChanged(nameof(EmptyStateText));
@@ -431,9 +433,15 @@ public sealed partial class TodoWidgetViewModel : ObservableObject, IDisposable
 
     public Visibility FooterStatsVisibility => ShowFooterStats ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility ClearCompletedButtonVisibility => ShowClearCompletedButton ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ClearCompletedButtonVisibility =>
+        ShowClearCompletedButton && IsCompletedFilterSelected
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-    public Visibility FooterVisibility => ShowFooterStats || ShowClearCompletedButton ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility FooterVisibility =>
+        ShowFooterStats || ClearCompletedButtonVisibility == Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
     public Visibility UndoBarVisibility => CanUndoLastAction ? Visibility.Visible : Visibility.Collapsed;
 

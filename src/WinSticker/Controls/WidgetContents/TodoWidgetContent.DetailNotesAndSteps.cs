@@ -37,22 +37,9 @@ public sealed partial class TodoWidgetContent
         ApplyNotesEditingVisualState(isEditing: false);
     }
 
-    private async Task<TodoItemViewModel?> EnsureDetailItemPersistedAsync()
+    private Task<TodoItemViewModel?> GetSelectedDetailItemAsync()
     {
-        if (ViewModel?.SelectedDetailItem is not { } selected)
-        {
-            return null;
-        }
-
-        if (!ViewModel.IsCreatingDetailItem)
-        {
-            return selected;
-        }
-
-        TodoItemViewModel? finalized = await ViewModel.FinalizeDetailAsync(
-            DetailTitleTextBox.Text,
-            closeDetail: false);
-        return finalized;
+        return Task.FromResult(ViewModel?.SelectedDetailItem);
     }
 
     private async void DetailAddStepButton_Click(object sender, RoutedEventArgs e) =>
@@ -80,7 +67,7 @@ public sealed partial class TodoWidgetContent
             return;
         }
 
-        TodoItemViewModel? item = await EnsureDetailItemPersistedAsync();
+        TodoItemViewModel? item = await GetSelectedDetailItemAsync();
         if (item is null || await ViewModel.AddStepAsync(item.Id, text) is null)
         {
             return;
@@ -177,7 +164,7 @@ public sealed partial class TodoWidgetContent
 
     private async void DetailNotesReaderHost_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (ViewModel?.SelectedDetailItem is { Notes.Length: 0 })
+        if (ViewModel?.SelectedDetailItem is not null)
         {
             await BeginNotesEditingAsync();
             e.Handled = true;
@@ -203,7 +190,7 @@ public sealed partial class TodoWidgetContent
 
     private async Task BeginNotesEditingAsync()
     {
-        TodoItemViewModel? item = await EnsureDetailItemPersistedAsync();
+        TodoItemViewModel? item = await GetSelectedDetailItemAsync();
         if (item is null)
         {
             return;
@@ -242,7 +229,7 @@ public sealed partial class TodoWidgetContent
             return true;
         }
 
-        if (await EnsureDetailItemPersistedAsync() is null)
+        if (await GetSelectedDetailItemAsync() is null)
         {
             return false;
         }
@@ -313,13 +300,17 @@ public sealed partial class TodoWidgetContent
     private void ApplyNotesEditingVisualState(bool isEditing)
     {
         DetailNotesReaderHost.Visibility = isEditing ? Visibility.Collapsed : Visibility.Visible;
-        DetailNotesEditor.Visibility = isEditing ? Visibility.Visible : Visibility.Collapsed;
-        DetailNotesEditButton.Visibility = isEditing ? Visibility.Collapsed : Visibility.Visible;
-        DetailNotesDoneButton.Visibility = isEditing ? Visibility.Visible : Visibility.Collapsed;
+        DetailNotesEditorHost.Visibility = isEditing ? Visibility.Visible : Visibility.Collapsed;
+        DetailNotesEditButton.Visibility = Visibility.Collapsed;
+        DetailNotesDoneButton.Visibility = Visibility.Collapsed;
     }
 
     private async Task<bool> PrepareForDetailSelectionChangeAsync(string? nextItemId)
     {
+        if (ViewModel?.IsCreatingDetailItem == true &&
+            !string.Equals(ViewModel.SelectedDetailItem?.Id, nextItemId, StringComparison.Ordinal))
+            return await DiscardCreatingDetailAsync();
+
         if (_notesEditingItemId is null ||
             string.Equals(_notesEditingItemId, nextItemId, StringComparison.Ordinal))
         {

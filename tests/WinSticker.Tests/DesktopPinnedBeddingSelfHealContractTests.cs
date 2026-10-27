@@ -3,6 +3,26 @@ namespace WinSticker.Tests;
 public sealed class DesktopPinnedBeddingSelfHealContractTests
 {
     [Fact]
+    public void DesktopAttachment_InstallsOrderGuardBeforeTheBeddedFastPathAndRemovesItOnDetach()
+    {
+        string layer = File.ReadAllText(TestPaths.FromRepository(
+            "src/WinSticker/Services/WidgetLayerService.cs"));
+        string attach = SliceMethod(layer,
+            "private static bool TryAttachToDesktopIconLayer",
+            "internal static bool IsWindowBeddedAtDesktopLayer");
+        int guardIndex = attach.IndexOf("DesktopOwnerZOrderGuard.Install(windowHandle)", StringComparison.Ordinal);
+        int fastPathIndex = attach.IndexOf("IsWindowBeddedAtDesktopLayer(windowHandle)", StringComparison.Ordinal);
+        Assert.True(guardIndex >= 0 && fastPathIndex > guardIndex);
+
+        string detach = SliceMethod(layer,
+            "private static void RestoreOriginalOwner",
+            "private static IntPtr FindDesktopIconView");
+        int removeIndex = detach.IndexOf("DesktopOwnerZOrderGuard.Remove(windowHandle)", StringComparison.Ordinal);
+        int ownerIndex = detach.IndexOf("Win32Helper.SetWindowLongPtr(", StringComparison.Ordinal);
+        Assert.True(removeIndex >= 0 && ownerIndex > removeIndex);
+    }
+
+    [Fact]
     public void Watchdog_RequiresConsecutiveConfirmationsBeforeRepairing()
     {
         string manager = File.ReadAllText(TestPaths.FromRepository(

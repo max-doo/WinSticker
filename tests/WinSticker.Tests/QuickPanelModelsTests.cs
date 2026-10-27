@@ -41,6 +41,8 @@ public sealed class QuickPanelModelsTests
         Assert.Equal(0x20, settings.QuickPanelHotkeyKey);
         Assert.Equal(QuickPanelTab.Clipboard, settings.QuickPanelDefaultTab);
         Assert.True(settings.QuickPanelAutoPaste);
+        Assert.True(settings.QuickPanelShowTodoTab);
+        Assert.True(settings.QuickPanelShowNotesTab);
     }
 
     [Fact]

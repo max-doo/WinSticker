@@ -37,10 +37,9 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
     private bool _isLoading;
 
     /// <summary>
-    /// Event raised when an item should be pasted into the last active window.
-    /// Payload is the target QuickCaptureItem.
+    /// The window coordinates target capture, clipboard writing and paste as one operation.
     /// </summary>
-    public event EventHandler<QuickCaptureItem>? RequestPasteItem;
+    public Func<QuickCaptureItem, Task>? PasteItemAsync { get; set; }
 
     /// <summary>
     /// Event raised when the settings window should be opened.
@@ -67,7 +66,9 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
         _todoStoreFactory = todoStoreFactory ?? (id => new TodoWidgetStore(id));
         _dispatcherQueue = dispatcherQueue ?? TryGetDispatcherQueue();
 
-        _activeTab = settingsService.Settings.Core.QuickPanelDefaultTab;
+        var defaultTab = settingsService.Settings.Core.QuickPanelDefaultTab;
+        _activeTab = IsTabVisible(defaultTab) ? defaultTab : QuickPanelTab.Clipboard;
+        _settingsService.SettingsChanged += OnTabSettingsChanged;
 
         InitializeClipboard();
         InitializeNotes();
@@ -75,9 +76,23 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
 
     public bool AutoPaste => _settingsService.Settings.Core.QuickPanelAutoPaste;
 
+    public bool IsTabVisible(QuickPanelTab tab) => tab switch
+    {
+        QuickPanelTab.Clipboard => true,
+        QuickPanelTab.Todo => _settingsService.Settings.Core.QuickPanelShowTodoTab,
+        QuickPanelTab.Notes => _settingsService.Settings.Core.QuickPanelShowNotesTab,
+        _ => false
+    };
+
+    private void OnTabSettingsChanged() => RunOnUi(() =>
+    {
+        if (_isDisposed) return;
+        if (!IsTabVisible(ActiveTab)) ActiveTab = QuickPanelTab.Clipboard;
+    });
+
     public void CycleTab(bool backward = false)
     {
-        var values = (QuickPanelTab[])Enum.GetValues(typeof(QuickPanelTab));
+        var values = Enum.GetValues<QuickPanelTab>().Where(IsTabVisible).ToArray();
         int index = Array.IndexOf(values, ActiveTab);
         if (index < 0) index = 0;
         int next = backward ? (index - 1 + values.Length) % values.Length : (index + 1) % values.Length;
@@ -92,7 +107,7 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public void SelectTab(QuickPanelTab tab)
     {
-        ActiveTab = tab;
+        ActiveTab = IsTabVisible(tab) ? tab : QuickPanelTab.Clipboard;
     }
 
     [RelayCommand]
@@ -161,6 +176,7 @@ public sealed partial class QuickPanelViewModel : ObservableObject, IDisposable
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        _settingsService.SettingsChanged -= OnTabSettingsChanged;
         DisposeClipboard();
         DisposeNotes();
     }

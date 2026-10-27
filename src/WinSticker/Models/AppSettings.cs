@@ -340,6 +340,12 @@ public class AppSettings
     /// <inheritdoc cref="CoreSettingsSlice.QuickPanelAutoPaste"/>
     public bool QuickPanelAutoPaste { get => Core.QuickPanelAutoPaste; set => Core.QuickPanelAutoPaste = value; }
 
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelShowTodoTab"/>
+    public bool QuickPanelShowTodoTab { get => Core.QuickPanelShowTodoTab; set => Core.QuickPanelShowTodoTab = value; }
+
+    /// <inheritdoc cref="CoreSettingsSlice.QuickPanelShowNotesTab"/>
+    public bool QuickPanelShowNotesTab { get => Core.QuickPanelShowNotesTab; set => Core.QuickPanelShowNotesTab = value; }
+
     /// <inheritdoc cref="CoreSettingsSlice.DesktopDoubleClickEnabled"/>
     public bool DesktopDoubleClickEnabled { get => Core.DesktopDoubleClickEnabled; set => Core.DesktopDoubleClickEnabled = value; }
 

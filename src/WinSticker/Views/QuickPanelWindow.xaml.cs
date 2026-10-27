@@ -38,13 +38,16 @@ public sealed partial class QuickPanelWindow : Window
     private bool _hasPositioned;
     private bool _isWindowDragging;
     private bool _isWindowResizing;
-    private bool _isHidingPanel;
+    private Task<bool>? _hidePanelTask;
+    private TaskCompletionSource<bool>? _hideAnimationCompletion;
+    private bool _pasteInProgress;
     private bool _isClosed;
     private bool _refreshQueued;
     private bool _refreshing;
     private int _visibilityVersion;
     private string _resizeDirection = string.Empty;
-    private const int MinPanelWidth = 380;
+    // Keep the icon tabs, header actions and the blank drag region on one row.
+    private const int MinPanelWidth = 460;
     private const int MinPanelHeight = 420;
     private Win32Helper.POINT _interactionStartCursor;
     private RectInt32 _interactionStartBounds;
@@ -78,11 +81,6 @@ public sealed partial class QuickPanelWindow : Window
     public bool IsPanelVisible { get; private set; }
     public QuickPanelViewModel ViewModel => _viewModel;
     public event EventHandler? SettingsRequested;
-    #region Win32 Constants
-// VK_CONTROL provided by Win32Helper
-    private const byte VK_V = 0x56;
-    private const uint KEYEVENTF_KEYUP = 0x0002;
-    #endregion
     public QuickPanelWindow(
         QuickPanelViewModel viewModel,
         SettingsService settingsService)
@@ -91,6 +89,8 @@ public sealed partial class QuickPanelWindow : Window
         _settingsService = settingsService;
         _themeService = (App.Current as App)?.ThemeService;
         InitializeComponent();
+        RootGrid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(RootGrid_PointerPressed), true);
+        ClipboardView.KeyboardInputRequested += ClipboardView_KeyboardInputRequested;
         _hwnd = WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
         _appWindow = AppWindow.GetFromWindowId(windowId);
@@ -99,7 +99,7 @@ public sealed partial class QuickPanelWindow : Window
         NotesView.DataContext = _viewModel;
         ConfigureWindow();
         ApplyTheme();
-        _viewModel.RequestPasteItem += OnViewModelRequestPasteItem;
+        _viewModel.PasteItemAsync = PasteItemAsync;
         _viewModel.RequestClose += OnViewModelRequestClose;
         _viewModel.RequestOpenSettings += OnViewModelRequestOpenSettings;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -121,7 +121,7 @@ public sealed partial class QuickPanelWindow : Window
         _appWindow.Resize(new SizeInt32(DefaultPanelWidth, DefaultPanelHeight));
         int extendedStyle = Win32Helper.GetWindowLong(_hwnd, Win32Helper.GWL_EXSTYLE);
         extendedStyle |= Win32Helper.WS_EX_TOOLWINDOW;
-        extendedStyle &= ~Win32Helper.WS_EX_NOACTIVATE;
+        extendedStyle |= Win32Helper.WS_EX_NOACTIVATE;
         Win32Helper.SetWindowLongPtr(_hwnd, Win32Helper.GWL_EXSTYLE, new IntPtr(extendedStyle));
         int style = Win32Helper.GetWindowLong(_hwnd, Win32Helper.GWL_STYLE);
         style &= ~(Win32Helper.WS_CAPTION | Win32Helper.WS_BORDER | Win32Helper.WS_DLGFRAME);
@@ -155,6 +155,14 @@ public sealed partial class QuickPanelWindow : Window
     }
     private IntPtr SubclassProc(IntPtr hWnd, uint uMsg, UIntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, UIntPtr dwRefData)
     {
+        if (_preserveTargetFocus && uMsg == Win32Helper.WM_MOUSEACTIVATE)
+        {
+            return (IntPtr)Win32Helper.MA_NOACTIVATE;
+        }
+        if (_preserveTargetFocus && uMsg == 0x024B /* WM_POINTERACTIVATE */)
+        {
+            return (IntPtr)3; // PA_NOACTIVATE
+        }
         if (uMsg == (uint)Win32Helper.WM_NCHITTEST)
         {
             if (TryGetEdgeResizeHitTest(hWnd, lParam, out int hitTest))
@@ -498,14 +506,16 @@ public sealed partial class QuickPanelWindow : Window
 
     private void UpdateTopMost()
     {
-        bool isPinned = _viewModel.IsPinned;
+        // A transient panel must remain above the focused application even
+        // though it deliberately does not become the foreground window.
+        bool stayAboveTarget = _viewModel.IsPinned || IsPanelVisible;
         if (_appWindow?.Presenter is OverlappedPresenter presenter)
         {
-            presenter.IsAlwaysOnTop = isPinned;
+            presenter.IsAlwaysOnTop = stayAboveTarget;
         }
         if (_hwnd != IntPtr.Zero)
         {
-            IntPtr insertAfter = isPinned ? Win32Helper.HWND_TOPMOST : Win32Helper.HWND_NOTOPMOST;
+            IntPtr insertAfter = stayAboveTarget ? Win32Helper.HWND_TOPMOST : Win32Helper.HWND_NOTOPMOST;
             Win32Helper.SetWindowPos(_hwnd, insertAfter, 0, 0, 0, 0,
                 Win32Helper.SWP_NOMOVE | Win32Helper.SWP_NOSIZE | Win32Helper.SWP_NOACTIVATE);
         }
@@ -535,6 +545,7 @@ public sealed partial class QuickPanelWindow : Window
         if (_isClosed) return;
         using var timing = PerformanceLogger.Measure("QuickPanel.Show");
         _visibilityVersion++;
+        _hideAnimationCompletion?.TrySetResult(false);
         var fg = Win32Helper.GetForegroundWindow();
         if (fg != IntPtr.Zero && fg != _hwnd)
         {
@@ -549,11 +560,12 @@ public sealed partial class QuickPanelWindow : Window
         PopupHideStoryboard.Stop();
         PopupShowStoryboard.Stop();
         PopupTranslateTransform.Y = 4;
-        _appWindow?.Show();
+        SetPreserveTargetFocus(_viewModel.ActiveTab == QuickPanelTab.Clipboard);
+        _appWindow?.Show(activateWindow: !_preserveTargetFocus);
         IsPanelVisible = true;
         UpdateTopMost();
-        Activate();
-        Win32Helper.SetForegroundWindow(_hwnd);
+        if (!_preserveTargetFocus) ActivateForEditing();
+        StartInputMonitoring();
         PopupShowStoryboard.Begin();
         // A cached store can complete synchronously. Refreshing here would
         // rebuild bound controls before XAML has presented the window at all.
@@ -592,23 +604,38 @@ public sealed partial class QuickPanelWindow : Window
     }
     public async void HidePanel()
     {
-        if (!IsPanelVisible || _isHidingPanel) return;
-        _isHidingPanel = true;
+        try { await HidePanelAsync(); }
+        catch (Exception ex) { App.Log($"[QuickPanel] Hide failed: {ex}"); }
+    }
+    private Task<bool> HidePanelAsync(bool animate = true)
+    {
+        if (_hidePanelTask is { IsCompleted: false }) return _hidePanelTask;
+        return _hidePanelTask = HidePanelCoreAsync(animate);
+    }
+    private async Task<bool> HidePanelCoreAsync(bool animate)
+    {
+        if (!IsPanelVisible) return true;
         int version = ++_visibilityVersion;
-        try
+        NotesView.FlushEditor();
+        if (!await _viewModel.TrySaveCurrentNoteAsync()) return false;
+        if (_isClosed || version != _visibilityVersion) return false;
+        IsPanelVisible = false;
+        StopInputMonitoring();
+        CancelQueuedRefresh();
+        PopupShowStoryboard.Stop();
+        PopupHideStoryboard.Stop();
+        if (!animate)
         {
-            NotesView.FlushEditor();
-            if (!await _viewModel.TrySaveCurrentNoteAsync()) return;
-            if (_isClosed || version != _visibilityVersion) return;
-            IsPanelVisible = false;
-            CancelQueuedRefresh();
-            PopupShowStoryboard.Stop();
-            PopupHideStoryboard.Stop();
-            PopupHideStoryboard.Completed -= OnPopupHideCompleted;
-            PopupHideStoryboard.Completed += OnPopupHideCompleted;
-            PopupHideStoryboard.Begin();
+            _appWindow?.Hide();
+            UpdateTopMost();
+            return true;
         }
-        finally { _isHidingPanel = false; }
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hideAnimationCompletion = completion;
+        PopupHideStoryboard.Completed -= OnPopupHideCompleted;
+        PopupHideStoryboard.Completed += OnPopupHideCompleted;
+        PopupHideStoryboard.Begin();
+        return await completion.Task;
     }
     private void OnPopupHideCompleted(object? sender, object e)
     {
@@ -616,6 +643,8 @@ public sealed partial class QuickPanelWindow : Window
         if (!IsPanelVisible)
         {
             _appWindow?.Hide();
+            UpdateTopMost();
+            _hideAnimationCompletion?.TrySetResult(true);
         }
     }
     public void TogglePanel()
@@ -652,58 +681,46 @@ public sealed partial class QuickPanelWindow : Window
         }
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            if (!_viewModel.IsPinned && IsPanelVisible)
+            // Show(false) is allowed to report an inactive window. In that
+            // mode outside clicks and foreground changes own dismissal;
+            // deactivation alone does not mean the user left the panel.
+            if (!_preserveTargetFocus && !_viewModel.IsPinned && IsPanelVisible && !_pasteInProgress)
             {
                 HidePanel();
             }
         }
     }
-    private async Task<bool> PasteToTargetWindowAsync(IntPtr targetHwnd)
+    private async Task PasteItemAsync(QuickCaptureItem item)
     {
-        if (targetHwnd == IntPtr.Zero || targetHwnd == _hwnd || !Win32Helper.IsWindow(targetHwnd))
-        {
-            return false;
-        }
-        if (Win32Helper.IsIconic(targetHwnd))
-        {
-            Win32Helper.ShowWindow(targetHwnd, 9); // SW_RESTORE
-        }
-        var currentThreadId = Win32Helper.GetCurrentThreadId();
-        var targetThreadId = Win32Helper.GetWindowThreadProcessId(targetHwnd, out _);
-        var attached = targetThreadId != 0 && targetThreadId != currentThreadId &&
-                       Win32Helper.AttachThreadInput(currentThreadId, targetThreadId, true);
+        if (_pasteInProgress || !IsPanelVisible) return;
+        _pasteInProgress = true;
+        var targetHwnd = _lastActiveHwnd;
+        int requestVersion = _visibilityVersion;
         try
         {
-            Win32Helper.BringWindowToTop(targetHwnd);
-            Win32Helper.SetForegroundWindow(targetHwnd);
-        }
-        finally
-        {
-            if (attached)
+            if (!await _viewModel.TryCopyClipboardItemAsync(item)) return;
+            if (_isClosed || !IsPanelVisible || requestVersion != _visibilityVersion) return;
+            // Restore only if the panel owns foreground. Never take focus from
+            // another application the user switched to during clipboard I/O.
+            var paste = new QuickPanelPasteService(new QuickPanelPasteDesktop(_hwnd));
+            if (!await paste.PrepareTargetAsync(targetHwnd))
             {
-                Win32Helper.AttachThreadInput(currentThreadId, targetThreadId, false);
+                _viewModel.ShowToast("目标输入窗口已切换，请重新打开快捷面板后粘贴");
+                return;
             }
+            if (_isClosed || !IsPanelVisible || requestVersion != _visibilityVersion) return;
+            if (!_viewModel.IsPinned && !await HidePanelAsync(animate: false)) return;
+            int version = _visibilityVersion;
+            bool success = await paste.SendPasteAsync(targetHwnd,
+                () => !_isClosed && version == _visibilityVersion);
+            if (!success) _viewModel.ShowToast("未能粘贴到目标窗口，内容已复制，可手动粘贴");
         }
-        await Task.Delay(80);
-        if (Win32Helper.GetForegroundWindow() != targetHwnd)
+        catch (Exception ex)
         {
-            return false;
+            App.Log($"[QuickPanel] Paste failed: {ex}");
+            _viewModel.ShowToast("粘贴失败，内容已复制，可手动粘贴");
         }
-        return Win32Helper.TrySendKeyChord(Win32Helper.VK_CONTROL, VK_V);
-    }
-    private async void OnViewModelRequestPasteItem(object? sender, QuickCaptureItem item)
-    {
-        var targetHwnd = _lastActiveHwnd;
-        if (!_viewModel.IsPinned)
-        {
-            HidePanel();
-            await Task.Delay(50);
-        }
-        bool success = await PasteToTargetWindowAsync(targetHwnd);
-        if (!success)
-        {
-            _viewModel.ShowToast("未找到原目标窗口，请重试");
-        }
+        finally { _pasteInProgress = false; }
     }
     private void OnViewModelRequestClose(object? sender, EventArgs e)
     {
@@ -746,16 +763,18 @@ public sealed partial class QuickPanelWindow : Window
     private void UpdateTabPresenter()
     {
         using var timing = PerformanceLogger.Measure("QuickPanel.SwitchTab", _viewModel.ActiveTab.ToString());
-        MainTabSegmented.SelectedIndex = _viewModel.ActiveTab switch
+        TodoTabItem.Visibility = _viewModel.IsTabVisible(QuickPanelTab.Todo) ? Visibility.Visible : Visibility.Collapsed;
+        NotesTabItem.Visibility = _viewModel.IsTabVisible(QuickPanelTab.Notes) ? Visibility.Visible : Visibility.Collapsed;
+        MainTabSegmented.SelectedItem = _viewModel.ActiveTab switch
         {
-            QuickPanelTab.Clipboard => 0,
-            QuickPanelTab.Todo => 1,
-            QuickPanelTab.Notes => 2,
-            _ => 0
+            QuickPanelTab.Todo => TodoTabItem,
+            QuickPanelTab.Notes => NotesTabItem,
+            _ => ClipboardTabItem
         };
         ClipboardView.Visibility = _viewModel.ActiveTab == QuickPanelTab.Clipboard ? Visibility.Visible : Visibility.Collapsed;
         TodoViewHost.Visibility = _viewModel.ActiveTab == QuickPanelTab.Todo ? Visibility.Visible : Visibility.Collapsed;
         NotesView.Visibility = _viewModel.ActiveTab == QuickPanelTab.Notes ? Visibility.Visible : Visibility.Collapsed;
+        if (IsPanelVisible && _viewModel.ActiveTab != QuickPanelTab.Clipboard) ActivateForEditing();
         if (_viewModel.ActiveTab == QuickPanelTab.Todo)
         {
             // Let navigation paint before constructing the shared task editor.
@@ -802,13 +821,13 @@ public sealed partial class QuickPanelWindow : Window
     }
     private void MainTabSegmented_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _viewModel.ActiveTab = MainTabSegmented.SelectedIndex switch
+        if (MainTabSegmented?.SelectedItem is not SegmentedItem item) return;
+        _viewModel.SelectTab((item.Tag as string) switch
         {
-            0 => QuickPanelTab.Clipboard,
-            1 => QuickPanelTab.Todo,
-            2 => QuickPanelTab.Notes,
+            "Todo" => QuickPanelTab.Todo,
+            "Notes" => QuickPanelTab.Notes,
             _ => QuickPanelTab.Clipboard
-        };
+        });
     }
     private void PinButton_Click(object sender, RoutedEventArgs e)
     {
@@ -843,6 +862,7 @@ public sealed partial class QuickPanelWindow : Window
     {
         void ApplyAppearance()
         {
+            UpdateTabPresenter();
             ApplyWindowCornerPreference();
             if (IsPanelVisible)
             {
@@ -1155,11 +1175,14 @@ public sealed partial class QuickPanelWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _isClosed = true;
+        StopInputMonitoring();
+        _hideAnimationCompletion?.TrySetResult(false);
+        ClipboardView.KeyboardInputRequested -= ClipboardView_KeyboardInputRequested;
         CancelQueuedRefresh();
         PopupHideStoryboard.Completed -= OnPopupHideCompleted;
         RemoveSubclass();
         _todoContent?.ViewModel?.Dispose();
-        _viewModel.RequestPasteItem -= OnViewModelRequestPasteItem;
+        _viewModel.PasteItemAsync = null;
         _viewModel.RequestClose -= OnViewModelRequestClose;
         _viewModel.RequestOpenSettings -= OnViewModelRequestOpenSettings;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;

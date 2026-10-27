@@ -172,14 +172,6 @@ public sealed partial class SettingsWindow
         FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.StackPanel>("About", "AboutSection")!;
     private global::Microsoft.UI.Xaml.Controls.Grid AboutInfoGrid =>
         FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.Grid>("About", "AboutInfoGrid")!;
-    private global::Microsoft.UI.Xaml.Controls.StackPanel AboutRightPanel =>
-        FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.StackPanel>("About", "AboutRightPanel")!;
-    private global::Microsoft.UI.Xaml.Controls.StackPanel AboutInfoActionsPanel =>
-        FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.StackPanel>("About", "AboutInfoActionsPanel")!;
-    private global::Microsoft.UI.Xaml.Controls.Button AboutMeButton =>
-        FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.Button>("About", "AboutMeButton")!;
-    private global::Microsoft.UI.Xaml.Controls.Button AboutWebsiteButton =>
-        FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.Button>("About", "AboutWebsiteButton")!;
     private global::Microsoft.UI.Xaml.Controls.Button OneClickUpdateButton =>
         FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.Button>("About", "OneClickUpdateButton")!;
     private global::Microsoft.UI.Xaml.Controls.StackPanel UpdateCheckActionsPanel =>
@@ -190,8 +182,6 @@ public sealed partial class SettingsWindow
         FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.StackPanel>("About", "UpdateActionsPanel")!;
     private global::Microsoft.UI.Xaml.Controls.Button OpenManualUpdateDownloadButton =>
         FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.Button>("About", "OpenManualUpdateDownloadButton")!;
-    private global::Microsoft.UI.Xaml.Controls.Button StoreSupportButton =>
-        FindCreatedSectionElement<global::Microsoft.UI.Xaml.Controls.Button>("About", "StoreSupportButton")!;
     // P1-1 (incident 2026-09-30 §4): the cloud-backup PasswordBox is the one
     // deferred-section control the XAML compiler never references — it has no
     // x:Bind and no managed handler, so SettingsWindow.g.cs / XamlTypeInfo

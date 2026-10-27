@@ -1708,6 +1708,20 @@ Text="WinSticker" />
                                         OnContent=""
                                         IsOn="{x:Bind QuickPanelAutoPaste, Mode=TwoWay}" />
                                 </toolkit:SettingsCard>
+                                <toolkit:SettingsCard
+                                    svc:Localized.HeaderKey="Settings.QuickPanel.ShowTodoTab.Title"
+                                    svc:Localized.DescriptionKey="Settings.QuickPanel.ShowTodoTab.Description">
+                                    <ToggleSwitch svc:Localized.AutomationNameKey="Settings.QuickPanel.ShowTodoTab.Title"
+                                        MinWidth="0" OffContent="" OnContent=""
+                                        IsOn="{x:Bind QuickPanelShowTodoTab, Mode=TwoWay}" />
+                                </toolkit:SettingsCard>
+                                <toolkit:SettingsCard
+                                    svc:Localized.HeaderKey="Settings.QuickPanel.ShowNotesTab.Title"
+                                    svc:Localized.DescriptionKey="Settings.QuickPanel.ShowNotesTab.Description">
+                                    <ToggleSwitch svc:Localized.AutomationNameKey="Settings.QuickPanel.ShowNotesTab.Title"
+                                        MinWidth="0" OffContent="" OnContent=""
+                                        IsOn="{x:Bind QuickPanelShowNotesTab, Mode=TwoWay}" />
+                                </toolkit:SettingsCard>
                             </toolkit:SettingsExpander.Items>
                         </toolkit:SettingsExpander>
 
@@ -3288,40 +3302,6 @@ Text="WinSticker" />
                                             Style="{StaticResource SettingDescriptionTextStyle}"
                                             svc:Localized.Key="Settings.About.Description" />
                                     </StackPanel>
-                                    <StackPanel
-                                        x:Name="AboutRightPanel"
-                                        Grid.Column="2"
-                                        HorizontalAlignment="Right"
-                                        MaxWidth="300"
-                                        Spacing="6"
-                                        VerticalAlignment="Center">
-                                        <StackPanel
-                                            x:Name="AboutInfoActionsPanel"
-                                            HorizontalAlignment="Right"
-                                            Orientation="Horizontal"
-                                            Spacing="6">
-                                            <Button
-                                                x:Name="AboutMeButton"
-                                                Click="ShowAboutMeButton_Click"
-                                                Style="{StaticResource ActionButtonStyle}"
-                                                svc:Localized.ToolTipKey="Settings.About.AboutMeTitle">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon FontSize="16" Glyph="&#xE77B;" />
-                                                    <TextBlock svc:Localized.Key="Settings.About.AboutMeButton" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button
-                                                x:Name="AboutWebsiteButton"
-                                                Click="OpenWebsiteButton_Click"
-                                                Style="{StaticResource ActionButtonStyle}"
-                                                ToolTipService.ToolTip="{Binding OfficialWebsiteLink}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon FontSize="16" Glyph="&#xE774;" />
-                                                    <TextBlock svc:Localized.Key="Settings.About.Website" />
-                                                </StackPanel>
-                                            </Button>
-                                        </StackPanel>
-                                    </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </toolkit:SettingsCard>
@@ -3471,57 +3451,6 @@ Text="WinSticker" />
                             </toolkit:SettingsExpander.Items>
                         </toolkit:SettingsExpander>
 
-                        <toolkit:SettingsCard
-                            HorizontalContentAlignment="Right"
-                            svc:Localized.DescriptionKey="Settings.About.FeedbackDescription"
-                            svc:Localized.HeaderKey="Settings.About.FeedbackTitle"
-                            svc:InfoTip.TitleKey="Settings.About.FeedbackDescription.InfoTip.Title"
-                            svc:InfoTip.BodyKey="Settings.About.FeedbackDescription.InfoTip.Description">
-                            <toolkit:SettingsCard.HeaderIcon>
-                                <FontIcon Glyph="&#xE715;" />
-                            </toolkit:SettingsCard.HeaderIcon>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button
-                                    x:Name="ShowFeedbackDialogButton"
-                                    Click="ShowFeedbackDialogButton_Click"
-                                    Style="{StaticResource AccentActionButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon FontSize="16" Glyph="&#xE715;" />
-                                        <TextBlock svc:Localized.Key="Settings.About.FeedbackSendButton" />
-                                    </StackPanel>
-                                </Button>
-                                <Button
-                                    x:Name="ShowMyFeedbackButton"
-                                    Click="ShowMyFeedbackButton_Click"
-                                    Style="{StaticResource ActionButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon FontSize="16" Glyph="&#xE8A5;" />
-                                        <TextBlock svc:Localized.Key="Settings.About.FeedbackMineButton" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </toolkit:SettingsCard>
-
-                        <toolkit:SettingsCard
-                            HorizontalContentAlignment="Right"
-                            svc:Localized.DescriptionKey="Settings.About.StoreSupportDescription"
-                            svc:Localized.HeaderKey="Settings.About.StoreSupportTitle"
-                            Visibility="{Binding StoreSupportCardVisibility}">
-                            <toolkit:SettingsCard.HeaderIcon>
-                                <FontIcon Glyph="&#xE719;" />
-                            </toolkit:SettingsCard.HeaderIcon>
-                            <Button
-                                x:Name="StoreSupportButton"
-                                Click="ShowStoreSupportDialogButton_Click"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource ActionButtonStyle}"
-                                svc:Localized.ToolTipKey="Settings.About.StoreSupportDescription">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon FontSize="16" Glyph="&#xE719;" />
-                                    <TextBlock svc:Localized.Key="Settings.About.StoreSupportButton" />
-                                </StackPanel>
-                            </Button>
-                        </toolkit:SettingsCard>
                     </StackPanel>
                 </StackPanel>
                     </DataTemplate>
@@ -3669,222 +3598,6 @@ Text="WinSticker" />
                 </ScrollViewer>
             </Grid>
         </NavigationView>
-
-        <ContentDialog
-            x:Name="AboutMeDialog"
-            Grid.RowSpan="2"
-            DefaultButton="Close">
-            <ScrollViewer
-                MaxHeight="520"
-                HorizontalScrollBarVisibility="Disabled"
-                HorizontalScrollMode="Disabled"
-                VerticalScrollBarVisibility="Auto"
-                VerticalScrollMode="Auto">
-                <StackPanel
-                    Width="500"
-                    MaxWidth="500"
-                    Spacing="18">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
-                        <Image
-                            Width="46"
-                            Height="46"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-                            <Image.Source>
-                                <media:SvgImageSource UriSource="ms-appx:///Assets/winsticker.svg" />
-                            </Image.Source>
-                        </Image>
-                        <StackPanel
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Spacing="3">
-                            <TextBlock
-                                FontSize="20"
-                                FontWeight="SemiBold"
-                                svc:Localized.Key="Settings.Dialog.AboutMeName" />
-                            <TextBlock
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                TextWrapping="Wrap"
-                                svc:Localized.Key="Settings.Dialog.AboutMeRole" />
-                        </StackPanel>
-                    </Grid>
-
-                    <StackPanel Spacing="12">
-                        <TextBlock
-                            LineHeight="23"
-                            TextWrapping="WrapWholeWords"
-                            svc:Localized.Key="Settings.Dialog.AboutMeP1" />
-                        <TextBlock
-                            LineHeight="23"
-                            TextWrapping="WrapWholeWords"
-                            svc:Localized.Key="Settings.Dialog.AboutMeP2" />
-                    </StackPanel>
-
-                    <Border
-                        Padding="14"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{StaticResource SettingsCardCornerRadius}">
-                        <Grid ColumnDefinitions="112,*" ColumnSpacing="16">
-                            <Border
-                                Width="112"
-                                Height="112"
-                                Padding="6"
-                                Background="White"
-                                CornerRadius="{StaticResource SettingsCardCornerRadius}"
-                                Visibility="{Binding DonationQrCodeVisibility}">
-                                <Image
-                                    Source="ms-appx:///Assets/wechat-qrcode.jpg"
-                                    Stretch="Uniform" />
-                            </Border>
-                            <StackPanel
-                                Grid.Column="1"
-                                VerticalAlignment="Center"
-                                Spacing="6">
-                                <TextBlock
-                                    FontSize="15"
-                                    FontWeight="SemiBold"
-                                    svc:Localized.Key="Settings.About.WechatTitle" />
-                                <TextBlock
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    LineHeight="21"
-                                    TextWrapping="WrapWholeWords"
-                                    svc:Localized.Key="Settings.About.WechatDescription" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
-        </ContentDialog>
-
-        <ContentDialog
-            x:Name="SupportWinStickerDialog"
-            Grid.RowSpan="2"
-            DefaultButton="Close">
-            <ScrollViewer
-                MaxHeight="560"
-                HorizontalScrollBarVisibility="Disabled"
-                HorizontalScrollMode="Disabled"
-                VerticalScrollBarVisibility="Auto"
-                VerticalScrollMode="Auto">
-                <StackPanel
-                    x:Name="SupportDialogContent"
-                    Width="480"
-                    MaxWidth="480"
-                    Spacing="14">
-                        <StackPanel Spacing="8">
-                            <TextBlock
-                                LineHeight="22"
-                                TextWrapping="WrapWholeWords"
-                                svc:Localized.Key="Settings.Dialog.SupportP1" />
-                            <TextBlock
-                                LineHeight="22"
-                                TextWrapping="WrapWholeWords"
-                                svc:Localized.Key="Settings.Dialog.SupportP2" />
-                        </StackPanel>
-
-                        <InfoBar
-                            x:Name="AboutStoreNoticeInfoBar"
-                            IsClosable="False"
-                            IsIconVisible="True"
-                            IsOpen="True"
-                            Severity="Informational"
-                            svc:Localized.DescriptionKey="Settings.Dialog.SupportStoreDescription"
-                            svc:Localized.HeaderKey="Settings.About.Channel.Store">
-                            <InfoBar.ActionButton>
-                                <Button
-                                    Click="OpenMicrosoftStoreButton_Click"
-                                    Padding="12,5,12,7"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource ActionButtonStyle}"
-                                    ToolTipService.ToolTip="{Binding MicrosoftStoreLink}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon FontSize="16" Glyph="&#xE719;" />
-                                        <TextBlock FontSize="13" svc:Localized.Key="Settings.Dialog.SupportStoreButton" />
-                                    </StackPanel>
-                                </Button>
-                            </InfoBar.ActionButton>
-                        </InfoBar>
-
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                            <Border
-                                Padding="8"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{StaticResource SettingsCardCornerRadius}">
-                                <StackPanel HorizontalAlignment="Center" Spacing="6">
-                                    <Border
-                                        Visibility="{Binding DonationQrCodeVisibility}"
-                                        x:Name="WechatSupportQrContainer"
-                                        Width="108"
-                                        Height="108"
-                                        Padding="4"
-                                        Background="White"
-                                        CornerRadius="{StaticResource SettingsCardCornerRadius}">
-                                        <Image
-                                            AutomationProperties.LabeledBy="{Binding ElementName=WechatSupportLabel}"
-                                            Source="ms-appx:///Assets/Support/support-wechat.png"
-                                            Stretch="Uniform" />
-                                    </Border>
-                                    <TextBlock
-                                        x:Name="WechatSupportLabel"
-                                        HorizontalAlignment="Center"
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        svc:Localized.Key="Settings.Dialog.SupportWechat" />
-                                </StackPanel>
-                            </Border>
-                            <Border
-                                Grid.Column="1"
-                                Padding="8"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{StaticResource SettingsCardCornerRadius}">
-                                <StackPanel HorizontalAlignment="Center" Spacing="6">
-                                    <Border
-                                        Visibility="{Binding DonationQrCodeVisibility}"
-                                        x:Name="AlipaySupportQrContainer"
-                                        Width="108"
-                                        Height="108"
-                                        Padding="4"
-                                        Background="White"
-                                        CornerRadius="{StaticResource SettingsCardCornerRadius}">
-                                        <Image
-                                            AutomationProperties.LabeledBy="{Binding ElementName=AlipaySupportLabel}"
-                                            Source="ms-appx:///Assets/Support/support-alipay.png"
-                                            Stretch="Uniform" />
-                                    </Border>
-                                    <TextBlock
-                                        x:Name="AlipaySupportLabel"
-                                        HorizontalAlignment="Center"
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        svc:Localized.Key="Settings.Dialog.SupportAlipay" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-
-                        <StackPanel Spacing="4">
-                            <TextBlock
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                FontSize="12"
-                                LineHeight="18"
-                                TextWrapping="WrapWholeWords"
-                                svc:Localized.Key="Settings.Dialog.SupportQrDescription" />
-                            <TextBlock
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                FontSize="12"
-                                LineHeight="18"
-                                TextWrapping="WrapWholeWords"
-                                svc:Localized.Key="Settings.Dialog.SupportP3" />
-                        </StackPanel>
-
-                    </StackPanel>
-            </ScrollViewer>
-        </ContentDialog>
 
         <!-- Floating update-activity card (bottom-right, the PowerToys
              pattern): appears while an update story is live — available,

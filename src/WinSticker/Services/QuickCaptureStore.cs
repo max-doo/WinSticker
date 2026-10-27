@@ -131,11 +131,13 @@ public sealed class QuickCaptureStore
         var liveRecentItems = data.RecentItems
             .Where(item => IsValidItem(item) && !item.IsDeleted)
             .GroupBy(GetDeduplicationKey, StringComparer.Ordinal)
-            .Select(group => group.OrderBy(item => item.SortOrder).ThenByDescending(item => item.UpdatedAt).First())
+            .Select(group => group.OrderByDescending(item => item.IsPinned).ThenBy(item => item.SortOrder).ThenByDescending(item => item.UpdatedAt).First())
             .OrderBy(item => item.SortOrder)
             .ThenByDescending(item => item.UpdatedAt)
-            .Take(QuickCaptureService.MaxRecentLimit)
             .ToList();
+        liveRecentItems = liveRecentItems.Where(item => item.IsPinned)
+            .Concat(liveRecentItems.Where(item => !item.IsPinned).Take(QuickCaptureService.MaxRecentLimit))
+            .OrderBy(item => item.SortOrder).ToList();
         var tombstoneRecentItems = data.RecentItems
             .Where(item => item is not null && item.IsDeleted)
             .GroupBy(item => item.Id, StringComparer.Ordinal)
@@ -176,11 +178,13 @@ public sealed class QuickCaptureStore
         var liveRecentItems = data.RecentItems
             .Where(item => IsValidItem(item) && !item.IsDeleted)
             .GroupBy(GetDeduplicationKey, StringComparer.Ordinal)
-            .Select(group => group.OrderBy(item => item.SortOrder).ThenByDescending(item => item.UpdatedAt).First())
+            .Select(group => group.OrderByDescending(item => item.IsPinned).ThenBy(item => item.SortOrder).ThenByDescending(item => item.UpdatedAt).First())
             .OrderBy(item => item.SortOrder)
             .ThenByDescending(item => item.UpdatedAt)
-            .Take(QuickCaptureService.MaxRecentLimit)
             .ToList();
+        liveRecentItems = liveRecentItems.Where(item => item.IsPinned)
+            .Concat(liveRecentItems.Where(item => !item.IsPinned).Take(QuickCaptureService.MaxRecentLimit))
+            .OrderBy(item => item.SortOrder).ToList();
         var tombstoneRecentItems = data.RecentItems
             .Where(item => item is not null && item.IsDeleted)
             .GroupBy(item => item.Id, StringComparer.Ordinal)

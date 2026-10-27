@@ -155,8 +155,10 @@ public sealed class QuickPanelHotkeyService : IDisposable
         if (message == GlobalHotkeyService.WmHotkey &&
             wParam.ToUInt32() == QuickPanelHotkeyId)
         {
-            Win32Helper.ReleaseAllModifiers();
-            WinSticker.Platform.UiDispatch.RunOrDefer(() => _ = InvokeAsync());
+            // Keep the physical chord intact until the user releases it. A
+            // synthetic Alt-up makes held Space repeats look like typing to
+            // the non-activating panel and can immediately dismiss it.
+            WinSticker.Platform.UiDispatch.PostAfterCallback(() => _ = InvokeAsync());
             return IntPtr.Zero;
         }
 

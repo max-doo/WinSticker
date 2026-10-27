@@ -72,6 +72,10 @@ private void OnLanguageChanged()
             SelectedLanguage = LocalizationService.NormalizeLanguageSetting(settings.Language);
             AutoCheckForUpdates = settings.AutoCheckForUpdates;
             SilentStartup = settings.SilentStartup;
+            OnPropertyChanged(nameof(QuickPanelHotkeyEnabled));
+            OnPropertyChanged(nameof(QuickPanelAutoPaste));
+            OnPropertyChanged(nameof(QuickPanelShowTodoTab));
+            OnPropertyChanged(nameof(QuickPanelShowNotesTab));
             ShowHoverButtons = settings.ShowHoverButtons;
             ApplyHoverButtonActionSelection(settings.WidgetHoverButtonActions);
 

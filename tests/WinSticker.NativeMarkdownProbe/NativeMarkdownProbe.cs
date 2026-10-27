@@ -140,6 +140,19 @@ public partial class App
                 live.Text = sample;
                 await live.PresentationForProbe;
                 await Task.Delay(200);
+                string linkProbePath = Path.Combine(WinStickerDataPathService.Current.RootPath, "link-hint-probe.txt");
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    await File.WriteAllTextAsync(linkProbePath, $"opening {attempt}");
+                    live.ShowLinkHintForProbe();
+                    if (!live.IsLinkHintOpenForProbe) throw new InvalidOperationException("Link hint failed to open.");
+                    await Task.Delay(200);
+                    await File.WriteAllTextAsync(linkProbePath, $"closing {attempt}");
+                    live.ClearLinkHintForProbe();
+                    if (live.IsLinkHintOpenForProbe) throw new InvalidOperationException("Link hint failed to close.");
+                    await Task.Delay(100);
+                }
+                await File.WriteAllTextAsync(linkProbePath, "completed");
                 live.FocusEditor();
                 var native = live.NativeEditorForProbe;
                 native.Document.Selection.SetRange(sample.Length - 2, sample.Length - 2);

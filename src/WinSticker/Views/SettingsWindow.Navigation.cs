@@ -1366,7 +1366,6 @@ public sealed partial class SettingsWindow
         ApplyNoticeMessageTypography(CloudBackupSyncNoticeInfoBar);
         ApplyNoticeMessageTypography(GlobalHotkeyElevatedNoticeInfoBar);
         ApplyNoticeMessageTypography(Windows10CompatibilityInfoBar);
-        ApplyNoticeMessageTypography(AboutStoreNoticeInfoBar);
         ApplyNoticeMessageTypography(MusicSmtcNoticeInfoBar);
         ApplyNoticeMessageTypography(StoreUninstallDataNoticeInfoBar);
     }

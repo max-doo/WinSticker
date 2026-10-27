@@ -350,6 +350,8 @@ public sealed class SettingsSliceContractBaselineTests
         "quickPanelHotkeyKey",
         "quickPanelDefaultTab",
         "quickPanelAutoPaste",
+        "quickPanelShowTodoTab",
+        "quickPanelShowNotesTab",
         "desktopDoubleClickEnabled",
         "hasCompletedOnboarding",
         "onboardingStepIndex",

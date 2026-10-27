@@ -1,16 +1,31 @@
-<?xml version="1.0" encoding="utf-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
   <defs>
-    <linearGradient id="surface" x1="3" y1="3" x2="17" y2="17" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#38BDF8" />
-      <stop offset="1" stop-color="#2563EB" />
+    <!-- 左臂（深翡翠绿渐变，越靠近交界折痕越深） -->
+    <linearGradient id="ic_fluent_todo_left" x1="2.3" y1="6.87" x2="8.85" y2="15.72" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#059669"/>
+      <stop offset="0.7" stop-color="#064E3B"/>
+      <stop offset="1" stop-color="#022C22"/>
     </linearGradient>
-    <linearGradient id="accent" x1="4" y1="4" x2="8" y2="16" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#60A5FA" />
-      <stop offset="1" stop-color="#1D4ED8" />
+
+    <!-- 右臂（明亮活力青翠绿渐变） -->
+    <linearGradient id="ic_fluent_todo_right" x1="7.88" y1="15.72" x2="17.7" y2="3.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#059669"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+
+    <!-- 折痕微投影 -->
+    <linearGradient id="ic_fluent_todo_crease_shadow" x1="5.57" y1="12.45" x2="4.0" y2="10.88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect x="2.5" y="2.5" width="15" height="15" rx="3.5" fill="url(#surface)" />
-  <path d="m4.85 6.25.9.9 1.65-1.8m-2.55 5.4.9.9 1.65-1.8m-2.55 5.4.9.9 1.65-1.8" fill="none" stroke="url(#accent)" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" />
-  <path d="M9.25 6.25h5.5m-5.5 4.5h5.5m-5.5 4.5h5.5" fill="none" stroke="#FFFFFF" stroke-opacity=".92" stroke-width="1.5" stroke-linecap="round" />
+
+  <!-- 左臂（背底） -->
+  <path d="M2.3 9.18 L4.61 6.87 A0.68 0.68 0 0 1 5.57 6.87 L11.15 12.45 A0.68 0.68 0 0 1 11.15 13.42 L8.85 15.72 A0.68 0.68 0 0 1 7.88 15.72 L2.3 10.14 A0.68 0.68 0 0 1 2.3 9.18 Z" fill="url(#ic_fluent_todo_left)"/>
+
+  <!-- 折痕投影层（增强 Fluent 3D 折带穿插感） -->
+  <path d="M5.57 12.45 L7.88 15.72 L6.2 15.72 L3.89 12.45 Z" fill="url(#ic_fluent_todo_crease_shadow)"/>
+
+  <!-- 右臂（前景高亮折带） -->
+  <path d="M15.39 3.6 L17.7 5.91 A0.68 0.68 0 0 1 17.7 6.87 L8.85 15.72 A0.68 0.68 0 0 1 7.88 15.72 L5.57 13.42 A0.68 0.68 0 0 1 5.57 12.45 L14.42 3.6 A0.68 0.68 0 0 1 15.39 3.6 Z" fill="url(#ic_fluent_todo_right)"/>
 </svg>

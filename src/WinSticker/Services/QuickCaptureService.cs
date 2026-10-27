@@ -296,7 +296,8 @@ public sealed class QuickCaptureService
                 return null;
             }
 
-            _data.RecentItems.RemoveAll(item => string.Equals(item.Body, normalizedBody, StringComparison.Ordinal));
+            var existingPinned = _data.RecentItems.FirstOrDefault(item => !item.IsDeleted && item.IsPinned && string.Equals(item.Body, normalizedBody, StringComparison.Ordinal));
+            _data.RecentItems.RemoveAll(item => !item.IsDeleted && string.Equals(item.Body, normalizedBody, StringComparison.Ordinal));
             var now = DateTimeOffset.UtcNow;
             var item = new QuickCaptureItem
             {
@@ -310,6 +311,13 @@ public sealed class QuickCaptureService
                 CreatedAt = now,
                 UpdatedAt = now
             };
+
+            if (existingPinned is not null)
+            {
+                item = existingPinned;
+                item.SortOrder = 0;
+                item.UpdatedAt = now;
+            }
 
             foreach (var existing in _data.RecentItems)
             {
@@ -348,7 +356,8 @@ public sealed class QuickCaptureService
             }
 
             string imagePath = await SaveImageAsync(imagePngBytes, contentHash);
-            _data.RecentItems.RemoveAll(item => string.Equals(item.ContentHash, contentHash, StringComparison.Ordinal));
+            var existingPinned = _data.RecentItems.FirstOrDefault(item => !item.IsDeleted && item.IsPinned && string.Equals(item.ContentHash, contentHash, StringComparison.Ordinal));
+            _data.RecentItems.RemoveAll(item => !item.IsDeleted && string.Equals(item.ContentHash, contentHash, StringComparison.Ordinal));
             var now = DateTimeOffset.UtcNow;
             var item = new QuickCaptureItem
             {
@@ -364,6 +373,13 @@ public sealed class QuickCaptureService
                 CreatedAt = now,
                 UpdatedAt = now
             };
+
+            if (existingPinned is not null)
+            {
+                item = existingPinned;
+                item.SortOrder = 0;
+                item.UpdatedAt = now;
+            }
 
             foreach (var existing in _data.RecentItems)
             {
@@ -525,6 +541,22 @@ public sealed class QuickCaptureService
         {
             _gate.Release();
         }
+    }
+
+    public async Task<bool> SetRecentPinnedAsync(string itemId, bool isPinned)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            await EnsureLoadedCoreAsync();
+            var item = _data!.RecentItems.FirstOrDefault(entry => entry.Id == itemId && !entry.IsDeleted);
+            if (item is null || item.IsPinned == isPinned) return false;
+            item.IsPinned = isPinned;
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            await SaveHostCoreAsync(kind: QuickCaptureChangeKind.ClipboardChanged);
+            return true;
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<bool> SetPinnedAsync(string itemId, bool isPinned)
@@ -1120,7 +1152,7 @@ public sealed class QuickCaptureService
             await EnsureLoadedCoreAsync();
             var clearedAt = DateTimeOffset.UtcNow;
             _data!.RecentItems = _data.RecentItems
-                .Select(item => item.IsDeleted ? item : CreateTombstoneStub(item, clearedAt, isRecent: true, isNote: false))
+                .Select(item => item.IsDeleted || item.IsPinned ? item : CreateTombstoneStub(item, clearedAt, isRecent: true, isNote: false))
                 .ToList();
             await SaveHostCoreAsync(kind: QuickCaptureChangeKind.ClipboardChanged);
             CleanupUnusedImageCacheCore();
@@ -2130,8 +2162,10 @@ public sealed class QuickCaptureService
                             (item.Type == QuickCaptureItemType.Image && !string.IsNullOrWhiteSpace(item.ImagePath))))
             .OrderBy(item => item.SortOrder)
             .ThenByDescending(item => item.UpdatedAt)
-            .Take(maxRecentItems)
             .ToList();
+        liveItems = liveItems.Where(item => item.IsPinned)
+            .Concat(liveItems.Where(item => !item.IsPinned).Take(maxRecentItems))
+            .OrderBy(item => item.SortOrder).ToList();
         var tombstoneItems = _data.RecentItems
             .Where(item => item is not null && item.IsDeleted)
             .GroupBy(item => item.Id, StringComparer.Ordinal)

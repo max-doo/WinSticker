@@ -114,6 +114,12 @@ public sealed class CoreSettingsSlice
     /// <summary>Whether selecting a clipboard item automatically pastes it into the previously active window.</summary>
     public bool QuickPanelAutoPaste { get; set; } = true;
 
+    /// <summary>Whether the quick panel displays its Todo tab.</summary>
+    public bool QuickPanelShowTodoTab { get; set; } = true;
+
+    /// <summary>Whether the quick panel displays its Notes tab.</summary>
+    public bool QuickPanelShowNotesTab { get; set; } = true;
+
     /// <summary>Whether double-clicking blank desktop space toggles all widgets.</summary>
     public bool DesktopDoubleClickEnabled { get; set; }
 

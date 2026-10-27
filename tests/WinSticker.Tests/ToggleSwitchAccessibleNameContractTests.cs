@@ -14,7 +14,7 @@ public sealed class ToggleSwitchAccessibleNameContractTests
 {
     public static TheoryData<string, int> ToggleSwitchHostFiles => new()
     {
-        { "src/WinSticker/Views/SettingsWindow.xaml", 53 },
+        { "src/WinSticker/Views/SettingsWindow.xaml", 55 },
         { "src/WinSticker/Views/SettingsSections/SearchSettingsSection.xaml", 4 },
         { "src/WinSticker/Views/SettingsSections/GlanceWidgetSettingsSection.xaml", 3 },
         { "src/WinSticker/Views/SettingsSections/FileWidgetSettingsSection.xaml", 1 },

@@ -73,30 +73,50 @@
             </Grid.RenderTransform>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/> <!-- Title / Window Header -->
-                <RowDefinition Height="Auto"/> <!-- Main Navigation Tabs (剪贴板, 待办, 便签) -->
                 <RowDefinition Height="*"/>    <!-- Active View Host -->
                 <RowDefinition Height="Auto"/> <!-- Toast / Status Message -->
             </Grid.RowDefinitions>
 
             <!-- Window Header -->
-            <Grid x:Name="HeaderGrid" Grid.Row="0" Background="Transparent"
-                  PointerPressed="Header_PointerPressed"
-                  PointerMoved="Header_PointerMoved"
-                  PointerReleased="Header_PointerReleased"
-                  PointerCaptureLost="Header_PointerCaptureLost">
+            <Grid x:Name="HeaderGrid" Grid.Row="0" Background="Transparent">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- App Icon & Title -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Image Width="20" Height="20"
-                           Source="/Assets/WidgetTitleIcons/quick-panel.svg"
-                           VerticalAlignment="Center"/>
-                    <TextBlock Text="快捷面板" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                </StackPanel>
+                <toolkit:Segmented
+                    x:Name="MainTabSegmented"
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    SelectedIndex="0"
+                    SelectionChanged="MainTabSegmented_SelectionChanged">
+                    <toolkit:SegmentedItem x:Name="ClipboardTabItem" Tag="Clipboard" MinWidth="0" MinHeight="32" Padding="8,0" AutomationProperties.Name="剪贴板">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Image Width="18" Height="18" Source="/Assets/WidgetTitleIcons/quick-panel.svg" AutomationProperties.AccessibilityView="Raw"/>
+                            <TextBlock Text="剪贴板" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </toolkit:SegmentedItem>
+                    <toolkit:SegmentedItem x:Name="TodoTabItem" Tag="Todo" MinWidth="0" MinHeight="32" Padding="8,0" AutomationProperties.Name="待办">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Image Width="18" Height="18" Source="/Assets/WidgetTitleIcons/todo.svg" AutomationProperties.AccessibilityView="Raw"/>
+                            <TextBlock Text="待办" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </toolkit:SegmentedItem>
+                    <toolkit:SegmentedItem x:Name="NotesTabItem" Tag="Notes" MinWidth="0" MinHeight="32" Padding="8,0" AutomationProperties.Name="便签">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Image Width="18" Height="18" Source="/Assets/WidgetTitleIcons/quick-capture.svg" AutomationProperties.AccessibilityView="Raw"/>
+                            <TextBlock Text="便签" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </toolkit:SegmentedItem>
+                </toolkit:Segmented>
+
+                <!-- Only the blank space between tabs and actions starts a window drag. -->
+                <Border x:Name="HeaderDragRegion" Grid.Column="1" MinWidth="48" Background="Transparent"
+                        PointerPressed="Header_PointerPressed"
+                        PointerMoved="Header_PointerMoved"
+                        PointerReleased="Header_PointerReleased"
+                        PointerCaptureLost="Header_PointerCaptureLost"/>
 
                 <!-- Header Actions: Pin, Settings, Close (excluded from the
                      native caption drag region) -->
@@ -129,22 +149,10 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Main Tab Bar -->
-            <toolkit:Segmented
-                x:Name="MainTabSegmented"
-                Grid.Row="1"
-                HorizontalAlignment="Stretch"
-                SelectedIndex="0"
-                SelectionChanged="MainTabSegmented_SelectionChanged">
-                <toolkit:SegmentedItem Content="剪贴板" Tag="Clipboard"/>
-                <toolkit:SegmentedItem Content="待办" Tag="Todo"/>
-                <toolkit:SegmentedItem Content="便签" Tag="Notes"/>
-            </toolkit:Segmented>
-
             <!-- View Presenter: the Todo tab hosts the SAME TodoWidgetContent
                  component used by the desktop widget (one todo UI codebase;
                  both instances stay in sync through TodoRepository). -->
-            <Grid Grid.Row="2">
+            <Grid Grid.Row="1">
                 <controls:QuickPanelClipboardView x:Name="ClipboardView" Visibility="Visible"/>
                 <ContentPresenter x:Name="TodoViewHost" Visibility="Collapsed"/>
                 <controls:QuickPanelNotesView x:Name="NotesView" Visibility="Collapsed"/>
@@ -153,7 +161,7 @@
             <!-- Toast / Feedback Banner -->
             <InfoBar
                 x:Name="StatusInfoBar"
-                Grid.Row="3"
+                Grid.Row="2"
                 IsOpen="False"
                 Severity="Informational"
                 IsClosable="True"/>
