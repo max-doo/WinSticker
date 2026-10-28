@@ -52,7 +52,7 @@
                          TextChanged="TitleEditor_TextChanged"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
                     <Button x:Name="FavoriteButton" Width="30" Height="30" Padding="6" Style="{StaticResource SubtleButtonStyle}" Click="FavoriteButton_Click">
-                        <controls:PinStateIcon x:Name="FavoriteIcon" Width="14" Height="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        <controls:PinStateIcon x:Name="FavoriteIcon" Width="14" Height="14" IsFavoriteStyle="True" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     </Button>
                     <Button x:Name="ColorButton" Width="30" Height="30" Padding="6" Style="{StaticResource SubtleButtonStyle}">
                         <FontIcon FontSize="14" Glyph="&#xE790;"/>

@@ -315,7 +315,7 @@
                                                 Style="{StaticResource WidgetCompactIconButtonStyle}"
                                                 Tag="{Binding}"
                                                 ToolTipService.ToolTip="{Binding PinTooltip}">
-                                                <controls:PinStateIcon Width="13" Height="13" IsPinned="{Binding IsPinned}" Opacity="0.82" />
+                                                <controls:PinStateIcon Width="13" Height="13" IsPinned="{Binding IsPinned}" IsFavoriteStyle="{Binding IsFavoriteNote}" Opacity="0.82" />
                                             </Button>
                                         </StackPanel>
                                     </Border>

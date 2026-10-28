@@ -46,17 +46,17 @@ public sealed partial class QuickPanelViewModel
             QuickCaptureStoreData data = await _quickCaptureService.GetDataAsync();
             var items = new List<QuickCaptureItem>();
 
-            // RecentItems represents clipboard captures; Pinned items are in Items.Where(i => i.IsPinned).
+            // RecentItems contains clipboard captures, including their favorites.
             if (data.RecentItems is { Count: > 0 })
             {
                 items.AddRange(data.RecentItems.Where(item => !item.IsDeleted));
             }
 
-            // Also check for pinned records in Items
+            // Keep older pinned non-note records without mixing in favorite notes.
             if (data.Items is { Count: > 0 })
             {
                 var ids = items.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-                foreach (var item in data.Items.Where(i => i.IsPinned && !i.IsDeleted))
+                foreach (var item in data.Items.Where(i => i.IsPinned && !i.IsDeleted && !NoteWorkspace.IsNote(i)))
                 {
                     if (ids.Add(item.Id))
                     {

@@ -170,7 +170,7 @@ public sealed class QuickPanelViewModelTests
     }
 
     [Fact]
-    public async Task ClipboardRefresh_EditedPinnedRecordReplacesOnlyChangedRow()
+    public async Task ClipboardFavorites_ExcludeFavoriteNotesAndKeepClipboardFavorites()
     {
         string testDir = Path.Combine(Path.GetTempPath(), "winsticker-test-qp-edit-" + Guid.NewGuid().ToString("N"));
         try
@@ -178,19 +178,17 @@ public sealed class QuickPanelViewModelTests
             var (vm, quickCapture, _) = CreateTestEnvironment(testDir);
             using (vm)
             {
-                var record = await quickCapture.AddDetailedItemAsync(null, "before edit", QuickCaptureAppearancePreset.Default, pin: true);
-                await quickCapture.AddRecentClipboardItemAsync("unchanged capture", 20);
-                await vm.LoadClipboardHistoryAsync();
-                var unchanged = vm.FilteredClipboardItems.Single(item => item.IsRecent);
-                var changes = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
-                vm.FilteredClipboardItems.CollectionChanged += (_, args) => changes.Add(args.Action);
-
-                Assert.True(await quickCapture.UpdateItemAsync(record.Id, "after edit"));
+                var note = await quickCapture.AddDetailedItemAsync(null, "favorite note", QuickCaptureAppearancePreset.Default, pin: true);
+                var favorite = await quickCapture.AddRecentClipboardItemAsync("favorite clipboard", 20);
+                Assert.True(await quickCapture.SetRecentPinnedAsync(favorite!.Id, true));
+                await quickCapture.AddRecentClipboardItemAsync("ordinary clipboard", 20);
                 await vm.LoadClipboardHistoryAsync();
 
-                Assert.Equal("after edit", vm.FilteredClipboardItems.Single(item => item.Id == record.Id).Body);
-                Assert.Same(unchanged, vm.FilteredClipboardItems.Single(item => item.Id == unchanged.Id));
-                Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Replace], changes);
+                Assert.DoesNotContain(vm.FilteredClipboardItems, item => item.Id == note.Id);
+                Assert.Equal(2, vm.FilteredClipboardItems.Count);
+                vm.SetClipboardFilter(QuickPanelFilter.Favorites);
+                Assert.Equal(favorite.Id, Assert.Single(vm.FilteredClipboardItems).Id);
+                Assert.True((await quickCapture.GetDataAsync()).Items.Single(item => item.Id == note.Id).IsPinned);
             }
         }
         finally { try { Directory.Delete(testDir, recursive: true); } catch { } }

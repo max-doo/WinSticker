@@ -113,6 +113,8 @@ public sealed partial class QuickCaptureItemViewModel : ObservableObject
 
     public bool IsPinned => _model.IsPinned;
 
+    public bool IsFavoriteNote => NoteWorkspace.IsNote(_model);
+
     public bool IsRecent => _model.IsRecent;
 
     public QuickCaptureAppearancePreset AppearancePreset => _model.AppearancePreset;
@@ -285,6 +287,12 @@ public sealed partial class QuickCaptureItemViewModel : ObservableObject
         if (old.IsRecent != model.IsRecent)
         {
             OnPropertyChanged(nameof(IsRecent));
+        }
+
+        if (NoteWorkspace.IsNote(old) != NoteWorkspace.IsNote(model))
+        {
+            OnPropertyChanged(nameof(IsFavoriteNote));
+            OnPropertyChanged(nameof(PinTooltip));
         }
 
         if (old.Type != model.Type)

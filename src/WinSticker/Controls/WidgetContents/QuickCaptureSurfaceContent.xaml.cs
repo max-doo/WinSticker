@@ -9,6 +9,7 @@ using System.Globalization;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -991,6 +992,9 @@ public sealed partial class QuickCaptureSurfaceContent :
             "QuickCapture.Detail.Created",
             item.ToModel().CreatedAt.ToLocalTime().ToString("yyyy/M/d HH:mm"));
         DetailPinIcon.IsPinned = item.IsPinned;
+        DetailPinIcon.IsFavoriteStyle = item.IsFavoriteNote;
+        ToolTipService.SetToolTip(DetailPinButton, item.PinTooltip);
+        AutomationProperties.SetName(DetailPinButton, item.PinTooltip);
         RefreshDetailAttachments();
         ApplyDetailMaterialSurface();
         foreach (QuickCaptureItemViewModel candidate in ViewModel.Items)
@@ -1478,6 +1482,8 @@ public sealed partial class QuickCaptureSurfaceContent :
             {
                 _detailItem = refreshed;
                 DetailPinIcon.IsPinned = refreshed.IsPinned;
+                ToolTipService.SetToolTip(DetailPinButton, refreshed.PinTooltip);
+                AutomationProperties.SetName(DetailPinButton, refreshed.PinTooltip);
                 foreach (QuickCaptureItemViewModel candidate in ViewModel.Items)
                 {
                     candidate.IsDetailSelected = candidate.Id == refreshed.Id;
@@ -1888,7 +1894,7 @@ public sealed partial class QuickCaptureSurfaceContent :
         if (changed)
         {
             RaiseFeedback(
-                T(willPin
+                T(item.IsFavoriteNote ? (willPin ? "Notes.Favorite" : "Notes.Unfavorite") : willPin
                     ? "QuickCapture.PinnedSuccess"
                     : "QuickCapture.UnpinnedSuccess"),
                 WidgetFeedbackSeverity.Success,
