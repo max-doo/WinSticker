@@ -189,7 +189,7 @@ public sealed partial class QuickPanelViewModel
     {
         if (item is null || !item.IsRecent || item.Type == QuickCaptureItemType.Image) return;
         var saved = await _quickCaptureService.SaveRecentItemToRecordsAsync(item.Id, pin: false);
-        ShowToast(saved is null ? "保存失败，请重试" : "已保存为随记，剪贴板记录仍会保留");
+        ShowToast(saved is null ? "保存失败，请重试" : "已保存为便签，剪贴板记录仍会保留");
     }
 
     [RelayCommand]

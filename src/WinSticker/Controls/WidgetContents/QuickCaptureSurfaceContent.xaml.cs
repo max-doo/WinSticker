@@ -948,6 +948,15 @@ public sealed partial class QuickCaptureSurfaceContent :
         if (!await UnifiedNoteEditor.FlushAsync()) return;
         await FlushPendingDetailSaveAsync();
         if (_detailHasUnsavedChanges) return;
+
+        // A new note only ever belongs to the note list. Items is the view-filtered
+        // projection, so opening the detail from a Pinned/Recent tab or under an
+        // active search filter created the note without any row to open: the
+        // editor stayed closed and the blank note looked like a stray record.
+        // Reveal the note list first, then let the created row carry the detail.
+        RevealNoteListForNewNote();
+        await SwitchViewAsync(QuickCaptureViewMode.Records);
+
         var createdNote = await ViewModel.NoteService.CreateNoteAsync();
         await ViewModel.RefreshItemsAsync();
         if (ViewModel.Items.FirstOrDefault(item => item.Id == createdNote.Id) is { } createdModel)
@@ -957,6 +966,14 @@ public sealed partial class QuickCaptureSurfaceContent :
             ApplyResponsiveLayout();
             UnifiedNoteEditor.FocusBody();
         }
+    }
+
+    private void RevealNoteListForNewNote()
+    {
+        if (!ViewModel.HasSearchText) return;
+        // Collapsing also clears SearchText, so the fresh row is not filtered out.
+        ViewModel.CollapseSearch();
+        UpdateSelectedViewVisual();
     }
 
     private void OpenDetail(QuickCaptureItemViewModel item)

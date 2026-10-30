@@ -874,18 +874,40 @@ public sealed partial class TodoWidgetContent : UserControl
                 return;
             }
 
-            if (!await PlayDetailExitAnimationAsync(item))
+            if (!await ExitSinglePaneDetailAsync(item))
             {
                 return;
             }
 
-            ViewModel.CloseDetail();
-            ClearTodoListContainerSelection();
-            Focus(FocusState.Programmatic);
             if (finalizedItem is not null)
             {
                 TodoListView.ScrollIntoView(finalizedItem);
             }
+        }
+        finally
+        {
+            ResetDetailTransition();
+        }
+    }
+
+    private async Task<bool> ExitSinglePaneDetailAsync(TodoItemViewModel expectedItem)
+    {
+        if (_isDualPane)
+        {
+            return true;
+        }
+
+        try
+        {
+            if (!await PlayDetailExitAnimationAsync(expectedItem))
+            {
+                return false;
+            }
+
+            ViewModel?.CloseDetail();
+            ClearTodoListContainerSelection();
+            Focus(FocusState.Programmatic);
+            return true;
         }
         finally
         {
@@ -979,6 +1001,13 @@ public sealed partial class TodoWidgetContent : UserControl
                 }
 
                 savedItem = item;
+            }
+
+            if (!_isDualPane)
+            {
+                ViewModel?.CloseDetail();
+                ClearTodoListContainerSelection();
+                Focus(FocusState.Programmatic);
             }
 
             ApplyMasterDetailVisibility();

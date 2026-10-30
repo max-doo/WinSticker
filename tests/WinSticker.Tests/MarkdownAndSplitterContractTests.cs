@@ -598,6 +598,30 @@ public sealed class MarkdownAndSplitterContractTests
     }
 
     [Fact]
+    public void QuickCapture_AddNoteRevealsTheNoteListBeforeCreating()
+    {
+        string code = File.ReadAllText(TestPaths.FromRepository(
+            "src/WinSticker/Controls/WidgetContents/QuickCaptureSurfaceContent.xaml.cs"));
+
+        int reveal = code.IndexOf("RevealNoteListForNewNote();", StringComparison.Ordinal);
+        int switchToRecords = code.IndexOf(
+            "await SwitchViewAsync(QuickCaptureViewMode.Records);",
+            StringComparison.Ordinal);
+        int create = code.IndexOf(
+            "ViewModel.NoteService.CreateNoteAsync()",
+            StringComparison.Ordinal);
+
+        Assert.True(reveal > 0, "The new-note path must clear an active search filter first.");
+        Assert.True(
+            switchToRecords > reveal,
+            "The new-note path must select the note list before the row is created.");
+        Assert.True(
+            create > switchToRecords,
+            "Creating the note before the list is revealed leaves Items without the new row, " +
+            "so the detail page never opens.");
+    }
+
+    [Fact]
     public void QuickCapture_ReattachKeepsListStillAndRestoresSelectedDetail()
     {
         string xaml = File.ReadAllText(TestPaths.FromRepository(

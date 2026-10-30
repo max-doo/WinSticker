@@ -105,6 +105,27 @@ public sealed class TodoDetailHeaderLayoutContractTests
     }
 
     [Fact]
+    public void CreateConfirmation_ImmediatelyExitsSinglePaneDetailAfterSaving()
+    {
+        string code = File.ReadAllText(TestPaths.FromRepository(
+            "src/WinSticker/Controls/WidgetContents/TodoWidgetContent.xaml.cs"));
+        int handlerStart = code.IndexOf(
+            "private async void DetailSaveButton_Click",
+            StringComparison.Ordinal);
+        int handlerEnd = code.IndexOf(
+            "private async void DetailImportantButton_Click",
+            StringComparison.Ordinal);
+
+        Assert.True(handlerStart >= 0 && handlerEnd > handlerStart);
+        string handler = code[handlerStart..handlerEnd];
+        Assert.Contains("if (!_isDualPane)", handler, StringComparison.Ordinal);
+        Assert.Contains("ViewModel?.CloseDetail();", handler, StringComparison.Ordinal);
+        Assert.Contains("ClearTodoListContainerSelection();", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlayDetailExitAnimationAsync", handler, StringComparison.Ordinal);
+        Assert.Contains("ShowTodoStatus(\"Todo.Status.Saved\")", handler, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ListCompletionAndRetainedDetailActions_ReportSpecificStatusFeedback()
     {
         string contentCode = File.ReadAllText(TestPaths.FromRepository(

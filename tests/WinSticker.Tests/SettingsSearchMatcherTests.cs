@@ -33,7 +33,7 @@ public sealed class SettingsSearchMatcherTests
         int score = SettingsSearchMatcher.GetScore(
             "Ctrl+Enter",
             "回车键行为",
-            "功能贴纸 / 随记",
+            "功能贴纸 / 便签",
             "使用 Ctrl+Enter 保存当前内容");
 
         Assert.NotEqual(SettingsSearchMatcher.NoMatch, score);
